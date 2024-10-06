@@ -15,10 +15,11 @@ import pygraphviz
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
 
+allowed_divisions = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
 
-def safe_add_parent(node, parent):
+def safe_add_parent(parent, node):
 	if node is parent:
 		print("self parent")
 		print(node)
@@ -28,7 +29,7 @@ def safe_add_parent(node, parent):
 def visualize(src, nodes):
 	src.children = nodes
 	for node in nodes:
-		safe_add_parent(node, src)
+		safe_add_parent(src, node)
 	src.visualize()
 
 def sort_nodes(nodes):
@@ -37,18 +38,21 @@ def sort_nodes(nodes):
 def get_values(nodes):
 	return list(map(lambda node: node.value, nodes))
 
+def get_nodes_id(nodes):
+	return list(map(lambda node: node.node_id, nodes))
+
 class Node:
-	def __init__(self, value, parents=[]):
+	def __init__(self, value, node_id=None):
 		self.value = value
-		self.parents = parents
-		self.children = []
+		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.depth = -1
 		self.tree_height = -1
 		self.level = -1
-		self.id = str(uuid.uuid4())
+		self.parents = []
+		self.children = []
 
 	def __repr__(self):
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, children=["
 		if self.children:
 			for child in self.children:
 				r += "\n" + str(child)
@@ -64,27 +68,24 @@ class Node:
 		return cur
 
 	def _deepcopy(self):
-		new_node = Node(self.value)
-		new_node.id = self.id
+		new_node = Node(self.value, node_id=self.node_id)
 		new_node.depth = self.depth
 		new_node.tree_height = self.tree_height
 		new_node.level = self.level
 		new_node.children = [child._deepcopy() for child in self.children]
 		for child in new_node.children:
-			safe_add_parent(child, new_node)
+			safe_add_parent(new_node, child)
 		return new_node
 
 	def deepcopy(self):
 		deep_copied_root = self.get_root()._deepcopy()
-		return deep_copied_root.find(self.id)
+		return deep_copied_root.find(self.node_id)
 
 	def find(self, node_id):
-		if self.id == node_id:
-			return self
+		if self.node_id == node_id: return self
 		for child in self.children:
 			result = child.find(node_id)
-			if result is not None:
-				return result
+			if result: return result
 		return None
 
 	def compute_depth_and_tree_height(self, parent):
@@ -114,9 +115,9 @@ class Node:
 		self.compute_level(self.tree_height)
 
 	def add_edges(self, G):
-		G.add_node(self.id, label=str(self.value), level=self.level)  # Include level in attributes
+		G.add_node(self.node_id, label=str(self.value), level=self.level)  # Include level in attributes
 		for child in self.children:
-			G.add_edge(self.id, child.id)
+			G.add_edge(self.node_id, child.node_id)
 			child.add_edges(G)
 
 	def visualize(self):
@@ -151,46 +152,48 @@ class Node:
 			plt.axis('off')
 			plt.show()
 
-	def _merge(self, down, *other):
+	def _merge(self, down, other):
+		# print("merge called")
 		new_value = self.value + sum(get_values(other))
 		new_node = Node(new_value)
 		if down:
-			safe_add_parent(new_node, self)
+			safe_add_parent(self, new_node)
 			self.children.append(new_node)
 			for node in other:
-				safe_add_parent(new_node, node)
+				safe_add_parent(node, new_node)
 				node.children.append(new_node)
 		else:
-			safe_add_parent(self, new_node)
+			safe_add_parent(new_node, self)
 			new_node.children.append(self)
 			for node in other:
-				safe_add_parent(node, new_node)
+				safe_add_parent(new_node, node)
 				new_node.children.append(node)
 		return new_node
 
-	def merge_down(self, *other):
-		return self._merge(True, *other)
+	def merge_down(self, other):
+		return self._merge(True, other)
 
-	def merge_up(self, *other):
-		return self._merge(False, *other)
+	def merge_up(self, other):
+		return self._merge(False, other)
 
 	def can_split(self, divisor):
-		if divisor not in (2, 3): return False
+		if divisor not in allowed_divisions: return False
 		new_value = self.value / divisor
 		if new_value.is_integer(): return True
 		return False
 
 	def _split(self, down, divisor):
+		# print("split called")
 		if not self.can_split(divisor): return None
 		new_value = int(self.value / divisor)
 		new_nodes = [Node(new_value) for _ in range(divisor)]
 		if down:
 			for node in new_nodes:
-				safe_add_parent(node, self)
+				safe_add_parent(self, node)
 				self.children.append(node)
 		else:
 			for node in new_nodes:
-				safe_add_parent(self, node)
+				safe_add_parent(node, self)
 				node.children.append(self)
 		return new_nodes
 
@@ -201,6 +204,7 @@ class Node:
 		return self._split(False, divisor)
 
 	def _extract(self, down, value):
+		# print("extract called")
 		if value not in conveyor_speeds:
 			raise ValueError(f"Extracted value must be one of {conveyor_speeds}.")
 		
@@ -212,13 +216,13 @@ class Node:
 		overflow_node = Node(overflow_value)
 		
 		if down:
-			safe_add_parent(extracted_node, self)
-			safe_add_parent(overflow_node, self)
+			safe_add_parent(self, extracted_node)
+			safe_add_parent(self, overflow_node)
 			self.children.append(extracted_node)
 			self.children.append(overflow_node)
 		else:
-			safe_add_parent(self, extracted_node)
-			safe_add_parent(self, overflow_node)
+			safe_add_parent(extracted_node, self)
+			safe_add_parent(overflow_node, self)
 			extracted_node.children.append(self)
 			overflow_node.children.append(self)
 		
@@ -230,15 +234,17 @@ class Node:
 	def extract_up(self, value):
 		return self._extract(False, value)
 
-	def __add__(self, *other):
-		if all(isinstance(o, Node) for o in other):
-			return self.merge_down(*other)
+	def __add__(self, other):
+		if isinstance(other, list) and all(isinstance(node, Node) for node in other):
+			return self.merge_down(other)
+		elif isinstance(other, Node):
+			return self.merge_down([other])		
 		raise ValueError("Operand must be a Node")
 
 	def __truediv__(self, divisor):
 		if isinstance(divisor, (int, float)):
 			return self.split_down(divisor)
-		raise ValueError("Divisor must be an integer (2 or 3)")
+		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(allowed_divisions)})")
 
 	def __sub__(self, amount):
 		if isinstance(amount, (int, float)):
@@ -260,7 +266,7 @@ def _simplify_merge(nodes):
 
 			i += 1
 			while i < len(nodes) and nodes[i].value == current_value:
-				if len(same_value_nodes) == 2:
+				if len(same_value_nodes) == max(allowed_divisions) - 1:
 					break
 				same_value_nodes.append(nodes[i])
 				i += 1
@@ -307,48 +313,87 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
+steps = 0
+logging = True
+seen_configs = set()
+
 def _solve(sources, targets):
-	n = len(sources)
+	global steps, seen_configs
+	steps -= 1
+
+	# Sort sources once and convert the current configuration to a tuple for duplicate checks
 	sources = sort_nodes(sources)
+	current_config = tuple(src.value for src in sources)
+	
+	# Check if this configuration has already been seen
+	if current_config in seen_configs:
+		if logging:
+			print(f"Skipping already seen configuration: {current_config}")
+		return []
+	
+	# Add current configuration to the seen set
+	seen_configs.add(current_config)
+
+	if logging:
+		print()
+		print(sources)
+		print("sources' children:")
+		for src in sources:
+			print(src.value, src.children)
+		print("sources' parents:")
+		for src in sources:
+			print(src.value, get_values(src.parents))
+
+	n = len(sources)
+
+	# Match sources with targets
 	if n == len(targets):
 		for i in range(n):
-			if sources[i].value != targets[i].value:
-				# doesn't match targets, for now, consider this a fail
+			if sources[i].value != targets[i]:
+				# Doesn't match targets, consider this a fail
 				return []
-		# link the simplified targets' trees with the current one
-		for target in targets:
-			for child in targets.children: child.parents = []
-		for i in range(n):
-			src = sources[i]
-			src.children = targets[i].children
-			for child in src.children:
-				safe_add_parent(child, src)
+		# Link the simplified targets' trees with the current one
+		# for target in targets:
+		# 	for child in target.children:
+		# 		child.parents = []
+		# for i in range(n):
+		# 	src = sources[i]
+		# 	src.children = targets[i].children
+		# 	for child in src.children:
+		# 		safe_add_parent(src, child)
 		return [sources[0].get_root()]
 
 	def get_other(i):
-		return sources[:i] + sources[i + 1:]
+		return [src.deepcopy() for src in (sources[:i] + sources[i + 1:])]
 
 	def try_divide(i, r):
+		global steps
 		src = sources[i]
 		if sum(get_values(src.parents)) == src.value: return
-		for divisor in [3, 2]:
+		for divisor in allowed_divisions:
 			if src.can_split(divisor):
 				other = get_other(i)
-				print(f"solving with {src} / {divisor} and {other}")
-				r.extend(_solve((src.deepcopy() / divisor) + other, targets))
+				if logging: print(f"solving with {src} / {divisor} and {other}")
+				if not steps:
+					print("stopping")
+					exit(0)
+				divided = src.deepcopy() / divisor
+				r.extend(_solve(divided + other, targets))
 
 	def try_extract(i, r):
+		global steps
 		src = sources[i]
 		if sum(get_values(src.parents)) == src.value: return
 		for speed in conveyor_speeds:
 			if src.value <= speed: break
 			other = get_other(i)
-			print(f"solving with {src} - {speed} and {other}")
+			if logging: print(f"solving with {src} - {speed} and {other}")
+			if not steps:
+				print("stopping")
+				exit(0)
 			r.extend(_solve((src.deepcopy() - speed) + other, targets))
 
 	r = []
-
-	print("caca")
 
 	for i in range(n):
 		try_divide(i, r)
@@ -368,8 +413,11 @@ def _solve(sources, targets):
 		]
 		to_sum = [sources[i].deepcopy() for i in range(n) if flags[i]]
 		other = [sources[i].deepcopy() for i in range(n) if not flags[i]]
-		print(f"solving with {' + '.join(to_sum)} and {other}")
-		r.extend(_solve([sum(to_sum)] + other, targets))
+		if logging: print(f"solving with {' + '.join(str(ts) for ts in to_sum)} and {other}")
+		if not steps:
+			print("stopping")
+			exit(0)
+		r.extend(_solve([to_sum[0] + to_sum[1:]] + other if len(to_sum) > 0 else other, targets))
 	
 	return r
 
@@ -380,7 +428,8 @@ def solve(src, targets):
 	elif src < total:
 		raise ValueError("the sum of targets is greater than the source", targets)
 	src = Node(src)
-	targets = simplify(list(map(lambda target: Node(target), sorted(targets))))
+	# targets = simplify(list(map(lambda target: Node(target), sorted(targets))))
+	targets = sorted(targets)
 	# visualize(src, targets)
 	return _solve([src], targets)
 
@@ -431,5 +480,11 @@ def main():
 	for r in res:
 		r.visualize()
 
+def test():
+	ids = get_nodes_id([Node(20) for _ in range(3)])
+	print(ids[0] == ids[1] and ids[1] == ids[2])
+	exit(0)
+
 if __name__ == '__main__':
+	# test()
 	main()
