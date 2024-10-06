@@ -18,6 +18,7 @@ from networkx.drawing.nx_agraph import to_agraph
 allowed_divisions = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
+short_repr = False
 
 def safe_add_parent(parent, node):
 	if node is parent:
@@ -38,8 +39,14 @@ def sort_nodes(nodes):
 def get_values(nodes):
 	return list(map(lambda node: node.value, nodes))
 
-def get_nodes_id(nodes):
-	return list(map(lambda node: node.node_id, nodes))
+def get_nodes_id(nodes, short=3):
+	return list(map(lambda node: node.node_id[-short:], nodes))
+
+def pop(node, nodes):
+	for i, other in enumerate(nodes):
+		if other.node_id == node.node_id:
+			return nodes.pop(i)
+	return None
 
 class Node:
 	def __init__(self, value, node_id=None):
@@ -52,6 +59,8 @@ class Node:
 		self.children = []
 
 	def __repr__(self):
+		if short_repr:
+			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
 		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, children=["
 		if self.children:
 			for child in self.children:
@@ -60,6 +69,14 @@ class Node:
 		else:
 			r += "])"
 		return r
+
+	def get_leaves(self):
+		if not self.children:
+			return [self]
+		leaves = []
+		for child in self.children:
+			leaves.extend(child.get_leaves())
+		return leaves
 
 	def get_root(self):
 		cur = self
@@ -314,10 +331,10 @@ def simplify(nodes):
 	return nodes
 
 steps = 0
-logging = True
+logging = False
 seen_configs = set()
 
-def _solve(sources, targets):
+def _solve(sources, target_infos):
 	global steps, seen_configs
 	steps -= 1
 
@@ -328,96 +345,150 @@ def _solve(sources, targets):
 	# Check if this configuration has already been seen
 	if current_config in seen_configs:
 		if logging:
+			print()
 			print(f"Skipping already seen configuration: {current_config}")
 		return []
 	
 	# Add current configuration to the seen set
 	seen_configs.add(current_config)
 
+	def copy_sources():
+		copy = sources[0].get_root()._deepcopy()
+		return list(map(lambda src: copy.find(src.node_id), sources))
+
 	if logging:
 		print()
 		print(sources)
 		print("sources' children:")
 		for src in sources:
-			print(src.value, src.children)
+			print(str(src), [str(child) for child in src.children])
 		print("sources' parents:")
 		for src in sources:
-			print(src.value, get_values(src.parents))
+			print(str(src), [str(parent) for parent in src.parents])
 
 	n = len(sources)
+	target_values = target_infos["values"]
+	target_counts = target_infos["counts"]
 
-	# Match sources with targets
-	if n == len(targets):
+	# Match sources with target_values
+	if n == len(target_values):
+		print("possible match", sources, target_values)
 		for i in range(n):
-			if sources[i].value != targets[i]:
-				# Doesn't match targets, consider this a fail
+			if sources[i].value != target_values[i]:
 				return []
-		# Link the simplified targets' trees with the current one
-		# for target in targets:
-		# 	for child in target.children:
-		# 		child.parents = []
-		# for i in range(n):
-		# 	src = sources[i]
-		# 	src.children = targets[i].children
-		# 	for child in src.children:
-		# 		safe_add_parent(src, child)
 		return [sources[0].get_root()]
 
-	def get_other(i):
-		return [src.deepcopy() for src in (sources[:i] + sources[i + 1:])]
+	r = []
 
-	def try_divide(i, r):
+	def try_divide(i):
+		nonlocal r
 		global steps
 		src = sources[i]
 		if sum(get_values(src.parents)) == src.value: return
 		for divisor in allowed_divisions:
-			if src.can_split(divisor):
-				other = get_other(i)
-				if logging: print(f"solving with {src} / {divisor} and {other}")
-				if not steps:
-					print("stopping")
-					exit(0)
-				divided = src.deepcopy() / divisor
-				r.extend(_solve(divided + other, targets))
+			if not src.can_split(divisor): continue
+			if logging:
+				print()
+				print(f"solving with {src} / {divisor}")
+			if not steps:
+				print("stopping")
+				exit(0)
+			copy = copy_sources()
+			src = copy[i]
+			pop(src, copy)
+			r.extend(_solve(copy + (src / divisor), target_infos))
 
-	def try_extract(i, r):
+	def try_extract(i):
+		nonlocal r
 		global steps
 		src = sources[i]
 		if sum(get_values(src.parents)) == src.value: return
 		for speed in conveyor_speeds:
 			if src.value <= speed: break
-			other = get_other(i)
-			if logging: print(f"solving with {src} - {speed} and {other}")
+			if logging:
+				print()
+				print(f"solving with {src} - {speed}")
 			if not steps:
 				print("stopping")
 				exit(0)
-			r.extend(_solve((src.deepcopy() - speed) + other, targets))
+			copy = copy_sources()
+			src = copy[i]
+			pop(src, copy)
+			r.extend(_solve(copy + (src - speed), target_infos))
 
-	r = []
+	source_counts = {}
+	for src in sources:
+		if src.value in source_counts:
+			source_counts[src.value] += 1
+		else:
+			source_counts[src.value] = 1
+
+	uses_left = {}
+	for src in sources:
+		value = src.value
+		src_count = source_counts.get(value, None)
+		target_count = target_counts.get(value, None)
+		# could be any number as long as it's != 0 since we never decrement it
+		uses_left[value] = max(0, src_count - target_count) if src_count and target_count else 727
+
+	if logging: print(uses_left)
 
 	for i in range(n):
-		try_divide(i, r)
-		try_extract(i, r)
+		value = sources[i].value
+		# you can't skip it if value in target_values is False
+		if uses_left[value] == 0: continue
+		try_divide(i)
+		try_extract(i)
 
 	# if n == 1:
 	# 	# can't merge
 	# 	return r
 
-	for num in range(0 if r else 1, 2**n):
-		flags = [
-			(
-				(num >> i) & 1
-				and sum(get_values(sources[i].parents)) != sources[i].value
-			)
-			for i in range(n)
-		]
-		to_sum = [sources[i].deepcopy() for i in range(n) if flags[i]]
-		other = [sources[i].deepcopy() for i in range(n) if not flags[i]]
-		if logging: print(f"solving with {' + '.join(str(ts) for ts in to_sum)} and {other}")
+	for num in range(3, 2**n):
+		to_sum_indices = [i for i in range(n) if (num >> i) & 1]
+		if len(to_sum_indices) <= 1: continue
+		src = sources[to_sum_indices[0]]
+		if uses_left[src.value] == 0: continue
+		if len(src.parents) == 0:
+			print("\nimpossible case reached, 0 parent while trying to merge")
+			print(src)
+			exit(1)
+		parent = src.parents[0]
+		ignore = False
+		same_parent = len(src.parents) == 1
+		for i in to_sum_indices[1:]:
+			src = sources[i]
+			if uses_left[src.value] == 0:
+				ignore = True
+				break
+			if len(src.parents) == 0:
+				print("\nimpossible case reached, 0 parent while trying to merge")
+				print(src)
+				exit(1)
+			if len(src.parents) != 1 or not src.parents[0] is parent:
+				same_parent = False
+
+		if ignore: continue
+		# same_parent means that all nodes we are trying to merge come from a single parent
+		# and its their only one, in other words, they were just split
+		if same_parent:
+			# if so they must be in number of any allowed_divisions
+			if all(d != len(to_sum_indices) for d in allowed_divisions):
+				print("\nimpossible case reached, detected a split of neither 2 or 3")
+				print(sources)
+				exit(1)
+			continue
+		
+		copy = copy_sources()
+		to_sum = [copy[i] for i in to_sum_indices]
+		list(map(lambda src: pop(src, copy), to_sum))
+		if logging:
+			print()
+			print(f"solving with {' + '.join(str(ts) for ts in to_sum)}")
 		if not steps:
 			print("stopping")
 			exit(0)
-		r.extend(_solve([to_sum[0] + to_sum[1:]] + other if len(to_sum) > 0 else other, targets))
+		r.extend(_solve(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []), target_infos))
 	
 	return r
 
@@ -431,7 +502,12 @@ def solve(src, targets):
 	# targets = simplify(list(map(lambda target: Node(target), sorted(targets))))
 	targets = sorted(targets)
 	# visualize(src, targets)
-	return _solve([src], targets)
+	return _solve([src], {
+		"values": targets,
+		"counts": {
+			value: targets.count(value) for value in set(targets)
+		}
+	})
 
 def main():
 	parser = argparse.ArgumentParser(description='Solve a Satisfactory problem')
