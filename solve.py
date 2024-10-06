@@ -15,6 +15,35 @@ import pygraphviz
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
 import math
+import time
+import signal
+
+timings = {
+	"total": 0,
+	"copy_sources": 0,
+	"try_divide": 0,
+	"try_extract": 0,
+	"try_merge": 0,
+}
+
+def print_timings():
+	total_time = timings["total"]
+	for key, val in timings.items():
+		if key == "total": continue
+		print(f"{key}: {val / total_time:.4f}")
+
+def handler(signum, frame):
+	print("Stopping and printing timing averages...")
+	print_timings()
+	exit(0)
+
+signal.signal(signal.SIGINT, handler)
+
+def time_block(key, fn, *args, **kwargs):
+	start_time = time.time()
+	result = fn(*args, **kwargs)
+	timings[key] += (time.time() - start_time)
+	return result
 
 allowed_divisions = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
@@ -85,9 +114,12 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def node_count(self):
-		self.node_count = 1 + sum(child.node_count() for child in self.children)
-		return self.node_count
+	def _compute_size(self):
+		self.size = 1 + sum(child._compute_size() for child in self.children)
+		return self.size
+
+	def compute_size(self):
+		return _compute_size(self.get_root())
 
 	def _deepcopy(self):
 		new_node = Node(self.value, node_id=self.node_id)
@@ -356,12 +388,13 @@ def _solve(initial_sources, target_infos):
 
 	queue = [initial_sources]
 	solution = None
-	solution_node_count = 0
+	solution_size = 0
 	target_values = target_infos["values"]
 	target_counts = target_infos["counts"]
 	gcd = target_infos["gcd"]
 
 	while queue:
+		start_total = time.time()
 		sources = queue.pop(0)
 
 		steps -= 1
@@ -372,24 +405,16 @@ def _solve(initial_sources, target_infos):
 			print(f"still trying... (step {-steps})")
 
 		sources = sort_nodes(sources)
-
-		def copy_sources():
+		
+		def _copy_sources():
 			copy = sources[0].get_root()._deepcopy()
 			return list(map(lambda src: copy.find(src.node_id), sources))
 
-		if logging:
-			print()
-			print(sources)
-			print("sources' children:")
-			for src in sources:
-				print(str(src), [str(child) for child in src.children])
-			print("sources' parents:")
-			for src in sources:
-				print(str(src), [str(parent) for parent in src.parents])
+		def copy_sources():
+			return time_block("copy_sources", _copy_sources)
 
 		n = len(sources)
 
-		# Match sources with target_values
 		if n == len(target_values):
 			matches = True
 			for i in range(n):
@@ -399,10 +424,9 @@ def _solve(initial_sources, target_infos):
 			if matches:
 				print("one solution found", sources, target_values)
 				new_solution = sources[0].get_root()
-				new_solution_node_count = new_solution.node_count()
-				if solution is None or new_solution.node_count() < solution_node_count:
+				new_solution._compute_size()
+				if solution is None or new_solution.size < solution.size:
 					solution = new_solution
-					solution_node_count = new_solution_node_count
 
 		source_counts = {}
 		for src in sources:
@@ -411,15 +435,12 @@ def _solve(initial_sources, target_infos):
 			else:
 				source_counts[src.value] = 1
 
-		uses_left = {}
+		can_use = {}
 		for src in sources:
 			value = src.value
 			src_count = source_counts.get(value, None)
 			target_count = target_counts.get(value, None)
-			# could be any number as long as it's != 0 since we never decrement it
-			uses_left[value] = max(0, src_count - target_count) if src_count and target_count else 727
-
-		if logging: print(uses_left)
+			can_use[value] = max(0, src_count - target_count) > 0 if src_count and target_count else True
 
 		def get_sim_without(value):
 			sim = []
@@ -433,42 +454,72 @@ def _solve(initial_sources, target_infos):
 				sim.append(sources[j].value)
 			return sim
 
-		def try_divide(src):
+		def _try_divide(src):
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for divisor in allowed_divisions:
+				
 				if not src.can_split(divisor): continue
+				
 				divided_value = int(src.value / divisor)
 				if divided_value < gcd: continue
-				sim = sim if sim else get_sim_without(src.value)
-				if has_seen(sim + [divided_value] * 2): continue
+				
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					simulated_size = sources.size - 1 + divisor
+					if simulated_size >= solution.size: continue
 
+				sim = sim if sim else get_sim_without(src.value)
+				if has_seen(sim + [divided_value] * divisor): continue
+				
 				copy = copy_sources()
 				src = copy[i]
 				pop(src, copy)
 				queue.append(copy + (src / divisor))
 
-		def try_extract(src):
+		def try_divide(src):
+			time_block("try_divide", _try_divide, src)
+
+		def _try_extract(src):
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for speed in conveyor_speeds:
+				
 				if src.value <= speed: break
+				
 				extracted_value = src.value - speed
 				overflow_value = src.value - extracted_value
 				if extracted_value < gcd or overflow_value < gcd: continue
+				
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					simulated_size = sources.size + 2
+					if simulated_size >= solution.size: continue		
+
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [extracted_value, overflow_value] * 2): continue
-
+				
 				copy = copy_sources()
 				src = copy[i]
 				pop(src, copy)
 				queue.append(copy + (src - speed))
 
-		def try_merge(sources, to_sum_indices, to_not_sum_indices):
-			nonlocal uses_left
+		def try_extract(src):
+			time_block("try_extract", _try_extract, src)
+
+		def _try_merge(sources, to_sum_indices, to_not_sum_indices):
+			nonlocal can_use
+			
 			if len(to_sum_indices) <= 1: return
+			
 			src = sources[to_sum_indices[0]]
-			if uses_left[src.value] == 0: return
+			
+			if can_use[src.value] == 0: return
+
+			if solution:
+				simulated_size = len(to_not_sum_indices) + 1
+				if simulated_size >= solution.size: return
+
 			if len(src.parents) == 0:
 				print("\nimpossible case reached, 0 parent while trying to merge")
 				print(src)
@@ -478,7 +529,7 @@ def _solve(initial_sources, target_infos):
 			same_parent = len(src.parents) == 1
 			for i in to_sum_indices[1:]:
 				src = sources[i]
-				if uses_left[src.value] == 0:
+				if can_use[src.value] == 0:
 					ignore = True
 					break
 				if len(src.parents) == 0:
@@ -487,34 +538,33 @@ def _solve(initial_sources, target_infos):
 					exit(1)
 				if len(src.parents) != 1 or not src.parents[0] is parent:
 					same_parent = False
-
 			if ignore: return
-			# same_parent means that all nodes we are trying to merge come from a single parent
-			# and its their only one, in other words, they were just split
-			# if we just so happen to try merging them again by the same amount they were split, that's a skip
 			if same_parent and len(to_sum_indices) == len(src.parents[0].children):
-				# if so they must be in number of any allowed_divisions
 				if all(d != len(to_sum_indices) for d in allowed_divisions):
 					print("\nimpossible case reached, detected a split of neither 2 or 3")
 					print(sources)
 					exit(1)
 				return
-			
-			sim = [sum(get_values(sources[i] for i in to_sum_indices))]
+
+			summed_value = sum(get_values(sources[i] for i in to_sum_indices))
+			sim = [summed_value]
 			for i in to_not_sum_indices: sim.append(sources[i].value)
 			if has_seen(sim): return
 
 			copy = copy_sources()
 			to_sum = [copy[i] for i in to_sum_indices]
-			if sum(ts.value for ts in to_sum) < gcd:
+			if summed_value < gcd:
 				print("impossible case reached, sum of merged nodes is lower than gcd")
 				exit(1)
 			list(map(lambda src: pop(src, copy), to_sum))
 			queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
 
+		def try_merge(sources, to_sum_indices, to_not_sum_indices):
+			time_block("try_merge", _try_merge, sources, to_sum_indices, to_not_sum_indices)
+
 		for i in range(n):
 			src = sources[i]
-			if uses_left[src.value] == 0: continue
+			if can_use[src.value] == 0: continue
 			try_divide(src)
 			try_extract(src)
 			for num in range(3, 2**n):
@@ -526,6 +576,8 @@ def _solve(initial_sources, target_infos):
 						to_not_sum_indices.append(i)
 				try_merge(sources, to_sum_indices, to_not_sum_indices)
 		
+		timings["total"] += (time.time() - start_total)
+	
 	return solution
 
 def solve(src, targets):
