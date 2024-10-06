@@ -339,8 +339,20 @@ steps = -1
 logging = False
 seen_configs = set()
 
+def has_seen(sim):
+	current_config = tuple(sorted(sim))
+		
+	if current_config in seen_configs:
+		if logging:
+			print()
+			print(f"Skipping already seen configuration: {current_config}")
+		return True
+	
+	seen_configs.add(current_config)
+	return False
+
 def _solve(initial_sources, target_infos):
-	global steps, seen_configs
+	global steps
 
 	queue = [initial_sources]
 	solution = None
@@ -356,17 +368,10 @@ def _solve(initial_sources, target_infos):
 		if steps + 1 == 0:
 			print("stopping")
 			exit(0)
+		if (-steps) % 1000 == 0:
+			print(f"still trying... (step {-steps})")
 
 		sources = sort_nodes(sources)
-		current_config = tuple(src.value for src in sources)
-		
-		if current_config in seen_configs:
-			if logging:
-				print()
-				print(f"Skipping already seen configuration: {current_config}")
-			continue
-		
-		seen_configs.add(current_config)
 
 		def copy_sources():
 			copy = sources[0].get_root()._deepcopy()
@@ -391,13 +396,13 @@ def _solve(initial_sources, target_infos):
 				if sources[i].value != target_values[i]:
 					matches = False
 					break
-			if not matches: continue
-			print("one solution found", sources, target_values)
-			new_solution = sources[0].get_root()
-			new_solution_node_count = new_solution.node_count()
-			if solution is None or new_solution.node_count() < solution_node_count:
-				solution = new_solution
-				solution_node_count = new_solution_node_count
+			if matches:
+				print("one solution found", sources, target_values)
+				new_solution = sources[0].get_root()
+				new_solution_node_count = new_solution.node_count()
+				if solution is None or new_solution.node_count() < solution_node_count:
+					solution = new_solution
+					solution_node_count = new_solution_node_count
 
 		source_counts = {}
 		for src in sources:
@@ -416,11 +421,28 @@ def _solve(initial_sources, target_infos):
 
 		if logging: print(uses_left)
 
+		def get_sim_without(value):
+			sim = []
+			i = 0
+			while i < n:
+				src = sources[i]
+				if src.value == value: break
+				sim.append(src.value)
+				i += 1
+			for j in range(i + 1, n):
+				sim.append(sources[j].value)
+			return sim
+
 		def try_divide(src):
 			if sum(get_values(src.parents)) == src.value: return
+			sim = None
 			for divisor in allowed_divisions:
 				if not src.can_split(divisor): continue
-				if int(src.value / divisor) < gcd: continue
+				divided_value = int(src.value / divisor)
+				if divided_value < gcd: continue
+				sim = sim if sim else get_sim_without(src.value)
+				if has_seen(sim + [divided_value] * 2): continue
+
 				copy = copy_sources()
 				src = copy[i]
 				pop(src, copy)
@@ -428,15 +450,21 @@ def _solve(initial_sources, target_infos):
 
 		def try_extract(src):
 			if sum(get_values(src.parents)) == src.value: return
+			sim = None
 			for speed in conveyor_speeds:
 				if src.value <= speed: break
-				if src.value - speed < gcd: continue
+				extracted_value = src.value - speed
+				overflow_value = src.value - extracted_value
+				if extracted_value < gcd or overflow_value < gcd: continue
+				sim = sim if sim else get_sim_without(src.value)
+				if has_seen(sim + [extracted_value, overflow_value] * 2): continue
+
 				copy = copy_sources()
 				src = copy[i]
 				pop(src, copy)
 				queue.append(copy + (src - speed))
 
-		def try_merge(sources, to_sum_indices):
+		def try_merge(sources, to_sum_indices, to_not_sum_indices):
 			nonlocal uses_left
 			if len(to_sum_indices) <= 1: return
 			src = sources[to_sum_indices[0]]
@@ -472,6 +500,10 @@ def _solve(initial_sources, target_infos):
 					exit(1)
 				return
 			
+			sim = [sum(get_values(sources[i] for i in to_sum_indices))]
+			for i in to_not_sum_indices: sim.append(sources[i].value)
+			if has_seen(sim): return
+
 			copy = copy_sources()
 			to_sum = [copy[i] for i in to_sum_indices]
 			if sum(ts.value for ts in to_sum) < gcd:
@@ -486,7 +518,13 @@ def _solve(initial_sources, target_infos):
 			try_divide(src)
 			try_extract(src)
 			for num in range(3, 2**n):
-				try_merge(sources, [i for i in range(n) if (num >> i) & 1])
+				to_sum_indices, to_not_sum_indices = [], []
+				for i in range(n):
+					if (num >> i) & 1:
+						to_sum_indices.append(i)
+					else:
+						to_not_sum_indices.append(i)
+				try_merge(sources, to_sum_indices, to_not_sum_indices)
 		
 	return solution
 
