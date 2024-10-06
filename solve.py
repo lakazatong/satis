@@ -85,6 +85,7 @@ class Node:
 		self.depth = -1
 		self.tree_height = -1
 		self.level = -1
+		self.size = None
 		self.parents = []
 		self.children = []
 
@@ -119,7 +120,7 @@ class Node:
 		return self.size
 
 	def compute_size(self):
-		return _compute_size(self.get_root())
+		return self.get_root()._compute_size()
 
 	def _deepcopy(self):
 		new_node = Node(self.value, node_id=self.node_id)
@@ -443,6 +444,7 @@ def _solve(initial_sources, target_infos):
 			can_use[value] = max(0, src_count - target_count) > 0 if src_count and target_count else True
 
 		def get_sim_without(value):
+			nonlocal sources
 			sim = []
 			i = 0
 			while i < n:
@@ -455,6 +457,7 @@ def _solve(initial_sources, target_infos):
 			return sim
 
 		def _try_divide(src):
+			nonlocal sources
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for divisor in allowed_divisions:
@@ -463,14 +466,13 @@ def _solve(initial_sources, target_infos):
 				
 				divided_value = int(src.value / divisor)
 				if divided_value < gcd: continue
-				
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					simulated_size = sources.size - 1 + divisor
-					if simulated_size >= solution.size: continue
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [divided_value] * divisor): continue
+				
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					if sources[0].size + divisor >= solution.size: continue
 				
 				copy = copy_sources()
 				src = copy[i]
@@ -481,6 +483,7 @@ def _solve(initial_sources, target_infos):
 			time_block("try_divide", _try_divide, src)
 
 		def _try_extract(src):
+			nonlocal sources
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for speed in conveyor_speeds:
@@ -490,14 +493,13 @@ def _solve(initial_sources, target_infos):
 				extracted_value = src.value - speed
 				overflow_value = src.value - extracted_value
 				if extracted_value < gcd or overflow_value < gcd: continue
+
+				sim = sim if sim else get_sim_without(src.value)
+				if has_seen(sim + [extracted_value, overflow_value]): continue
 				
 				if solution:
 					if not sources[0].size: sources[0].compute_size()
-					simulated_size = sources.size + 2
-					if simulated_size >= solution.size: continue		
-
-				sim = sim if sim else get_sim_without(src.value)
-				if has_seen(sim + [extracted_value, overflow_value] * 2): continue
+					if sources[0].size + 2 >= solution.size: continue
 				
 				copy = copy_sources()
 				src = copy[i]
@@ -561,7 +563,7 @@ def _solve(initial_sources, target_infos):
 
 		def try_merge(sources, to_sum_indices, to_not_sum_indices):
 			time_block("try_merge", _try_merge, sources, to_sum_indices, to_not_sum_indices)
-
+		
 		for i in range(n):
 			src = sources[i]
 			if can_use[src.value] == 0: continue
