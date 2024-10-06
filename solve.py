@@ -24,6 +24,9 @@ timings = {
 	"try_divide": 0,
 	"try_extract": 0,
 	"try_merge": 0,
+	"get_sim_without": 0,
+	"get_to_sums1": 0,
+	"get_to_sums2": 0,
 }
 
 def print_timings():
@@ -398,9 +401,10 @@ def _solve(initial_sources, target_infos):
 		steps -= 1
 		if steps + 1 == 0:
 			print("stopping")
+			print_timings()
 			exit(0)
 		if (-steps) % 1000 == 0:
-			print(f"still trying... (step {-steps})")
+			print(f"step {abs(steps)}")
 
 		sources = sort_nodes(sources)
 		
@@ -442,18 +446,19 @@ def _solve(initial_sources, target_infos):
 			target_count = target_counts.get(value, None)
 			can_use[value] = max(0, src_count - target_count) > 0 if src_count and target_count else True
 
-		def get_sim_without(value):
+		def _get_sim_without(value):
 			nonlocal sources
 			sim = []
-			i = 0
-			while i < n:
-				src = sources[i]
-				if src.value == value: break
-				sim.append(src.value)
-				i += 1
-			for j in range(i + 1, n):
-				sim.append(sources[j].value)
+			found = False
+			for src in sources:
+				if src.value == value and not found:
+					found = True
+				else:
+					sim.append(src.value)
 			return sim
+
+		def get_sim_without(value):
+			return time_block("get_sim_without", _get_sim_without, value)
 
 		def _try_divide(src):
 			nonlocal sources
@@ -508,17 +513,25 @@ def _solve(initial_sources, target_infos):
 		def try_extract(src):
 			time_block("try_extract", _try_extract, src)
 
-		def _try_merge(sources, to_sum_indices, to_not_sum_indices):
+		def _try_merge(sources, flags):
 			nonlocal can_use
 			
-			if len(to_sum_indices) <= 1: return
-			
-			src = sources[to_sum_indices[0]]
+			to_sum_count = sum(flags)
+			to_not_sum_count = n - to_sum_count
+			if to_sum_count <= 1: return
+
+			to_not_sum_indices = []
+			i = 0
+			while not flags[i]:
+				to_not_sum_indices.append(i)
+				i += 1
+			src = sources[i]
+			to_sum_indices = [i]
 			
 			if can_use[src.value] == 0: return
 
 			if solution:
-				simulated_size = len(to_not_sum_indices) + 1
+				simulated_size = to_not_sum_count + 1
 				if simulated_size >= solution.size: return
 
 			if len(src.parents) == 0:
@@ -528,7 +541,12 @@ def _solve(initial_sources, target_infos):
 			parent = src.parents[0]
 			ignore = False
 			same_parent = len(src.parents) == 1
-			for i in to_sum_indices[1:]:
+			while i < n - 1:
+				i += 1
+				if not flags[i]:
+					to_not_sum_indices.append(i)
+					continue
+				to_sum_indices.append(i)
 				src = sources[i]
 				if can_use[src.value] == 0:
 					ignore = True
@@ -540,16 +558,15 @@ def _solve(initial_sources, target_infos):
 				if len(src.parents) != 1 or not src.parents[0] is parent:
 					same_parent = False
 			if ignore: return
-			if same_parent and len(to_sum_indices) == len(src.parents[0].children):
-				if all(d != len(to_sum_indices) for d in allowed_divisions):
+			if same_parent and to_sum_count == len(src.parents[0].children):
+				if all(d != to_sum_count for d in allowed_divisions):
 					print("\nimpossible case reached, detected a split of neither 2 or 3")
 					print(sources)
 					exit(1)
 				return
 
-			summed_value = sum(get_values(sources[i] for i in to_sum_indices))
-			sim = [summed_value]
-			for i in to_not_sum_indices: sim.append(sources[i].value)
+			summed_value = sum(sources[i].value for i in to_sum_indices)
+			sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
 			if has_seen(sim): return
 
 			copy = copy_sources()
@@ -560,22 +577,29 @@ def _solve(initial_sources, target_infos):
 			list(map(lambda src: pop(src, copy), to_sum))
 			queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
 
-		def try_merge(sources, to_sum_indices, to_not_sum_indices):
-			time_block("try_merge", _try_merge, sources, to_sum_indices, to_not_sum_indices)
-		
+		def try_merge(sources, flags):
+			time_block("try_merge", _try_merge, sources, flags)
+
 		for i in range(n):
 			src = sources[i]
 			if can_use[src.value] == 0: continue
 			try_divide(src)
 			try_extract(src)
-			for num in range(3, 2**n):
-				to_sum_indices, to_not_sum_indices = [], []
-				for i in range(n):
-					if (num >> i) & 1:
-						to_sum_indices.append(i)
-					else:
-						to_not_sum_indices.append(i)
-				try_merge(sources, to_sum_indices, to_not_sum_indices)
+
+		def increment(binary_array):
+			for i in range(n):
+				binary_array[i] = not binary_array[i]
+				if binary_array[i]: break
+
+		if n >= 2:
+			binary_start = 3
+			max_num = (1 << n) - 1 # 2^n - 1
+			binary = [False] * n
+			binary[0] = True
+			binary[1] = True
+			for _ in range(binary_start, max_num + 1):
+				try_merge(sources, binary)
+				increment(binary)
 		
 		timings["total"] += (time.time() - start_total)
 	
@@ -643,6 +667,7 @@ def main():
 		exit(1)
 
 	sol = solve(src, targets)
+	print("\n Smallest solution found:\n")
 	sol.visualize()
 
 def test():
