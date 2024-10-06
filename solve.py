@@ -170,7 +170,7 @@ class Node:
 		self.compute_level(self.tree_height)
 
 	def add_edges(self, G):
-		G.add_node(self.node_id, label=str(self.value), level=self.level)  # Include level in attributes
+		G.add_node(self.node_id, label=str(self.value), level=self.level)
 		for child in self.children:
 			G.add_edge(self.node_id, child.node_id)
 			child.add_edges(G)
@@ -183,21 +183,18 @@ class Node:
 
 		A = to_agraph(G)
 
-		# Enforce levels as ranks in Graphviz
 		for node in G.nodes:
 			level = G.nodes[node]['level']
 			A.get_node(node).attr['rank'] = f'{level}'
 
-		# Create subgraphs for nodes with the same level
 		for level in set(nx.get_node_attributes(G, 'level').values()):
 			subgraph = A.add_subgraph(
 				[n for n, attr in G.nodes(data=True) if attr['level'] == level],
 				rank='same'
 			)
 
-		A.graph_attr['rankdir'] = 'TB'  # Bottom to Top layout
+		A.graph_attr['rankdir'] = 'TB'
 
-		# Render the graph
 		with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
 			A.layout(prog='dot')
 			A.draw(tmpfile.name, format='png')
@@ -423,11 +420,13 @@ def _solve(initial_sources, target_infos):
 					matches = False
 					break
 			if matches:
-				print("one solution found", sources, target_values)
+				print("one solution found")
 				new_solution = sources[0].get_root()
 				new_solution._compute_size()
 				if solution is None or new_solution.size < solution.size:
 					solution = new_solution
+				solution.compute_depth_informations()
+				print(solution)
 
 		source_counts = {}
 		for src in sources:
