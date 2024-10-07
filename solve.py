@@ -84,6 +84,11 @@ def pop(node, nodes):
 			return nodes.pop(i)
 	return None
 
+def increment(binary_array):
+	for i in range(len(binary_array)):
+		binary_array[i] = not binary_array[i]
+		if binary_array[i]: break
+
 class Node:
 	def __init__(self, value, node_id=None):
 		self.value = value
@@ -371,7 +376,7 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
-steps = 10000
+steps = -1
 logging = False
 seen_configs = set()
 
@@ -434,6 +439,7 @@ def _solve(initial_sources, target_infos):
 					solution = new_solution
 				solution.compute_depth_informations()
 				print(solution)
+				# solution.visualize()
 
 		source_counts = {}
 		for src in sources:
@@ -585,11 +591,6 @@ def _solve(initial_sources, target_infos):
 			if cant_use[src.value]: continue
 			try_divide(src)
 			try_extract(src)
-
-		def increment(binary_array):
-			for i in range(n):
-				binary_array[i] = not binary_array[i]
-				if binary_array[i]: break
 
 		if n >= 2:
 			binary_start = 3
