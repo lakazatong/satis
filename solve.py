@@ -45,8 +45,11 @@ signal.signal(signal.SIGINT, handler)
 def time_block(key, fn, *args, **kwargs):
 	start_time = time.time()
 	result = fn(*args, **kwargs)
-	timings[key] += (time.time() - start_time)
+	timings[key] += time.time() - start_time
 	return result
+
+def set_time(key, start_time):
+	timings[key] += time.time() - start_time
 
 allowed_divisions = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
@@ -368,7 +371,7 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
-steps = -1
+steps = 10000
 logging = False
 seen_configs = set()
 
@@ -439,12 +442,12 @@ def _solve(initial_sources, target_infos):
 			else:
 				source_counts[src.value] = 1
 
-		can_use = {}
+		cant_use = {}
 		for src in sources:
 			value = src.value
 			src_count = source_counts.get(value, None)
 			target_count = target_counts.get(value, None)
-			can_use[value] = max(0, src_count - target_count) > 0 if src_count and target_count else True
+			cant_use[value] = max(0, src_count - target_count) == 0 if src_count and target_count else False
 
 		def _get_sim_without(value):
 			nonlocal sources
@@ -514,11 +517,13 @@ def _solve(initial_sources, target_infos):
 			time_block("try_extract", _try_extract, src)
 
 		def _try_merge(sources, flags):
-			nonlocal can_use
+			nonlocal cant_use
 			
 			to_sum_count = sum(flags)
-			to_not_sum_count = n - to_sum_count
 			if to_sum_count <= 1: return
+			if solution:
+				simulated_size = n - to_sum_count + 1
+				if simulated_size >= solution.size: return
 
 			to_not_sum_indices = []
 			i = 0
@@ -526,44 +531,39 @@ def _solve(initial_sources, target_infos):
 				to_not_sum_indices.append(i)
 				i += 1
 			src = sources[i]
+			if cant_use[src.value]: return
 			to_sum_indices = [i]
-			
-			if can_use[src.value] == 0: return
-
-			if solution:
-				simulated_size = to_not_sum_count + 1
-				if simulated_size >= solution.size: return
 
 			if len(src.parents) == 0:
 				print("\nimpossible case reached, 0 parent while trying to merge")
 				print(src)
 				exit(1)
 			parent = src.parents[0]
-			ignore = False
 			same_parent = len(src.parents) == 1
 			while i < n - 1:
 				i += 1
 				if not flags[i]:
 					to_not_sum_indices.append(i)
 					continue
-				to_sum_indices.append(i)
 				src = sources[i]
-				if can_use[src.value] == 0:
-					ignore = True
-					break
+				if cant_use[src.value]: return
 				if len(src.parents) == 0:
 					print("\nimpossible case reached, 0 parent while trying to merge")
 					print(src)
 					exit(1)
 				if len(src.parents) != 1 or not src.parents[0] is parent:
 					same_parent = False
-			if ignore: return
+				to_sum_indices.append(i)
 			if same_parent and to_sum_count == len(src.parents[0].children):
 				if all(d != to_sum_count for d in allowed_divisions):
 					print("\nimpossible case reached, detected a split of neither 2 or 3")
 					print(sources)
 					exit(1)
 				return
+
+			if to_sum_count != len(to_sum_indices):
+				print("wtf")
+				exit(1)
 
 			summed_value = sum(sources[i].value for i in to_sum_indices)
 			sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
@@ -582,7 +582,7 @@ def _solve(initial_sources, target_infos):
 
 		for i in range(n):
 			src = sources[i]
-			if can_use[src.value] == 0: continue
+			if cant_use[src.value]: continue
 			try_divide(src)
 			try_extract(src)
 
