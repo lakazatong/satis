@@ -58,7 +58,7 @@ conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
 short_repr = False
 
 def safe_add_parent(parent, node):
-	if node is parent:
+	if node is parent or node.has_parent(parent):
 		print("self parent")
 		print(node)
 		exit(1)
@@ -94,17 +94,17 @@ class Node:
 	def __init__(self, value, node_id=None):
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
-		self.depth = -1
-		self.tree_height = -1
-		self.level = -1
-		self.size = None
+		self.depth = 1
+		self.tree_height = 1
+		self.level = None
+		self.size = 1
 		self.parents = []
 		self.children = []
 
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, children=["
 		if self.children:
 			for child in self.children:
 				r += "\n" + str(child)
@@ -129,7 +129,8 @@ class Node:
 
 	def _compute_size(self):
 		# print('contributing to size:', self)
-		self.size = 1 + sum(child._compute_size() for child in self.children)
+		self.size = 1
+		if self.children: self.size += sum(child._compute_size() for child in self.children)
 		return self.size
 
 	def compute_size(self):
@@ -155,6 +156,11 @@ class Node:
 			result = child.find(node_id)
 			if result: return result
 		return None
+
+	def has_parent(self, parent):
+		for p in self.parents:
+			if p is parent or p.has_parent(parent): return True
+		return False
 
 	def compute_depth_and_tree_height(self, parent):
 		self.depth = 1 + parent.depth if parent else 1
@@ -414,7 +420,6 @@ def _solve(initial_sources, target_infos):
 	divide_queue = []
 	merge_queue = []
 	solution = None
-	solution_size = 0
 	target_nodes = target_infos["nodes"]
 	target_values = target_infos["values"]
 	target_counts = target_infos["counts"]
@@ -467,8 +472,8 @@ def _solve(initial_sources, target_infos):
 					solution = new_solution
 				solution.compute_depth_informations()
 				print(f"one solution found of size {solution.size}")
-				print(solution)
-				# solution.visualize()
+				# print(solution)
+				solution.visualize()
 
 				# consider the first solution the best since we are doing a BFS
 				# plus solutions that invole merges are always processed last
@@ -508,6 +513,10 @@ def _solve(initial_sources, target_infos):
 			sim = None
 			for speed in conveyor_speeds:
 				
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					if sources[0].size + 2 >= solution.size: continue
+				
 				if src.value <= speed: break
 				
 				extracted_value = src.value - speed
@@ -516,10 +525,6 @@ def _solve(initial_sources, target_infos):
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [extracted_value, overflow_value]): continue
-				
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					if sources[0].size + 2 >= solution.size: continue
 				
 				copy = copy_sources()
 				src = copy[i]
@@ -534,6 +539,10 @@ def _solve(initial_sources, target_infos):
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for divisor in allowed_divisions:
+
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					if sources[0].size + divisor >= solution.size: continue
 				
 				if not src.can_split(divisor): continue
 				
@@ -542,10 +551,6 @@ def _solve(initial_sources, target_infos):
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [divided_value] * divisor): continue
-				
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					if sources[0].size + divisor >= solution.size: continue
 				
 				copy = copy_sources()
 				src = copy[i]
@@ -560,9 +565,7 @@ def _solve(initial_sources, target_infos):
 			
 			to_sum_count = sum(flags)
 			if to_sum_count <= 1: return
-			if solution:
-				simulated_size = n - to_sum_count + 1
-				if simulated_size >= solution.size: return
+			if solution and n - to_sum_count + 1 >= solution.size: return
 
 			to_not_sum_indices = []
 			i = 0
