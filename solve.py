@@ -17,6 +17,7 @@ from networkx.drawing.nx_agraph import to_agraph
 import math
 import time
 import signal
+import random
 
 timings = {
 	"total": 0,
@@ -127,6 +128,7 @@ class Node:
 		return cur
 
 	def _compute_size(self):
+		# print('contributing to size:', self)
 		self.size = 1 + sum(child._compute_size() for child in self.children)
 		return self.size
 
@@ -335,7 +337,7 @@ def _simplify_merge(nodes):
 				i += 1
 
 			if len(same_value_nodes) > 0:
-				merged_node = current_node.merge_up(*same_value_nodes)
+				merged_node = current_node.merge_up(same_value_nodes)
 				merged_nodes.append(merged_node)
 				done = False
 				has_merged = True
@@ -376,10 +378,6 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
-steps = -1
-logging = False
-seen_configs = set()
-
 def has_seen(sim):
 	current_config = tuple(sorted(sim))
 		
@@ -392,12 +390,32 @@ def has_seen(sim):
 	seen_configs.add(current_config)
 	return False
 
+def refill_queue(queue, divide_queue, extract_queue, merge_queue):
+	while divide_queue or extract_queue or merge_queue:
+		if not divide_queue and not extract_queue and not merge_queue:
+			break
+		choice = random.choice([i for i, q in enumerate([divide_queue, extract_queue, merge_queue]) if q])
+		if choice == 0 and divide_queue:
+			queue.append(divide_queue.pop(0))
+		elif choice == 1 and extract_queue:
+			queue.append(extract_queue.pop(0))
+		elif choice == 2 and merge_queue:
+			queue.append(merge_queue.pop(0))
+
+steps = -1
+logging = False
+seen_configs = set()
+
 def _solve(initial_sources, target_infos):
 	global steps
 
 	queue = [initial_sources]
+	extract_queue = []
+	divide_queue = []
+	merge_queue = []
 	solution = None
 	solution_size = 0
+	target_nodes = target_infos["nodes"]
 	target_values = target_infos["values"]
 	target_counts = target_infos["counts"]
 	gcd = target_infos["gcd"]
@@ -432,14 +450,29 @@ def _solve(initial_sources, target_infos):
 					matches = False
 					break
 			if matches:
-				print("one solution found")
+
+				# Link the simplified targets' trees with the current one
+				# for target in target_nodes:
+				# 	for child in target.children:
+				# 		child.parents = []
+				# for i in range(n):
+				# 	src = sources[i]
+				# 	src.children = target_nodes[i].children
+				# 	for child in src.children:
+				# 		safe_add_parent(src, child)
+
 				new_solution = sources[0].get_root()
 				new_solution._compute_size()
 				if solution is None or new_solution.size < solution.size:
 					solution = new_solution
 				solution.compute_depth_informations()
+				print(f"one solution found of size {solution.size}")
 				print(solution)
 				# solution.visualize()
+
+				# consider the first solution the best since we are doing a BFS
+				# plus solutions that invole merges are always processed last
+				# return solution
 
 		source_counts = {}
 		for src in sources:
@@ -469,32 +502,6 @@ def _solve(initial_sources, target_infos):
 		def get_sim_without(value):
 			return time_block("get_sim_without", _get_sim_without, value)
 
-		def _try_divide(src):
-			nonlocal sources
-			if sum(get_values(src.parents)) == src.value: return
-			sim = None
-			for divisor in allowed_divisions:
-				
-				if not src.can_split(divisor): continue
-				
-				divided_value = int(src.value / divisor)
-				if divided_value < gcd: continue
-
-				sim = sim if sim else get_sim_without(src.value)
-				if has_seen(sim + [divided_value] * divisor): continue
-				
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					if sources[0].size + divisor >= solution.size: continue
-				
-				copy = copy_sources()
-				src = copy[i]
-				pop(src, copy)
-				queue.append(copy + (src / divisor))
-
-		def try_divide(src):
-			time_block("try_divide", _try_divide, src)
-
 		def _try_extract(src):
 			nonlocal sources
 			if sum(get_values(src.parents)) == src.value: return
@@ -517,10 +524,36 @@ def _solve(initial_sources, target_infos):
 				copy = copy_sources()
 				src = copy[i]
 				pop(src, copy)
-				queue.append(copy + (src - speed))
+				extract_queue.append(copy + (src - speed))
 
 		def try_extract(src):
 			time_block("try_extract", _try_extract, src)
+
+		def _try_divide(src):
+			nonlocal sources
+			if sum(get_values(src.parents)) == src.value: return
+			sim = None
+			for divisor in allowed_divisions:
+				
+				if not src.can_split(divisor): continue
+				
+				divided_value = int(src.value / divisor)
+				if divided_value < gcd: continue
+
+				sim = sim if sim else get_sim_without(src.value)
+				if has_seen(sim + [divided_value] * divisor): continue
+				
+				if solution:
+					if not sources[0].size: sources[0].compute_size()
+					if sources[0].size + divisor >= solution.size: continue
+				
+				copy = copy_sources()
+				src = copy[i]
+				pop(src, copy)
+				divide_queue.append(copy + (src / divisor))
+
+		def try_divide(src):
+			time_block("try_divide", _try_divide, src)
 
 		def _try_merge(sources, flags):
 			nonlocal cant_use
@@ -581,7 +614,7 @@ def _solve(initial_sources, target_infos):
 				print("impossible case reached, sum of merged nodes is lower than gcd")
 				exit(1)
 			list(map(lambda src: pop(src, copy), to_sum))
-			queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
+			merge_queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
 
 		def try_merge(sources, flags):
 			time_block("try_merge", _try_merge, sources, flags)
@@ -602,6 +635,7 @@ def _solve(initial_sources, target_infos):
 				try_merge(sources, binary)
 				increment(binary)
 		
+		refill_queue(queue, divide_queue, extract_queue, merge_queue)
 		timings["total"] += (time.time() - start_total)
 	
 	return solution
@@ -613,15 +647,17 @@ def solve(src, targets):
 	elif src < total:
 		raise ValueError("the sum of targets is greater than the source", targets)
 	src = Node(src)
-	# targets = simplify(list(map(lambda target: Node(target), sorted(targets))))
-	targets = sorted(targets)
+	targets = list(map(lambda target: Node(target), sorted(targets)))
+	# targets = simplify(targets)
 	# visualize(src, targets)
+	target_values = get_values(targets)
 	return _solve([src], {
-		"values": targets,
+		"nodes": targets,
+		"values": target_values,
 		"counts": {
-			value: targets.count(value) for value in set(targets)
+			value: target_values.count(value) for value in set(target_values)
 		},
-		"gcd": math.gcd(*targets)
+		"gcd": math.gcd(*target_values)
 	})
 
 def main():
@@ -668,7 +704,7 @@ def main():
 		exit(1)
 
 	sol = solve(src, targets)
-	print("\n Smallest solution found:\n")
+	print(f"\n Smallest solution found (size = {sol.size}):\n")
 	sol.visualize()
 
 def test():
