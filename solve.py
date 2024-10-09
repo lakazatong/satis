@@ -68,7 +68,7 @@ short_repr = False
 def visualize(src, nodes):
 	src.children = nodes
 	for node in nodes:
-		src.parents.append(node)
+		node.parents.append(src)
 	src.visualize()
 
 def sort_nodes(nodes):
@@ -105,13 +105,13 @@ class Node:
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_nodes_id(self.parents)}, children=["
 		if self.children:
+			r += "\n"
 			for child in self.children:
-				r += "\n" + str(child)
-			r += "\n" + "\t" * (self.depth - 1) + "])"
-		else:
-			r += "])"
+				r += str(child)
+			r += "\t" * (self.depth - 1)
+		r += "])\n"
 		return r
 
 	def get_leaves(self):
@@ -128,29 +128,43 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def _compute_size(self):
-		size = 1
-		if self.children:
-			size += sum(child._compute_size() for child in self.children)
-		self.size = size
-		return size
+	def _compute_size(self, visited):
+		# the returned boolean is there to indicate if the returned size is unseen for parents
+		if self.node_id in visited:
+			return self.size, False
+		visited.add(self.node_id)
+		self.size = 1
+		unseen_size = self.size
+		for child in self.children:
+			child_size, child_unvisited = child._compute_size(visited)
+			if child_unvisited:
+				unseen_size += child_size
+			self.size += child_size
+		return unseen_size, True
 
 	def compute_size(self):
-		return self.get_root()._compute_size()
+		self.get_root()._compute_size(set())
+		return self.size
 
 	def _deepcopy(self):
 		new_node = Node(self.value, node_id=self.node_id)
 		new_node.depth = self.depth
 		new_node.tree_height = self.tree_height
 		new_node.level = self.level
-		new_node.children = [child._deepcopy() for child in self.children]
-		for child in new_node.children:
-			new_node.parents.append(child)
-		return new_node
+		new_node.size = self.size
+		leaves = []
+		if self.children:
+			for child in self.children:
+				new_child, child_leaves = child._deepcopy()
+				new_node.children.append(new_child)
+				new_child.parents.append(new_node)
+				leaves += child_leaves
+		else:
+			leaves.append(new_node)
+		return new_node, leaves
 
 	def deepcopy(self):
-		deep_copied_root = self.get_root()._deepcopy()
-		return deep_copied_root.find(self.node_id)
+		return self.get_root()._deepcopy()
 
 	def find(self, node_id):
 		if self.node_id == node_id: return self
@@ -164,11 +178,11 @@ class Node:
 			if p is parent or p.has_parent(parent): return True
 		return False
 
-	def compute_depth_and_tree_height(self, parent):
-		self.depth = 1 + parent.depth if parent else 1
+	def _compute_depth_and_tree_height(self, parent_depth):
 		max_child_tree_height = 0
 		for child in self.children:
-			child_depth, child_tree_height = child.compute_depth_and_tree_height(self)
+			child.depth = 1 + parent_depth
+			_, child_tree_height = child._compute_depth_and_tree_height(child.depth)
 			if child_tree_height > max_child_tree_height:
 				max_child_tree_height = child_tree_height
 		self.tree_height = max_child_tree_height + 1
@@ -186,42 +200,47 @@ class Node:
 			child.compute_level(max_tree_height)
 
 	def compute_depth_informations(self):
-		self.compute_depth_and_tree_height(self.parents[0] if self.parents else None)
+		self.depth = 1 + (self.parents[0].depth if self.parents else 0)
+		self._compute_depth_and_tree_height(self.depth)
 		# self.set_max_tree_height(self.tree_height)
 		self.compute_level(self.tree_height)
 
-	def add_edges(self, G):
+	def populate(self, G):
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
 		for child in self.children:
-			child.add_edges(G)
+			G.add_edge(self.node_id, child.node_id)
+			child.populate(G)
 
 	def visualize(self):
-		self.compute_depth_informations()
-		G = nx.DiGraph()
-		self.add_edges(G)
+		try:
+			G = nx.DiGraph()
+			self.populate(G)
 
-		A = to_agraph(G)
+			A = to_agraph(G)
 
-		for node in G.nodes:
-			level = G.nodes[node]['level']
-			A.get_node(node).attr['rank'] = f'{level}'
+			for node in G.nodes:
+				level = G.nodes[node]['level']
+				A.get_node(node).attr['rank'] = f'{level}'
 
-		for level in set(nx.get_node_attributes(G, 'level').values()):
-			subgraph = A.add_subgraph(
-				[n for n, attr in G.nodes(data=True) if attr['level'] == level],
-				rank='same'
-			)
+			for level in set(nx.get_node_attributes(G, 'level').values()):
+				subgraph = A.add_subgraph(
+					[n for n, attr in G.nodes(data=True) if attr['level'] == level],
+					rank='same'
+				)
 
-		A.graph_attr['rankdir'] = 'TB'
+			A.graph_attr['rankdir'] = 'TB'
 
-		with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
-			A.layout(prog='dot')
-			A.draw(tmpfile.name, format='png')
-			plt.figure(figsize=(10, 7))
-			img = plt.imread(tmpfile.name)
-			plt.imshow(img)
-			plt.axis('off')
-			plt.show()
+			with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
+				A.layout(prog='dot')
+				A.draw(tmpfile.name, format='png')
+				plt.figure(figsize=(10, 7))
+				img = plt.imread(tmpfile.name)
+				plt.imshow(img)
+				plt.axis('off')
+				plt.show()
+		except:
+			print("call compute_depth_informations before trying to visualize")
+			exit(1)
 
 	def merge_down(self, other):
 		new_value = self.value + sum(get_values(other))
@@ -384,6 +403,7 @@ def refill_queue(queue, divide_queue, extract_queue, merge_queue):
 def _solve(source_values, target_values):
 	steps = -1
 
+	target_values = sorted(target_values)
 	target_counts = {
 		value: target_values.count(value) for value in set(target_values)
 	}
@@ -399,7 +419,7 @@ def _solve(source_values, target_values):
 		root = Node(sum(source_values))
 		root.children = node_sources
 		for child in root.children:
-			root.parents.append(child)
+			child.parents.append(root)
 
 	queue = [node_sources]
 	extract_queue = []
@@ -422,8 +442,8 @@ def _solve(source_values, target_values):
 		sources = sort_nodes(sources)
 		
 		def _copy_sources():
-			copy = sources[0].get_root()._deepcopy()
-			return list(map(lambda src: copy.find(src.node_id), sources))
+			_, leaves = sources[0].deepcopy()
+			return leaves
 
 		def copy_sources():
 			return time_block("copy_sources", _copy_sources)
@@ -437,6 +457,7 @@ def _solve(source_values, target_values):
 					matches = False
 					break
 			if matches:
+				
 
 				# Link the simplified targets' trees with the current one
 				# for target in node_targets:
@@ -449,11 +470,14 @@ def _solve(source_values, target_values):
 				# 		src.parents.append(child)
 
 				new_solution = sources[0].get_root()
-				new_solution._compute_size()
+				new_solution._compute_size(set())
 				if solution is None or new_solution.size < solution.size:
 					solution = new_solution
+				else:
+					print("impossible case reached, should have been checked already")
+					exit(1)
 				solution.compute_depth_informations()
-				print(f"one solution found of size {solution.size}")
+				print(f"one solution found of size {solution.size}\n")
 				print(solution)
 				solution.visualize()
 
@@ -513,7 +537,9 @@ def _solve(source_values, target_values):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
-				extract_queue.append(copy + (src_copy - speed))
+				extracted_nodes = src_copy - speed
+				# print('extract', None in copy or None in extracted_nodes)
+				extract_queue.append(copy + extracted_nodes)
 
 		def try_extract(i):
 			time_block("try_extract", _try_extract, i)
@@ -539,17 +565,17 @@ def _solve(source_values, target_values):
 				if has_seen(sim + [divided_value] * divisor): continue
 				
 				copy = copy_sources()
+				# print(sources, copy)
 				src_copy = copy[i]
-				print(src_copy.get_root())
 				pop(src_copy, copy)
-				divide_queue.append(copy + (src_copy / divisor))
+				divided_nodes = src_copy / divisor
+				divide_queue.append(copy + divided_nodes)
 
 		def try_divide(i):
 			time_block("try_divide", _try_divide, i)
 
 		def _try_merge(sources, flags):
 			nonlocal cant_use
-			
 			to_sum_count = sum(flags)
 			if to_sum_count <= 1: return
 			if solution and n - to_sum_count + 1 >= solution.size: return
@@ -584,11 +610,9 @@ def _solve(source_values, target_values):
 					same_parent = False
 				to_sum_indices.append(i)
 			if same_parent and to_sum_count == len(src.parents[0].children):
-				# if all(d != to_sum_count for d in allowed_divisions):
-				# 	print("\nimpossible case reached, detected a split of neither 2 or 3")
-				# 	print(sources)
-				# 	exit(1)
-				return
+				# can happen that the parent was the artificial root created to unify all sources
+				# in this case only we don't return
+				if parent.parents or len(source_values) == 1: return
 
 			# if to_sum_count != len(to_sum_indices):
 			# 	print("wtf")
@@ -602,7 +626,10 @@ def _solve(source_values, target_values):
 			copy = copy_sources()
 			to_sum = [copy[i] for i in to_sum_indices]
 			list(map(lambda src: pop(src, copy), to_sum))
-			merge_queue.append(copy + [to_sum[0] + to_sum[1:]])
+			merged_node = to_sum[0] + to_sum[1:]
+			# print('merge', None in copy or merged_node is None)
+			copy.append(merged_node)
+			merge_queue.append(copy)
 
 		def try_merge(sources, flags):
 			time_block("try_merge", _try_merge, sources, flags)
@@ -623,6 +650,9 @@ def _solve(source_values, target_values):
 				increment(binary)
 		
 		refill_queue(queue, divide_queue, extract_queue, merge_queue)
+		# for future in queue:
+		# 	print(future[0].get_root())
+		# 	print()
 		timings["total"] += time.time() - start_total
 	
 	return solution
@@ -631,9 +661,9 @@ def solve(source_values, target_values):
 	sources_total = sum(source_values)
 	targets_total = sum(target_values)
 	if sources_total > targets_total:
-		target_values.append(sources_total - sources_total)
+		target_values.append(sources_total - targets_total)
 	elif sources_total < targets_total:
-		raise ValueError("the sum of targets is greater than the sum of sources")
+		source_values.append(targets_total - sources_total)
 	return _solve(source_values, target_values)
 
 def main():
@@ -707,12 +737,16 @@ def main():
 
 	sol = solve(sources, targets)
 	print(f"\n Smallest solution found (size = {sol.size}):\n")
+	print(sol)
 	sol.visualize()
 
 def test():
-	ids = get_nodes_id([Node(20) for _ in range(3)])
-	print(ids[0] == ids[1] and ids[1] == ids[2])
-	exit(0)
+	A = Node(100)
+	B, C = A - 60
+	D = B + C
+	A.compute_depth_informations()
+	A.compute_size()
+	print(A)
 
 if __name__ == '__main__':
 	# test()
