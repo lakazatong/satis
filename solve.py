@@ -384,7 +384,6 @@ def simplify(nodes):
 	return nodes
 
 def _get_sim_without(sources, value):
-	nonlocal sources
 	sim = []
 	found = False
 	for src in sources:
@@ -427,12 +426,12 @@ def _solve(source_values, target_values):
 	solution = None
 	cant_use = {}
 
-	def get_extract_sims(sources, i):
+	def get_extract_sim(sources, src):
 		nonlocal solution
 		simulations = []
 		tmp_sim = None
-		src = sources[i]
 		parent_values = get_values(src.parents)
+		
 		for speed in filtered_conveyor_speeds:
 			# if so then it would have been better to leave it as is
 			# and merge all the other values to get the overflow value
@@ -451,17 +450,29 @@ def _solve(source_values, target_values):
 			overflow_value = src.value - speed
 			if gcd_incompatible(overflow_value): continue
 
-			tmp_sim = tmp_sim if tmp_sim else get_sim_without(src.value)
-			sim = tmp_sim + [speed, overflow_value]
+			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
+			sim = sorted(tmp_sim + [speed, overflow_value])
 			if sim in enqueued_sims: continue
 			simulations.append((sim, speed))
+		
 		return simulations
 
-	def get_divide_sims(sources, i):
+	def get_extract_sims(sources):
+		simulations = []
+		seen_values = {}
+		
+		for src in sources:
+			if src.value in seen_values: continue
+			seen_values.add(src.value)
+			simulations.extend(get_extract_sim(sources, src))
+		
+		return simulations
+
+	def get_divide_sim(sources, src):
 		nonlocal solution
 		simulations = []
 		tmp_sim = None
-		src = sources[i]
+		
 		for divisor in allowed_divisors:
 			if not src.can_split(divisor): continue
 
@@ -474,13 +485,25 @@ def _solve(source_values, target_values):
 			divided_value = int(src.value / divisor)
 			if gcd_incompatible(divided_value): continue
 
-			tmp_sim = tmp_sim if tmp_sim else get_sim_without(src.value)
-			sim = tmp_sim + [divided_value] * divisor
+			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
+			sim = sorted(tmp_sim + [divided_value] * divisor)
 			if sim in enqueued_sims: continue
 			simulations.append((sim, divisor))
+		
 		return simulations
 
-	def get_merge_sim(sources, flags, to_sum_count):
+	def get_divide_sims(sources):
+		simulations = []
+		seen_values = {}
+		
+		for src in sources:
+			if src.value in seen_values: continue
+			seen_values.add(src.value)
+			simulations.extend(get_divide_sim(sources, src))
+		
+		return simulations
+
+	def get_merge_sim(sources, flags, to_sum_count, seen_sums):
 		to_not_sum_indices = []
 		i = 0
 		
@@ -511,17 +534,23 @@ def _solve(source_values, target_values):
 				same_parent = False
 			
 			to_sum_indices.append(i)
-		
+
 		if same_parent and to_sum_count == len(src.parents[0].children):
 			# can happen that the parent was the artificial root created to unify all sources
 			# in this case only we don't skip
 			if parent.parents or len(source_values) == 1: return None
 
-		summed_value = sum(sources[i].value for i in to_sum_indices)
+		to_sum_values = [sources[i].value for i in to_sum_indices]
+		summed_value = sum(to_sum_values)
 		if gcd_incompatible(summed_value) or summed_value > conveyor_speed_limit: return None
 		
-		sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
+		to_sum_values = sorted(to_sum_values)
+		if to_sum_values in seen_sums: return None
+		seen_sums.add(to_sum_values)
+
+		sim = sorted([sources[i].value for i in to_not_sum_indices] + [summed_value])
 		if sim in enqueued_sims: return None
+		
 		return sim, to_sum_indices
 
 	def get_merge_sims(sources):
@@ -530,6 +559,7 @@ def _solve(source_values, target_values):
 		
 		if n < 2: return simulations
 		
+		seen_sums = {}
 		binary = [False] * n
 		binary[0], binary[1] = True, True
 		
@@ -538,25 +568,62 @@ def _solve(source_values, target_values):
 			
 			if to_sum_count < 2 or to_sum_count > 3: continue
 			if solution and n - to_sum_count + 1 >= solution.size: continue
-			
-			r = get_merge_sim(binary, to_sum_count)
+
+			r = get_merge_sim(sources, binary, to_sum_count, seen_sums)
 			if r: simulations.append(r)
 			
 			increment(binary)
 		
 		return simulations
 
+	def compute_distance(sim):
+		nonlocal target_values, allowed_divisors
+		targets = target_values[:]
+		distance = 0
+		
+		# Exact matches, contributing 0 to the distance
+		for value in sim[:]:
+			if value in targets:
+				sim.remove(value)
+				targets.remove(value)
+
+		for value in sim[:]:
+			for divisor in allowed_divisors:
+				divided_value = value // divisor
+				if divided_value in targets and value % divisor == 0:
+					sim.remove(value)
+					targets.remove(divided_value)
+					distance += 1
+					break
+
+		for target in targets[:]:
+			found = False
+			for to_sum_count in [3, 2]:
+				for to_sum_values in itertools.combinations(sim, to_sum_count):
+					if sum(to_sum_values) != target: continue
+					
+					targets.remove(target)
+					for val in to_sum_values: sim.remove(val)
+
+					distance += 1
+					found = True
+					break
+				if found: break
+
+		...
+		
+		return distance
+
 	# computes how close the sources are from the target_values
 	# the lower the better
 	def compute_sources_score(sources):
-		nonlocal target_values
 		n = len(sources)
 		simulations = []
 		for i in range(n):
 			simulations.extend(get_extract_sims(sources, i))
 			simulations.extend(get_divide_sims(sources, i))
 		simulations.extend(get_merge_sims(sources))
-		return min(compute_distance(sim, target_values) for sim, _ in simulations)
+		return min(compute_distance(sim) for sim, _ in simulations)
 
 	def _enqueue(sources):
 		nonlocal queue
@@ -574,8 +641,7 @@ def _solve(source_values, target_values):
 		time_block("enqueue", _enqueue, sources)
 
 	# will be popped just after, no need to compute the score here
-	lowest_score = compute_sources_score(node_sources)
-	queue.append((node_sources, lowest_score))
+	queue.append((node_sources, 1 << 16))
 
 	while queue:
 		start_total = time.time()
