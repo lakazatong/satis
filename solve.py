@@ -55,6 +55,7 @@ def set_time(key, start_time):
 allowed_divisions = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
+conveyor_speed_limit = conveyor_speeds[-1]
 short_repr = False
 
 def safe_add_parent(parent, node):
@@ -97,7 +98,7 @@ class Node:
 		self.depth = 1
 		self.tree_height = 1
 		self.level = None
-		self.size = 1
+		self.size = None
 		self.parents = []
 		self.children = []
 
@@ -412,18 +413,31 @@ steps = -1
 logging = False
 seen_configs = set()
 
-def _solve(initial_sources, target_infos):
+def _solve(source_values, target_values):
 	global steps
 
-	queue = [initial_sources]
+	target_counts = {
+		value: target_values.count(value) for value in set(target_values)
+	}
+	gcd = math.gcd(*target_values)
+	node_sources = list(map(lambda value: Node(value), source_values))
+	# node_targets = list(map(lambda value: Node(value), target_values))
+	# print('\n'.join([str(src) for src in copy]))
+
+	def invalid_value(value):
+		return value < gcd and value > conveyor_speed_limit
+
+	if len(node_sources) > 1:
+		root = Node(sum(source_values))
+		root.children = node_sources
+		for child in root.children:
+			safe_add_parent(root, child)
+
+	queue = [node_sources]
 	extract_queue = []
 	divide_queue = []
 	merge_queue = []
 	solution = None
-	target_nodes = target_infos["nodes"]
-	target_values = target_infos["values"]
-	target_counts = target_infos["counts"]
-	gcd = target_infos["gcd"]
 
 	while queue:
 		start_total = time.time()
@@ -457,12 +471,12 @@ def _solve(initial_sources, target_infos):
 			if matches:
 
 				# Link the simplified targets' trees with the current one
-				# for target in target_nodes:
+				# for target in node_targets:
 				# 	for child in target.children:
 				# 		child.parents = []
 				# for i in range(n):
 				# 	src = sources[i]
-				# 	src.children = target_nodes[i].children
+				# 	src.children = node_targets[i].children
 				# 	for child in src.children:
 				# 		safe_add_parent(src, child)
 
@@ -472,12 +486,8 @@ def _solve(initial_sources, target_infos):
 					solution = new_solution
 				solution.compute_depth_informations()
 				print(f"one solution found of size {solution.size}")
-				# print(solution)
+				print(solution)
 				solution.visualize()
-
-				# consider the first solution the best since we are doing a BFS
-				# plus solutions that invole merges are always processed last
-				# return solution
 
 		source_counts = {}
 		for src in sources:
@@ -507,8 +517,9 @@ def _solve(initial_sources, target_infos):
 		def get_sim_without(value):
 			return time_block("get_sim_without", _get_sim_without, value)
 
-		def _try_extract(src):
+		def _try_extract(i):
 			nonlocal sources
+			src = sources[i]
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for speed in conveyor_speeds:
@@ -521,21 +532,22 @@ def _solve(initial_sources, target_infos):
 				
 				extracted_value = src.value - speed
 				overflow_value = src.value - extracted_value
-				if extracted_value < gcd or overflow_value < gcd: continue
+				if invalid_value(extracted_value) or invalid_value(overflow_value): continue
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [extracted_value, overflow_value]): continue
 				
 				copy = copy_sources()
-				src = copy[i]
-				pop(src, copy)
-				extract_queue.append(copy + (src - speed))
+				src_copy = copy[i]
+				pop(src_copy, copy)
+				extract_queue.append(copy + (src_copy - speed))
 
-		def try_extract(src):
-			time_block("try_extract", _try_extract, src)
+		def try_extract(i):
+			time_block("try_extract", _try_extract, i)
 
-		def _try_divide(src):
+		def _try_divide(i):
 			nonlocal sources
+			src = sources[i]
 			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for divisor in allowed_divisions:
@@ -547,18 +559,18 @@ def _solve(initial_sources, target_infos):
 				if not src.can_split(divisor): continue
 				
 				divided_value = int(src.value / divisor)
-				if divided_value < gcd: continue
+				if invalid_value(divided_value): continue
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [divided_value] * divisor): continue
 				
 				copy = copy_sources()
-				src = copy[i]
-				pop(src, copy)
-				divide_queue.append(copy + (src / divisor))
+				src_copy = copy[i]
+				pop(src_copy, copy)
+				divide_queue.append(copy + (src_copy / divisor))
 
-		def try_divide(src):
-			time_block("try_divide", _try_divide, src)
+		def try_divide(i):
+			time_block("try_divide", _try_divide, i)
 
 		def _try_merge(sources, flags):
 			nonlocal cant_use
@@ -597,10 +609,10 @@ def _solve(initial_sources, target_infos):
 					same_parent = False
 				to_sum_indices.append(i)
 			if same_parent and to_sum_count == len(src.parents[0].children):
-				if all(d != to_sum_count for d in allowed_divisions):
-					print("\nimpossible case reached, detected a split of neither 2 or 3")
-					print(sources)
-					exit(1)
+				# if all(d != to_sum_count for d in allowed_divisions):
+				# 	print("\nimpossible case reached, detected a split of neither 2 or 3")
+				# 	print(sources)
+				# 	exit(1)
 				return
 
 			if to_sum_count != len(to_sum_indices):
@@ -608,14 +620,12 @@ def _solve(initial_sources, target_infos):
 				exit(1)
 
 			summed_value = sum(sources[i].value for i in to_sum_indices)
+			if invalid_value(summed_value): return
 			sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
 			if has_seen(sim): return
 
 			copy = copy_sources()
 			to_sum = [copy[i] for i in to_sum_indices]
-			if summed_value < gcd:
-				print("impossible case reached, sum of merged nodes is lower than gcd")
-				exit(1)
 			list(map(lambda src: pop(src, copy), to_sum))
 			merge_queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
 
@@ -623,10 +633,9 @@ def _solve(initial_sources, target_infos):
 			time_block("try_merge", _try_merge, sources, flags)
 
 		for i in range(n):
-			src = sources[i]
-			if cant_use[src.value]: continue
-			try_divide(src)
-			try_extract(src)
+			if cant_use[sources[i].value]: continue
+			try_divide(i)
+			try_extract(i)
 
 		if n >= 2:
 			binary_start = 3
@@ -639,46 +648,65 @@ def _solve(initial_sources, target_infos):
 				increment(binary)
 		
 		refill_queue(queue, divide_queue, extract_queue, merge_queue)
-		timings["total"] += (time.time() - start_total)
+		timings["total"] += time.time() - start_total
 	
 	return solution
 
-def solve(src, targets):
-	total = sum(targets)
-	if src > total:
-		targets.append(src - total)
-	elif src < total:
-		raise ValueError("the sum of targets is greater than the source", targets)
-	src = Node(src)
-	targets = list(map(lambda target: Node(target), sorted(targets)))
-	# targets = simplify(targets)
-	# visualize(src, targets)
-	target_values = get_values(targets)
-	return _solve([src], {
-		"nodes": targets,
-		"values": target_values,
-		"counts": {
-			value: target_values.count(value) for value in set(target_values)
-		},
-		"gcd": math.gcd(*target_values)
-	})
+def solve(source_values, target_values):
+	sources_total = sum(source_values)
+	targets_total = sum(target_values)
+	if sources_total > targets_total:
+		target_values.append(sources_total - sources_total)
+	elif sources_total < targets_total:
+		raise ValueError("the sum of targets is greater than the sum of sources")
+	return _solve(source_values, target_values)
 
 def main():
-	parser = argparse.ArgumentParser(description='Solve a Satisfactory problem')
-	parser.add_argument('src', type=int, help='The source value')
-	parser.add_argument('targets', nargs='+', help='Target values, which can be numbers or Nx format')
-
-	args = parser.parse_args()
-
-	src = args.src
-	if src % 5 != 0:
-		print("Error: all values must be multiples of 5")
+	separator = 'to'
+	if len(sys.argv) < 3 or separator not in ' '.join(sys.argv[1:]):
+		print(f"Usage: python solve.py <source_args> {separator} <target_args>")
 		exit(1)
-	targets = []
 
+	source_part, target_part = ' '.join(sys.argv[1:]).split(separator)
+	source_args = source_part.strip().split()
+	target_args = target_part.strip().split()
+
+	if not source_args:
+		print("Error: At least one source value must be provided.")
+		exit(1)
+
+	if not target_args:
+		print("Error: At least one target value must be provided.")
+		exit(1)
+
+	sources = []
 	i = 0
-	while i < len(args.targets):
-		target = args.targets[i]
+	while i < len(source_args):
+		src = source_args[i]
+		if not src.endswith('x'):
+			source_value = int(src)
+			if source_value % 5 != 0:
+				print("Error: all values must be multiples of 5")
+				exit(1)
+			sources.append(source_value)
+			i += 1
+			continue
+		if len(src) < 2 or not src[:-1].isdigit():
+			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
+			exit(1)
+		multiplier = int(src[:-1])
+		source_value = int(source_args[source_args.index(src) + 1])
+		if source_value % 5 != 0:
+			print("Error: all values must be multiples of 5")
+			exit(1)
+		for _ in range(multiplier):
+			sources.append(source_value)
+		i += 2
+
+	targets = []
+	i = 0
+	while i < len(target_args):
+		target = target_args[i]
 		if not target.endswith('x'):
 			target_value = int(target)
 			if target_value % 5 != 0:
@@ -691,10 +719,10 @@ def main():
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
 			exit(1)
 		multiplier = int(target[:-1])
-		if i + 1 == len(args.targets):
+		if i + 1 == len(target_args):
 			print("Error: You must provide a target value after Nx.")
 			exit(1)
-		target_value = int(args.targets[i + 1])
+		target_value = int(target_args[i + 1])
 		if target_value % 5 != 0:
 			print("Error: all values must be multiples of 5")
 			exit(1)
@@ -702,11 +730,7 @@ def main():
 			targets.append(target_value)
 		i += 2
 
-	if not targets:
-		print("Error: At least one target value must be provided.")
-		exit(1)
-
-	sol = solve(src, targets)
+	sol = solve(sources, targets)
 	print(f"\n Smallest solution found (size = {sol.size}):\n")
 	sol.visualize()
 
