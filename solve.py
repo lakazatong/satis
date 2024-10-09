@@ -384,13 +384,15 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
+seen_configs = set()
+
 def has_seen(sim):
+	global seen_configs
 	current_config = tuple(sorted(sim))
 		
 	if current_config in seen_configs:
-		if logging:
-			print()
-			print(f"Skipping already seen configuration: {current_config}")
+		# print()
+		# print(f"Skipping already seen configuration: {current_config}")
 		return True
 	
 	seen_configs.add(current_config)
@@ -401,12 +403,8 @@ def refill_queue(queue, divide_queue, extract_queue, merge_queue):
 	while any(queues):
 		queue.append(random.choice([q for q in queues if q]).pop(0))
 
-steps = -1
-logging = False
-seen_configs = set()
-
 def _solve(source_values, target_values):
-	global steps
+	steps = -1
 
 	target_counts = {
 		value: target_values.count(value) for value in set(target_values)
