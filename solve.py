@@ -223,87 +223,65 @@ class Node:
 			plt.axis('off')
 			plt.show()
 
-	def _merge(self, down, other):
-		# print("merge called")
+	def merge_down(self, other):
 		new_value = self.value + sum(get_values(other))
 		new_node = Node(new_value)
-		if down:
-			self.parents.append(new_node)
-			self.children.append(new_node)
-			for node in other:
-				node.parents.append(new_node)
-				node.children.append(new_node)
-		else:
-			new_node.parents.append(self)
-			new_node.children.append(self)
-			for node in other:
-				new_node.parents.append(node)
-				new_node.children.append(node)
+		self.children.append(new_node)
+		new_node.parents.append(self)
+		for node in other:
+			node.children.append(new_node)
+			new_node.parents.append(node)
 		return new_node
 
-	def merge_down(self, other):
-		return self._merge(True, other)
-
 	def merge_up(self, other):
-		return self._merge(False, other)
+		new_value = self.value + sum(get_values(other))
+		new_node = Node(new_value)
+		self.parents.append(new_node)
+		new_node.children.append(self)
+		for node in other:
+			node.parents.append(new_node)
+			new_node.children.append(node)
+		return new_node
 
 	def can_split(self, divisor):
-		if divisor not in allowed_divisions: return False
-		new_value = self.value / divisor
-		if new_value.is_integer(): return True
-		return False
-
-	def _split(self, down, divisor):
-		# print("split called")
-		if not self.can_split(divisor): return None
-		new_value = int(self.value / divisor)
-		new_nodes = [Node(new_value) for _ in range(divisor)]
-		if down:
-			for node in new_nodes:
-				self.parents.append(node)
-				self.children.append(node)
-		else:
-			for node in new_nodes:
-				node.parents.append(self)
-				node.children.append(self)
-		return new_nodes
+		if not divisor in allowed_divisions: return False
+		return (self.value / divisor).is_integer()
 
 	def split_down(self, divisor):
-		return self._split(True, divisor)
+		new_value = int(self.value / divisor)
+		new_nodes = [Node(new_value) for _ in range(divisor)]
+		for node in new_nodes:
+			self.children.append(node)
+			node.parents.append(self)
+		return new_nodes
 
 	def split_up(self, divisor):
-		return self._split(False, divisor)
+		new_value = int(self.value / divisor)
+		new_nodes = [Node(new_value) for _ in range(divisor)]
+		for node in new_nodes:
+			self.parents.append(node)
+			node.children.append(self)
+		return new_nodes
 
-	def _extract(self, down, value):
-		# print("extract called")
-		if value not in conveyor_speeds:
-			raise ValueError(f"Extracted value must be one of {conveyor_speeds}.")
-		
-		if value > self.value:
-			raise ValueError("Cannot extract more than the node's value.")
-		
+	def extract_down(self, value):
 		extracted_node = Node(value)
 		overflow_value = self.value - value
 		overflow_node = Node(overflow_value)
-		
-		if down:
-			self.parents.append(extracted_node)
-			self.parents.append(overflow_node)
-			self.children.append(extracted_node)
-			self.children.append(overflow_node)
-		else:
-			extracted_node.parents.append(self)
-			overflow_node.parents.append(self)
-			extracted_node.children.append(self)
-			overflow_node.children.append(self)
-		
+		self.children.append(extracted_node)
+		self.children.append(overflow_node)
+		extracted_node.parents.append(self)
+		overflow_node.parents.append(self)
 		return [extracted_node, overflow_node]
 
-	def extract_down(self, value):
-		return self._extract(True, value)
-
 	def extract_up(self, value):
-		return self._extract(False, value)
+		extracted_node = Node(value)
+		overflow_value = self.value - value
+		overflow_node = Node(overflow_value)
+		self.parents.append(extracted_node)
+		self.parents.append(overflow_node)
+		extracted_node.children.append(self)
+		overflow_node.children.append(self)
+		return [extracted_node, overflow_node]
 
 	def __add__(self, other):
 		if isinstance(other, list) and all(isinstance(node, Node) for node in other):
@@ -562,6 +540,7 @@ def _solve(source_values, target_values):
 				
 				copy = copy_sources()
 				src_copy = copy[i]
+				print(src_copy.get_root())
 				pop(src_copy, copy)
 				divide_queue.append(copy + (src_copy / divisor))
 
