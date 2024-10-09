@@ -26,8 +26,7 @@ timings = {
 	"try_extract": 0,
 	"try_merge": 0,
 	"get_sim_without": 0,
-	"get_to_sums1": 0,
-	"get_to_sums2": 0,
+	"enqueue": 0,
 }
 
 def print_timings():
@@ -52,7 +51,7 @@ def time_block(key, fn, *args, **kwargs):
 def set_time(key, start_time):
 	timings[key] += time.time() - start_time
 
-allowed_divisions = [3, 2]
+allowed_divisors = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
 conveyor_speed_limit = conveyor_speeds[-1]
@@ -85,6 +84,10 @@ def pop(node, nodes):
 		if other.node_id == node.node_id:
 			return nodes.pop(i)
 	return None
+
+def can_split(value, divisor):
+	if not divisor in allowed_divisors: return False
+	return (self.value / divisor).is_integer()
 
 def increment(binary_array):
 	for i in range(len(binary_array)):
@@ -263,8 +266,7 @@ class Node:
 		return new_node
 
 	def can_split(self, divisor):
-		if not divisor in allowed_divisions: return False
-		return (self.value / divisor).is_integer()
+		return can_split(self.value, divisor)
 
 	def split_down(self, divisor):
 		new_value = int(self.value / divisor)
@@ -312,7 +314,7 @@ class Node:
 	def __truediv__(self, divisor):
 		if isinstance(divisor, (int, float)):
 			return self.split_down(divisor)
-		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(allowed_divisions)})")
+		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(allowed_divisors)})")
 
 	def __sub__(self, amount):
 		if isinstance(amount, (int, float)):
@@ -334,7 +336,7 @@ def _simplify_merge(nodes):
 
 			i += 1
 			while i < len(nodes) and nodes[i].value == current_value:
-				if len(same_value_nodes) == max(allowed_divisions) - 1:
+				if len(same_value_nodes) == max(allowed_divisors) - 1:
 					break
 				same_value_nodes.append(nodes[i])
 				i += 1
@@ -381,28 +383,25 @@ def simplify(nodes):
 		nodes = _simplify_extract(nodes)
 	return nodes
 
-seen_configs = set()
+def _get_sim_without(sources, value):
+	nonlocal sources
+	sim = []
+	found = False
+	for src in sources:
+		if src.value == value and not found:
+			found = True
+		else:
+			sim.append(src.value)
+	return sim
 
-def has_seen(sim):
-	global seen_configs
-	current_config = tuple(sorted(sim))
-		
-	if current_config in seen_configs:
-		# print()
-		# print(f"Skipping already seen configuration: {current_config}")
-		return True
-	
-	seen_configs.add(current_config)
-	return False
-
-def refill_queue(queue, divide_queue, extract_queue, merge_queue):
-	queues = [divide_queue, extract_queue, merge_queue]
-	while any(queues):
-		queue.append(random.choice([q for q in queues if q]).pop(0))
+def get_sim_without(sources, value):
+	return time_block("get_sim_without", _get_sim_without, sources, value)
 
 def _solve(source_values, target_values):
+	print(f"\nsolving for {target_values}\n")
 	steps = -1
 
+	enqueued_sims = set()
 	target_values = sorted(target_values)
 	target_counts = {
 		value: target_values.count(value) for value in set(target_values)
@@ -412,8 +411,11 @@ def _solve(source_values, target_values):
 	# node_targets = list(map(lambda value: Node(value), target_values))
 	# print('\n'.join([str(src) for src in copy]))
 
-	def invalid_value(value):
-		return value < gcd or value > conveyor_speed_limit
+	def gcd_incompatible(value):
+		return value < gcd or value % gcd != 0
+
+	filtered_conveyor_speeds = [speed for speed in conveyor_speeds if not gcd_incompatible(speed)]
+	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}")
 
 	if len(node_sources) > 1:
 		root = Node(sum(source_values))
@@ -421,15 +423,170 @@ def _solve(source_values, target_values):
 		for child in root.children:
 			child.parents.append(root)
 
-	queue = [node_sources]
-	extract_queue = []
-	divide_queue = []
-	merge_queue = []
+	queue = []
 	solution = None
+	cant_use = {}
+
+	def get_extract_sims(sources, i):
+		nonlocal solution
+		simulations = []
+		tmp_sim = None
+		src = sources[i]
+		parent_values = get_values(src.parents)
+		for speed in filtered_conveyor_speeds:
+			# if so then it would have been better to leave it as is
+			# and merge all the other values to get the overflow value
+			# we would get by exctracting speed amount
+			if speed in parent_values:
+				print("sad that we got there")
+				exit(1)
+				# return None
+			
+			if src.value <= speed: break
+
+			if solution:
+				if not sources[0].size: sources[0].compute_size()
+				if sources[0].size + 2 >= solution.size: continue
+			
+			overflow_value = src.value - speed
+			if gcd_incompatible(overflow_value): continue
+
+			tmp_sim = tmp_sim if tmp_sim else get_sim_without(src.value)
+			sim = tmp_sim + [speed, overflow_value]
+			if sim in enqueued_sims: continue
+			simulations.append((sim, speed))
+		return simulations
+
+	def get_divide_sims(sources, i):
+		nonlocal solution
+		simulations = []
+		tmp_sim = None
+		src = sources[i]
+		for divisor in allowed_divisors:
+			if not src.can_split(divisor): continue
+
+			if sum(get_values(src.parents)) == src.value and len(src.parents) == divisor: return
+
+			if solution:
+				if not sources[0].size: sources[0].compute_size()
+				if sources[0].size + divisor >= solution.size: continue
+			
+			divided_value = int(src.value / divisor)
+			if gcd_incompatible(divided_value): continue
+
+			tmp_sim = tmp_sim if tmp_sim else get_sim_without(src.value)
+			sim = tmp_sim + [divided_value] * divisor
+			if sim in enqueued_sims: continue
+			simulations.append((sim, divisor))
+		return simulations
+
+	def get_merge_sim(sources, flags, to_sum_count):
+		to_not_sum_indices = []
+		i = 0
+		
+		while not flags[i]:
+			to_not_sum_indices.append(i)
+			i += 1
+		
+		src = sources[i]
+		
+		if cant_use[src.value]: return None
+		
+		to_sum_indices = [i]
+		parent = src.parents[0]
+		same_parent = len(src.parents) == 1
+		
+		while i < n - 1:
+			i += 1
+			
+			if not flags[i]:
+				to_not_sum_indices.append(i)
+				continue
+			
+			src = sources[i]
+			
+			if cant_use[src.value]: return None
+			
+			if len(src.parents) != 1 or not src.parents[0] is parent:
+				same_parent = False
+			
+			to_sum_indices.append(i)
+		
+		if same_parent and to_sum_count == len(src.parents[0].children):
+			# can happen that the parent was the artificial root created to unify all sources
+			# in this case only we don't skip
+			if parent.parents or len(source_values) == 1: return None
+
+		summed_value = sum(sources[i].value for i in to_sum_indices)
+		if gcd_incompatible(summed_value) or summed_value > conveyor_speed_limit: return None
+		
+		sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
+		if sim in enqueued_sims: return None
+		return sim, to_sum_indices
+
+	def get_merge_sims(sources):
+		nonlocal solution
+		simulations, n = [], len(sources)
+		
+		if n < 2: return simulations
+		
+		binary = [False] * n
+		binary[0], binary[1] = True, True
+		
+		for _ in range(3, 1 << n): # 2^n - 1
+			to_sum_count = sum(binary)
+			
+			if to_sum_count < 2 or to_sum_count > 3: continue
+			if solution and n - to_sum_count + 1 >= solution.size: continue
+			
+			r = get_merge_sim(binary, to_sum_count)
+			if r: simulations.append(r)
+			
+			increment(binary)
+		
+		return simulations
+
+	# computes how close the sources are from the target_values
+	# the lower the better
+	def compute_sources_score(sources):
+		nonlocal target_values
+		n = len(sources)
+		simulations = []
+		for i in range(n):
+			simulations.extend(get_extract_sims(sources, i))
+			simulations.extend(get_divide_sims(sources, i))
+		simulations.extend(get_merge_sims(sources))
+		return min(compute_distance(sim, target_values) for sim, _ in simulations)
+
+	def _enqueue(sources):
+		nonlocal queue
+		low, high = 0, len(queue)
+		score = compute_sources_score(sources)
+		while low < high:
+			mid = low + (high - low) // 2
+			if score > queue[mid][1]:
+				low = mid + 1
+			else:
+				high = mid
+		queue.insert(low, (sources, score))
+
+	def enqueue(sources):
+		time_block("enqueue", _enqueue, sources)
+
+	# will be popped just after, no need to compute the score here
+	lowest_score = compute_sources_score(node_sources)
+	queue.append((node_sources, lowest_score))
 
 	while queue:
 		start_total = time.time()
-		sources = queue.pop(0)
+		tmp, score = queue.pop(0)
+		sources = sort_nodes(tmp)
+		if score < lowest_score:
+			root = sources[0].get_root()
+			root.compute_depth_informations()
+			print(f"lowest score = {score}, tree =\n{root}")
+			lowest_score = score
+		# print(f"step {abs(steps)}")
 
 		steps -= 1
 		if steps + 1 == 0:
@@ -439,11 +596,9 @@ def _solve(source_values, target_values):
 		if (-steps) % 1000 == 0:
 			print(f"step {abs(steps)}")
 
-		sources = sort_nodes(sources)
-		
 		def _copy_sources():
 			_, leaves = sources[0].deepcopy()
-			return leaves
+			return sort_nodes(leaves)
 
 		def copy_sources():
 			return time_block("copy_sources", _copy_sources)
@@ -495,164 +650,49 @@ def _solve(source_values, target_values):
 			target_count = target_counts.get(value, None)
 			cant_use[value] = max(0, src_count - target_count) == 0 if src_count and target_count else False
 
-		def _get_sim_without(value):
-			nonlocal sources
-			sim = []
-			found = False
-			for src in sources:
-				if src.value == value and not found:
-					found = True
-				else:
-					sim.append(src.value)
-			return sim
-
-		def get_sim_without(value):
-			return time_block("get_sim_without", _get_sim_without, value)
-
 		def _try_extract(i):
 			nonlocal sources
-			src = sources[i]
-			sim = None
-			parent_values = get_values(src.parents)
-			for speed in conveyor_speeds:
-				
-				# if so then it would have been better to leave it as is
-				# and merge all the other values to get the overflow value
-				# we would get by exctracting speed amount
-				if speed in parent_values: return
-				
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					if sources[0].size + 2 >= solution.size: continue
-				
-				if src.value <= speed: break
-				
-				extracted_value = src.value - speed
-				overflow_value = src.value - extracted_value
-				if extracted_value < gcd or overflow_value < gcd: continue
-
-				sim = sim if sim else get_sim_without(src.value)
-				if has_seen(sim + [extracted_value, overflow_value]): continue
-				
+			for sim, speed in get_extract_sims(sources, i):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
-				extracted_nodes = src_copy - speed
-				# print('extract', None in copy or None in extracted_nodes)
-				extract_queue.append(copy + extracted_nodes)
+				enqueue(copy + (src_copy - speed))
+				enqueued_sims.add(sim)
 
 		def try_extract(i):
 			time_block("try_extract", _try_extract, i)
-
+		
 		def _try_divide(i):
 			nonlocal sources
-			src = sources[i]
-			sim = None
-			for divisor in allowed_divisions:
-
-				if not src.can_split(divisor): continue
-
-				if sum(get_values(src.parents)) == src.value and len(src.parents) == divisor: return
-
-				if solution:
-					if not sources[0].size: sources[0].compute_size()
-					if sources[0].size + divisor >= solution.size: continue
-				
-				divided_value = int(src.value / divisor)
-				if divided_value < gcd: continue
-
-				sim = sim if sim else get_sim_without(src.value)
-				if has_seen(sim + [divided_value] * divisor): continue
-				
+			for sim, divisor in get_divide_sims(sources, i):
 				copy = copy_sources()
-				# print(sources, copy)
 				src_copy = copy[i]
 				pop(src_copy, copy)
-				divided_nodes = src_copy / divisor
-				divide_queue.append(copy + divided_nodes)
+				enqueue(copy + (src_copy / divisor))
+				enqueued_sims.add(sim)
 
 		def try_divide(i):
 			time_block("try_divide", _try_divide, i)
 
-		def _try_merge(sources, flags):
-			nonlocal cant_use
-			to_sum_count = sum(flags)
-			if to_sum_count <= 1: return
-			if solution and n - to_sum_count + 1 >= solution.size: return
+		def _try_merge():
+			nonlocal sources
+			for sim, to_sum_indices in get_merge_sims(sources):
+				copy = copy_sources()
+				to_sum = [copy[i] for i in to_sum_indices]
+				list(map(lambda src: pop(src, copy), to_sum))
+				enqueue(copy + [to_sum[0] + to_sum[1:]])
+				enqueued_sims.add(sim)
 
-			to_not_sum_indices = []
-			i = 0
-			while not flags[i]:
-				to_not_sum_indices.append(i)
-				i += 1
-			src = sources[i]
-			if cant_use[src.value]: return
-			to_sum_indices = [i]
-
-			# if len(src.parents) == 0:
-			# 	print("\nimpossible case reached, 0 parent while trying to merge")
-			# 	print(src)
-			# 	exit(1)
-			parent = src.parents[0]
-			same_parent = len(src.parents) == 1
-			while i < n - 1:
-				i += 1
-				if not flags[i]:
-					to_not_sum_indices.append(i)
-					continue
-				src = sources[i]
-				if cant_use[src.value]: return
-				# if len(src.parents) == 0:
-				# 	print("\nimpossible case reached, 0 parent while trying to merge")
-				# 	print(src)
-				# 	exit(1)
-				if len(src.parents) != 1 or not src.parents[0] is parent:
-					same_parent = False
-				to_sum_indices.append(i)
-			if same_parent and to_sum_count == len(src.parents[0].children):
-				# can happen that the parent was the artificial root created to unify all sources
-				# in this case only we don't return
-				if parent.parents or len(source_values) == 1: return
-
-			# if to_sum_count != len(to_sum_indices):
-			# 	print("wtf")
-			# 	exit(1)
-
-			summed_value = sum(sources[i].value for i in to_sum_indices)
-			if invalid_value(summed_value): return
-			sim = [sources[i].value for i in to_not_sum_indices] + [summed_value]
-			if has_seen(sim): return
-
-			copy = copy_sources()
-			to_sum = [copy[i] for i in to_sum_indices]
-			list(map(lambda src: pop(src, copy), to_sum))
-			merged_node = to_sum[0] + to_sum[1:]
-			# print('merge', None in copy or merged_node is None)
-			copy.append(merged_node)
-			merge_queue.append(copy)
-
-		def try_merge(sources, flags):
-			time_block("try_merge", _try_merge, sources, flags)
+		def try_merge():
+			time_block("try_merge", _try_merge)
 
 		for i in range(n):
 			if cant_use[sources[i].value]: continue
 			try_divide(i)
 			try_extract(i)
 
-		if n >= 2:
-			binary_start = 3
-			max_num = (1 << n) - 1 # 2^n - 1
-			binary = [False] * n
-			binary[0] = True
-			binary[1] = True
-			for _ in range(binary_start, max_num + 1):
-				try_merge(sources, binary)
-				increment(binary)
-		
-		refill_queue(queue, divide_queue, extract_queue, merge_queue)
-		# for future in queue:
-		# 	print(future[0].get_root())
-		# 	print()
+		try_merge()
+
 		timings["total"] += time.time() - start_total
 	
 	return solution
