@@ -129,10 +129,11 @@ class Node:
 		return cur
 
 	def _compute_size(self):
-		# print('contributing to size:', self)
-		self.size = 1
-		if self.children: self.size += sum(child._compute_size() for child in self.children)
-		return self.size
+		size = 1
+		if self.children:
+			size += sum(child._compute_size() for child in self.children)
+		self.size = size
+		return size
 
 	def compute_size(self):
 		return self.get_root()._compute_size()
@@ -398,16 +399,9 @@ def has_seen(sim):
 	return False
 
 def refill_queue(queue, divide_queue, extract_queue, merge_queue):
-	while divide_queue or extract_queue or merge_queue:
-		if not divide_queue and not extract_queue and not merge_queue:
-			break
-		choice = random.choice([i for i, q in enumerate([divide_queue, extract_queue, merge_queue]) if q])
-		if choice == 0 and divide_queue:
-			queue.append(divide_queue.pop(0))
-		elif choice == 1 and extract_queue:
-			queue.append(extract_queue.pop(0))
-		elif choice == 2 and merge_queue:
-			queue.append(merge_queue.pop(0))
+	queues = [divide_queue, extract_queue, merge_queue]
+	while any(queues):
+		queue.append(random.choice([q for q in queues if q]).pop(0))
 
 steps = -1
 logging = False
@@ -425,7 +419,7 @@ def _solve(source_values, target_values):
 	# print('\n'.join([str(src) for src in copy]))
 
 	def invalid_value(value):
-		return value < gcd and value > conveyor_speed_limit
+		return value < gcd or value > conveyor_speed_limit
 
 	if len(node_sources) > 1:
 		root = Node(sum(source_values))
@@ -520,9 +514,14 @@ def _solve(source_values, target_values):
 		def _try_extract(i):
 			nonlocal sources
 			src = sources[i]
-			if sum(get_values(src.parents)) == src.value: return
 			sim = None
+			parent_values = get_values(src.parents)
 			for speed in conveyor_speeds:
+				
+				# if so then it would have been better to leave it as is
+				# and merge all the other values to get the overflow value
+				# we would get by exctracting speed amount
+				if speed in parent_values: return
 				
 				if solution:
 					if not sources[0].size: sources[0].compute_size()
@@ -532,7 +531,7 @@ def _solve(source_values, target_values):
 				
 				extracted_value = src.value - speed
 				overflow_value = src.value - extracted_value
-				if invalid_value(extracted_value) or invalid_value(overflow_value): continue
+				if extracted_value < gcd or overflow_value < gcd: continue
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [extracted_value, overflow_value]): continue
@@ -548,18 +547,19 @@ def _solve(source_values, target_values):
 		def _try_divide(i):
 			nonlocal sources
 			src = sources[i]
-			if sum(get_values(src.parents)) == src.value: return
 			sim = None
 			for divisor in allowed_divisions:
+
+				if not src.can_split(divisor): continue
+
+				if sum(get_values(src.parents)) == src.value and len(src.parents) == divisor: return
 
 				if solution:
 					if not sources[0].size: sources[0].compute_size()
 					if sources[0].size + divisor >= solution.size: continue
 				
-				if not src.can_split(divisor): continue
-				
 				divided_value = int(src.value / divisor)
-				if invalid_value(divided_value): continue
+				if divided_value < gcd: continue
 
 				sim = sim if sim else get_sim_without(src.value)
 				if has_seen(sim + [divided_value] * divisor): continue
@@ -588,10 +588,10 @@ def _solve(source_values, target_values):
 			if cant_use[src.value]: return
 			to_sum_indices = [i]
 
-			if len(src.parents) == 0:
-				print("\nimpossible case reached, 0 parent while trying to merge")
-				print(src)
-				exit(1)
+			# if len(src.parents) == 0:
+			# 	print("\nimpossible case reached, 0 parent while trying to merge")
+			# 	print(src)
+			# 	exit(1)
 			parent = src.parents[0]
 			same_parent = len(src.parents) == 1
 			while i < n - 1:
@@ -601,10 +601,10 @@ def _solve(source_values, target_values):
 					continue
 				src = sources[i]
 				if cant_use[src.value]: return
-				if len(src.parents) == 0:
-					print("\nimpossible case reached, 0 parent while trying to merge")
-					print(src)
-					exit(1)
+				# if len(src.parents) == 0:
+				# 	print("\nimpossible case reached, 0 parent while trying to merge")
+				# 	print(src)
+				# 	exit(1)
 				if len(src.parents) != 1 or not src.parents[0] is parent:
 					same_parent = False
 				to_sum_indices.append(i)
@@ -615,9 +615,9 @@ def _solve(source_values, target_values):
 				# 	exit(1)
 				return
 
-			if to_sum_count != len(to_sum_indices):
-				print("wtf")
-				exit(1)
+			# if to_sum_count != len(to_sum_indices):
+			# 	print("wtf")
+			# 	exit(1)
 
 			summed_value = sum(sources[i].value for i in to_sum_indices)
 			if invalid_value(summed_value): return
@@ -627,7 +627,7 @@ def _solve(source_values, target_values):
 			copy = copy_sources()
 			to_sum = [copy[i] for i in to_sum_indices]
 			list(map(lambda src: pop(src, copy), to_sum))
-			merge_queue.append(copy + ([to_sum[0] + to_sum[1:]] if len(to_sum) > 0 else []))
+			merge_queue.append(copy + [to_sum[0] + to_sum[1:]])
 
 		def try_merge(sources, flags):
 			time_block("try_merge", _try_merge, sources, flags)
