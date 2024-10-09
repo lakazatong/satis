@@ -53,8 +53,8 @@ def set_time(key, start_time):
 
 allowed_divisors = [3, 2]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
-conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
-conveyor_speed_limit = conveyor_speeds[-1]
+conveyor_speeds_r = conveyor_speeds.reverse()
+conveyor_speed_limit = conveyor_speeds_r[0]
 short_repr = False
 
 # def safe_add_parent(parent, node):
@@ -87,7 +87,7 @@ def pop(node, nodes):
 
 def can_split(value, divisor):
 	if not divisor in allowed_divisors: return False
-	return (self.value / divisor).is_integer()
+	return self.value % divisor == 0
 
 def increment(binary_array):
 	for i in range(len(binary_array)):
@@ -356,6 +356,7 @@ def _simplify_merge(nodes):
 	return nodes, has_merged
 
 def _simplify_extract(nodes):
+	nonlocal conveyor_speeds_r
 	# Step 2: Extract maximum conveyor speed that fits (ignore nodes with value already equal to a conveyor speed)
 	extracted_nodes = []
 	for node in nodes:
@@ -414,6 +415,7 @@ def _solve(source_values, target_values):
 		return value < gcd or value % gcd != 0
 
 	filtered_conveyor_speeds = [speed for speed in conveyor_speeds if not gcd_incompatible(speed)]
+	filtered_conveyor_speeds_r = filtered_conveyor_speeds.reverse()
 	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}")
 
 	if len(node_sources) > 1:
@@ -577,24 +579,67 @@ def _solve(source_values, target_values):
 		return simulations
 
 	def compute_distance(sim):
-		nonlocal target_values, allowed_divisors
+		nonlocal target_values, allowed_divisors, filtered_conveyor_speeds_r
 		targets = target_values[:]
 		distance = 0
 		
-		# Exact matches, contributing 0 to the distance
 		for value in sim[:]:
 			if value in targets:
 				sim.remove(value)
 				targets.remove(value)
 
-		for value in sim[:]:
-			for divisor in allowed_divisors:
-				divided_value = value // divisor
-				if divided_value in targets and value % divisor == 0:
-					sim.remove(value)
-					targets.remove(divided_value)
-					distance += 1
-					break
+		for speed in filtered_conveyor_speeds_r:
+			if not speed in targets: continue
+			best_value = None
+			best_overflow = None
+
+			for value in sim:
+				if value <= speed: continue
+				overflow = value - speed
+				if gcd_incompatible(overflow): continue
+				if best_overflow is None or overflow < best_overflow:
+					best_overflow = overflow
+					best_value = value
+
+			if best_value is not None:
+				sim.remove(best_value)
+				targets.remove(speed)
+				sim.append(best_overflow)
+				distance += 1
+
+		for divisor in allowed_divisors:
+			while True:
+				best_value = None
+				best_matches_count = None
+				
+				for value in sim[:]:
+					if value % divisor != 0: continue
+					
+					divided_value = value // divisor
+					
+					if gcd_incompatible(divided_value): continue
+
+					extras = [divided_value] * divisor
+					matches, remaining_targets = [], targets[:]
+
+					for divided_value in extras[:]:
+						if divided_value in remaining_targets:
+							matches.append(divided_value)
+							remaining_targets.remove(divided_value)
+							extras.pop()
+
+					if len(matches) == 0: continue
+
+					if len(extras) == 0:
+						best_value = value
+						best_matches_count = divisor
+						break
+				
+				if not best_value: break
+				if best_matches_count == divisor:
+					sim.remove(best_value)
+					for _ in range(divisor):
+						targets.remove(divided_value)
 
 		for target in targets[:]:
 			found = False
@@ -609,10 +654,8 @@ def _solve(source_values, target_values):
 					found = True
 					break
 				if found: break
-
-		...
 		
-		return distance
+		return distance + len(sim) + len(targets)
 
 	# computes how close the sources are from the target_values
 	# the lower the better
