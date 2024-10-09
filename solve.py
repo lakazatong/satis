@@ -18,6 +18,7 @@ import math
 import time
 import signal
 import random
+import itertools
 
 timings = {
 	"total": 0,
@@ -51,9 +52,10 @@ def time_block(key, fn, *args, **kwargs):
 def set_time(key, start_time):
 	timings[key] += time.time() - start_time
 
-allowed_divisors = [3, 2]
+allowed_divisors = [2, 3]
+allowed_divisors_r = allowed_divisors[::-1]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
-conveyor_speeds_r = conveyor_speeds.reverse()
+conveyor_speeds_r = conveyor_speeds[::-1]
 conveyor_speed_limit = conveyor_speeds_r[0]
 short_repr = False
 
@@ -86,13 +88,24 @@ def pop(node, nodes):
 	return None
 
 def can_split(value, divisor):
+	global allowed_divisors
 	if not divisor in allowed_divisors: return False
-	return self.value % divisor == 0
+	return value % divisor == 0
 
 def increment(binary_array):
 	for i in range(len(binary_array)):
 		binary_array[i] = not binary_array[i]
 		if binary_array[i]: break
+
+def insert_into_sorted(sorted_list, item, key=lambda x: x):
+	low, high = 0, len(sorted_list)
+	while low < high:
+		mid = low + (high - low) // 2
+		if key(item) > key(sorted_list[mid]):
+			low = mid + 1
+		else:
+			high = mid
+	sorted_list.insert(low, item)
 
 class Node:
 	def __init__(self, value, node_id=None):
@@ -322,6 +335,7 @@ class Node:
 		raise ValueError("Amount must be a number")
 
 def _simplify_merge(nodes):
+	global allowed_divisors_r
 	# Step 1: Merge nodes with the same value until all are different
 	has_merged = False
 	while True:
@@ -336,7 +350,7 @@ def _simplify_merge(nodes):
 
 			i += 1
 			while i < len(nodes) and nodes[i].value == current_value:
-				if len(same_value_nodes) == max(allowed_divisors) - 1:
+				if len(same_value_nodes) == allowed_divisors_r[0] - 1:
 					break
 				same_value_nodes.append(nodes[i])
 				i += 1
@@ -356,7 +370,7 @@ def _simplify_merge(nodes):
 	return nodes, has_merged
 
 def _simplify_extract(nodes):
-	nonlocal conveyor_speeds_r
+	global conveyor_speeds_r
 	# Step 2: Extract maximum conveyor speed that fits (ignore nodes with value already equal to a conveyor speed)
 	extracted_nodes = []
 	for node in nodes:
@@ -415,7 +429,7 @@ def _solve(source_values, target_values):
 		return value < gcd or value % gcd != 0
 
 	filtered_conveyor_speeds = [speed for speed in conveyor_speeds if not gcd_incompatible(speed)]
-	filtered_conveyor_speeds_r = filtered_conveyor_speeds.reverse()
+	filtered_conveyor_speeds_r = filtered_conveyor_speeds[::-1]
 	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}")
 
 	if len(node_sources) > 1:
@@ -428,8 +442,9 @@ def _solve(source_values, target_values):
 	solution = None
 	cant_use = {}
 
-	def get_extract_sim(sources, src):
+	def get_extract_sim(sources, i):
 		nonlocal solution
+		src = sources[i]
 		simulations = []
 		tmp_sim = None
 		parent_values = get_values(src.parents)
@@ -453,25 +468,29 @@ def _solve(source_values, target_values):
 			if gcd_incompatible(overflow_value): continue
 
 			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
-			sim = sorted(tmp_sim + [speed, overflow_value])
+			sim = tuple(sorted(tmp_sim + [speed, overflow_value]))
 			if sim in enqueued_sims: continue
-			simulations.append((sim, speed))
+			simulations.append((sim, (i, speed)))
 		
 		return simulations
 
 	def get_extract_sims(sources):
+		nonlocal cant_use
 		simulations = []
-		seen_values = {}
+		seen_values = set()
 		
-		for src in sources:
-			if src.value in seen_values: continue
+		for i in range(len(sources)):
+			src = sources[i]
+			if cant_use[src.value] or src.value in seen_values: continue
 			seen_values.add(src.value)
-			simulations.extend(get_extract_sim(sources, src))
+			simulations.extend(get_extract_sim(sources, i))
 		
 		return simulations
 
-	def get_divide_sim(sources, src):
+	def get_divide_sim(sources, i):
 		nonlocal solution
+		global allowed_divisors
+		src = sources[i]
 		simulations = []
 		tmp_sim = None
 		
@@ -488,24 +507,26 @@ def _solve(source_values, target_values):
 			if gcd_incompatible(divided_value): continue
 
 			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
-			sim = sorted(tmp_sim + [divided_value] * divisor)
+			sim = tuple(sorted(tmp_sim + [divided_value] * divisor))
 			if sim in enqueued_sims: continue
-			simulations.append((sim, divisor))
+			simulations.append((sim, (i, divisor)))
 		
 		return simulations
 
 	def get_divide_sims(sources):
+		nonlocal cant_use
 		simulations = []
-		seen_values = {}
+		seen_values = set()
 		
-		for src in sources:
-			if src.value in seen_values: continue
+		for i in range(len(sources)):
+			if cant_use[src.value] or src.value in seen_values: continue
 			seen_values.add(src.value)
-			simulations.extend(get_divide_sim(sources, src))
+			simulations.extend(get_divide_sim(sources, i))
 		
 		return simulations
 
 	def get_merge_sim(sources, flags, to_sum_count, seen_sums):
+		nonlocal cant_use
 		to_not_sum_indices = []
 		i = 0
 		
@@ -550,7 +571,7 @@ def _solve(source_values, target_values):
 		if to_sum_values in seen_sums: return None
 		seen_sums.add(to_sum_values)
 
-		sim = sorted([sources[i].value for i in to_not_sum_indices] + [summed_value])
+		sim = tuple(sorted([sources[i].value for i in to_not_sum_indices] + [summed_value]))
 		if sim in enqueued_sims: return None
 		
 		return sim, to_sum_indices
@@ -579,7 +600,9 @@ def _solve(source_values, target_values):
 		return simulations
 
 	def compute_distance(sim):
-		nonlocal target_values, allowed_divisors, filtered_conveyor_speeds_r
+		nonlocal target_values, filtered_conveyor_speeds_r
+		global allowed_divisors, allowed_divisors_r
+		sim = list(sim)
 		targets = target_values[:]
 		distance = 0
 		
@@ -588,62 +611,83 @@ def _solve(source_values, target_values):
 				sim.remove(value)
 				targets.remove(value)
 
+		# remove all perfect extractions
 		for speed in filtered_conveyor_speeds_r:
 			if not speed in targets: continue
-			best_value = None
-			best_overflow = None
+
+			for value in sim:
+				if value <= speed: continue
+				overflow = value - speed
+				if gcd_incompatible(overflow) or not overflow in targets: continue
+				sim.remove(value)
+				targets.remove(speed)
+				targets.remove(overflow)
+				distance += 1
+		
+		# remove all perfect extractions
+		for speed in filtered_conveyor_speeds:
+			if not speed in targets: continue
 
 			for value in sim:
 				if value <= speed: continue
 				overflow = value - speed
 				if gcd_incompatible(overflow): continue
-				if best_overflow is None or overflow < best_overflow:
-					best_overflow = overflow
-					best_value = value
-
-			if best_value is not None:
-				sim.remove(best_value)
+				sim.remove(value)
+				sim.append(overflow)
 				targets.remove(speed)
-				sim.append(best_overflow)
-				distance += 1
+				distance += 2
 
+		def try_divide(value, divisor):
+			nonlocal targets
+			if value % divisor != 0: return None, 0
+			
+			divided_value = value // divisor
+			
+			if gcd_incompatible(divided_value): return None, 0
+
+			matches, remaining_targets = 0, targets[:]
+
+			for divided_value in extras[:]:
+				if divided_value in remaining_targets:
+					matches += 1
+					remaining_targets.remove(divided_value)
+
+			return divided_value, matches
+
+		# remove all perfect divisions
+		for divisor in allowed_divisors_r:
+			while True:
+				done = True				
+				for value in sim[:]:
+					_, matches = try_divide(value, divisor)
+					if not matches or matches != divisor: continue
+					sim.remove(best_value)
+					for _ in range(matches): targets.remove(divided_value)
+					distance += 1
+					done = False
+				if done: break				
+		
+		# remove all divisions that have at least one match
 		for divisor in allowed_divisors:
 			while True:
-				best_value = None
-				best_matches_count = None
-				
+				done = True
 				for value in sim[:]:
-					if value % divisor != 0: continue
-					
-					divided_value = value // divisor
-					
-					if gcd_incompatible(divided_value): continue
-
-					extras = [divided_value] * divisor
-					matches, remaining_targets = [], targets[:]
-
-					for divided_value in extras[:]:
-						if divided_value in remaining_targets:
-							matches.append(divided_value)
-							remaining_targets.remove(divided_value)
-							extras.pop()
-
-					if len(matches) == 0: continue
-
-					if len(extras) == 0:
-						best_value = value
-						best_matches_count = divisor
-						break
-				
-				if not best_value: break
-				if best_matches_count == divisor:
+					divided_value, matches = try_divide(value, divisor)
+					if not matches: continue
+					if matches == divisor:
+						print("impossible case reached, all perfect divisions were removed already")
+						exit(1)
 					sim.remove(best_value)
-					for _ in range(divisor):
-						targets.remove(divided_value)
+					extras = divisor - matches
+					for _ in range(matches): targets.remove(divided_value)
+					for _ in range(extras): sim.append(divided_value)
+					distance += 1 + extras
+					done = False
+				if done: break
 
 		for target in targets[:]:
 			found = False
-			for to_sum_count in [3, 2]:
+			for to_sum_count in allowed_divisors_r:
 				for to_sum_values in itertools.combinations(sim, to_sum_count):
 					if sum(to_sum_values) != target: continue
 					
@@ -662,29 +706,21 @@ def _solve(source_values, target_values):
 	def compute_sources_score(sources):
 		n = len(sources)
 		simulations = []
-		for i in range(n):
-			simulations.extend(get_extract_sims(sources, i))
-			simulations.extend(get_divide_sims(sources, i))
+		simulations.extend(get_extract_sims(sources))
+		simulations.extend(get_divide_sims(sources))
 		simulations.extend(get_merge_sims(sources))
 		return min(compute_distance(sim) for sim, _ in simulations)
 
 	def _enqueue(sources):
 		nonlocal queue
-		low, high = 0, len(queue)
-		score = compute_sources_score(sources)
-		while low < high:
-			mid = low + (high - low) // 2
-			if score > queue[mid][1]:
-				low = mid + 1
-			else:
-				high = mid
-		queue.insert(low, (sources, score))
+		insert_into_sorted(queue, (sources, compute_sources_score(sources)), key=lambda x: x[1])
 
 	def enqueue(sources):
 		time_block("enqueue", _enqueue, sources)
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
+	lowest_score = 1000
 
 	while queue:
 		start_total = time.time()
@@ -759,29 +795,29 @@ def _solve(source_values, target_values):
 			target_count = target_counts.get(value, None)
 			cant_use[value] = max(0, src_count - target_count) == 0 if src_count and target_count else False
 
-		def _try_extract(i):
+		def _try_extract():
 			nonlocal sources
-			for sim, speed in get_extract_sims(sources, i):
+			for sim, (i, speed) in get_extract_sims(sources):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
 				enqueue(copy + (src_copy - speed))
 				enqueued_sims.add(sim)
 
-		def try_extract(i):
-			time_block("try_extract", _try_extract, i)
+		def try_extract():
+			time_block("try_extract", _try_extract)
 		
-		def _try_divide(i):
+		def _try_divide():
 			nonlocal sources
-			for sim, divisor in get_divide_sims(sources, i):
+			for sim, (i, divisor) in get_divide_sims(sources):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
 				enqueue(copy + (src_copy / divisor))
 				enqueued_sims.add(sim)
 
-		def try_divide(i):
-			time_block("try_divide", _try_divide, i)
+		def try_divide():
+			time_block("try_divide", _try_divide)
 
 		def _try_merge():
 			nonlocal sources
@@ -795,11 +831,8 @@ def _solve(source_values, target_values):
 		def try_merge():
 			time_block("try_merge", _try_merge)
 
-		for i in range(n):
-			if cant_use[sources[i].value]: continue
-			try_divide(i)
-			try_extract(i)
-
+		try_divide()
+		try_extract()
 		try_merge()
 
 		timings["total"] += time.time() - start_total
