@@ -1,4 +1,4 @@
-import argparse
+# import argparse
 import networkx as nx
 import matplotlib.pyplot as plt
 import uuid
@@ -58,17 +58,17 @@ conveyor_speeds_r = sorted(conveyor_speeds, reverse=True)
 conveyor_speed_limit = conveyor_speeds[-1]
 short_repr = False
 
-def safe_add_parent(parent, node):
-	if node is parent or node.has_parent(parent):
-		print("self parent")
-		print(node)
-		exit(1)
-	node.parents.append(parent)
+# def safe_add_parent(parent, node):
+# 	if node is parent or node.has_parent(parent):
+# 		print("self parent")
+# 		print(node)
+# 		exit(1)
+# 	node.parents.append(parent)
 
 def visualize(src, nodes):
 	src.children = nodes
 	for node in nodes:
-		safe_add_parent(src, node)
+		src.parents.append(node)
 	src.visualize()
 
 def sort_nodes(nodes):
@@ -145,7 +145,7 @@ class Node:
 		new_node.level = self.level
 		new_node.children = [child._deepcopy() for child in self.children]
 		for child in new_node.children:
-			safe_add_parent(new_node, child)
+			new_node.parents.append(child)
 		return new_node
 
 	def deepcopy(self):
@@ -228,16 +228,16 @@ class Node:
 		new_value = self.value + sum(get_values(other))
 		new_node = Node(new_value)
 		if down:
-			safe_add_parent(self, new_node)
+			self.parents.append(new_node)
 			self.children.append(new_node)
 			for node in other:
-				safe_add_parent(node, new_node)
+				node.parents.append(new_node)
 				node.children.append(new_node)
 		else:
-			safe_add_parent(new_node, self)
+			new_node.parents.append(self)
 			new_node.children.append(self)
 			for node in other:
-				safe_add_parent(new_node, node)
+				new_node.parents.append(node)
 				new_node.children.append(node)
 		return new_node
 
@@ -260,11 +260,11 @@ class Node:
 		new_nodes = [Node(new_value) for _ in range(divisor)]
 		if down:
 			for node in new_nodes:
-				safe_add_parent(self, node)
+				self.parents.append(node)
 				self.children.append(node)
 		else:
 			for node in new_nodes:
-				safe_add_parent(node, self)
+				node.parents.append(self)
 				node.children.append(self)
 		return new_nodes
 
@@ -287,13 +287,13 @@ class Node:
 		overflow_node = Node(overflow_value)
 		
 		if down:
-			safe_add_parent(self, extracted_node)
-			safe_add_parent(self, overflow_node)
+			self.parents.append(extracted_node)
+			self.parents.append(overflow_node)
 			self.children.append(extracted_node)
 			self.children.append(overflow_node)
 		else:
-			safe_add_parent(extracted_node, self)
-			safe_add_parent(overflow_node, self)
+			extracted_node.parents.append(self)
+			overflow_node.parents.append(self)
 			extracted_node.children.append(self)
 			overflow_node.children.append(self)
 		
@@ -421,7 +421,7 @@ def _solve(source_values, target_values):
 		root = Node(sum(source_values))
 		root.children = node_sources
 		for child in root.children:
-			safe_add_parent(root, child)
+			root.parents.append(child)
 
 	queue = [node_sources]
 	extract_queue = []
@@ -468,7 +468,7 @@ def _solve(source_values, target_values):
 				# 	src = sources[i]
 				# 	src.children = node_targets[i].children
 				# 	for child in src.children:
-				# 		safe_add_parent(src, child)
+				# 		src.parents.append(child)
 
 				new_solution = sources[0].get_root()
 				new_solution._compute_size()
