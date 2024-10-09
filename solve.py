@@ -193,12 +193,10 @@ class Node:
 	def add_edges(self, G):
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
 		for child in self.children:
-			G.add_edge(self.node_id, child.node_id)
 			child.add_edges(G)
 
 	def visualize(self):
 		self.compute_depth_informations()
-		print(self)
 		G = nx.DiGraph()
 		self.add_edges(G)
 
