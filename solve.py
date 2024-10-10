@@ -10,13 +10,18 @@ if sys.platform == 'win32':
 		os.environ['PATH'] += f';{path}'
 
 log_filename = "logs.txt"
+logging = False
 
 def printt(*args, **kwargs):
-	with open(log_filename, "a") as f:
-		with redirect_stdout(f):
-			print(*args, **kwargs)
+	if logging:
+		with open(log_filename, "a") as f:
+			with redirect_stdout(f):
+				print(*args, **kwargs)
 
-open(log_filename, "w+").close()
+if logging:
+	open(log_filename, "w").close()
+elif os.path.exists(log_filename):
+	os.remove(log_filename)
 
 timings = {
 	"total": 0,
@@ -482,7 +487,7 @@ def get_sim_without(sources, value):
 	return time_block("get_sim_without", _get_sim_without, sources, value)
 
 def _solve(source_values, target_values, starting_node_sources=None):
-	print(f"\nsolving: {source_values} to {target_values}\n")
+	print(f"\nsolving: {sorted(source_values)} to {sorted(target_values)}\n")
 	steps = -1
 
 	enqueued_sims = set()
@@ -532,6 +537,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
+		sources_root = None
 		parent_values = get_node_values(src.parents)
 		
 		for speed in filtered_conveyor_speeds:
@@ -543,8 +549,10 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if speed in parent_values: continue
 
 			if solution:
-				if not sources[0].size: sources[0].compute_size()
-				if sources[0].size + 2 >= solution.size: continue
+				if not sources_root:
+					sources_root = sources[0].get_root()
+					sources_root._compute_size(set())
+				if sources_root.size + 2 >= solution.size: continue
 			
 			overflow_value = src.value - speed
 			if gcd_incompatible(overflow_value): continue
@@ -574,6 +582,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
+		sources_root = None
 
 		for divisor in allowed_divisors:
 			if not src.can_split(divisor): continue
@@ -581,8 +590,10 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if sum(get_node_values(src.parents)) == src.value and len(src.parents) == divisor: continue
 
 			if solution:
-				if not sources[0].size: sources[0].compute_size()
-				if sources[0].size + divisor >= solution.size: continue
+				if not sources_root:
+					sources_root = sources[0].get_root()
+					sources_root._compute_size(set())
+				if sources_root.size + divisor >= solution.size: continue
 			
 			divided_value = int(src.value / divisor)
 			if gcd_incompatible(divided_value): continue
@@ -631,7 +642,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					to_not_sum_indices.append(i)
 					continue
 			except:
-				print("caca10")
 				root = sources[0].get_root()
 				root.compute_depth_informations()
 				print(root)
@@ -653,7 +663,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			# in this case only we don't skip
 			if parent.parents or len(source_values) == 1: return None
 
-		to_sum_values = [sources[i].value for i in to_sum_indices]
+		to_sum_values = sorted([sources[i].value for i in to_sum_indices])
 		summed_value = sum(to_sum_values)
 		if gcd_incompatible(summed_value) or summed_value > conveyor_speed_limit: return None
 		
@@ -675,16 +685,24 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		seen_sums = set()
 		binary = [False] * n
 		binary[0], binary[1] = True, True
+		sources_root = None
 		
 		for _ in range(3, 1 << n): # 2^n - 1
 			to_sum_count = sum(binary)
 			
-			if to_sum_count < 2 or to_sum_count > 3: continue
-			if solution and n - to_sum_count + 1 >= solution.size: continue
-
+			if to_sum_count < 2 or to_sum_count > 3:
+				increment(binary)
+				continue
+			if solution:
+				if not sources_root:
+					sources_root = sources[0].get_root()
+					sources_root._compute_size(set())
+				if sources_root.size + 1 >= solution.size:
+					increment(binary)
+					continue
+			
 			r = get_merge_sim(sources, binary, to_sum_count, seen_sums, cant_use)
 			if r: simulations.append(r)
-			
 			increment(binary)
 		
 		return simulations
@@ -838,9 +856,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		else:
 			print("impossible case reached, should have been checked already")
 			exit(1)
-		print(f"\tSolution of size {solution.size} found\n")
+		print(f"\n\n\tSolution of size {solution.size} found\n")
 		print(solution)
-		solution.visualize()
+		# solution.visualize()
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
@@ -855,7 +873,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		if score == 0:
 			solution_found(sources_root)
 		elif score < lowest_score:
-			print(f"lowest score = {score}, tree =\n{sources_root}")
+			print(f"\n\n\tlowest score = {score}, tree =\n{sources_root}")
 			lowest_score = score
 
 		steps -= 1
@@ -880,9 +898,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 		def enqueue(new_sources):
 			nonlocal sources
-			# new_sources_root = new_sources.get_root()
-			# new_sources_root.compute_depth_informations()
-			# print(new_sources_root)
 			time_block("enqueue", _enqueue, new_sources)
 
 		def _try_extract():
@@ -1030,11 +1045,11 @@ def main():
 
 	sol = solve(sources, targets)
 	if sol:
-		print(f"\n\tSmallest solution found (size = {sol.size}):\n")
+		print(f"\n\n\tSmallest solution found (size = {sol.size}):\n")
 		print(sol)
 		sol.visualize()
 	else:
-		print(f"\n\tNo solution found? bruh\n")
+		print(f"\n\n\tNo solution found? bruh\n")
 
 def test():
 	root = load_tree("""Node(value=250, short_node_id=93d, parents=[], children=[
@@ -1063,5 +1078,5 @@ def test():
 		print(f"\n\tNo solution found? bruh\n")
 
 if __name__ == '__main__':
-	test()
-	# main()
+	# test()
+	main()
