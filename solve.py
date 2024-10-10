@@ -969,9 +969,9 @@ def main():
 	if sol:
 		print(f"\n Smallest solution found (size = {sol.size}):\n")
 		print(sol)
+		sol.visualize()
 	else:
 		print(f"\n No solution found? bruh\n")
-	sol.visualize()
 
 def test():
 	A = Node(100)
