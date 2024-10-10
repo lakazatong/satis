@@ -19,6 +19,7 @@ conveyor_speeds_r = conveyor_speeds[::-1]
 conveyor_speed_limit = conveyor_speeds_r[0]
 short_repr = False
 include_depth_informations = False
+solution = None
 
 def printt(*args, **kwargs):
 	if logging:
@@ -48,9 +49,18 @@ def print_timings():
 		if total_time == 0: continue
 		print(f"{key}: {val / total_time:.4f}")
 
+def conclude():
+	if solution:
+		print(f"\n\n\tSmallest solution found (size = {solution.size}):\n")
+		print(solution)
+		solution.visualize()
+	else:
+		print(f"\n\n\tNo solution found? bruh\n")
+
 def handler(signum, frame):
 	print("Stopping and printing timing averages...")
 	print_timings()
+	conclude()
 	exit(0)
 
 signal.signal(signal.SIGINT, handler)
@@ -511,6 +521,18 @@ def _get_sim_without(sources, value):
 def get_sim_without(sources, value):
 	return time_block("get_sim_without", _get_sim_without, sources, value)
 
+def solution_found(new_solution_root):
+	global solution
+	new_solution_root._compute_size(set())
+	if solution is None or new_solution_root.size < solution.size:
+		solution = new_solution_root
+	else:
+		print("impossible case reached, should have been checked already")
+		exit(1)
+	print(f"\n\n\tSolution of size {solution.size} found\n")
+	print(solution)
+	# solution.visualize()
+
 def _solve(source_values, target_values, starting_node_sources=None):
 	print(f"\nsolving: {sorted(source_values)} to {sorted(target_values)}\n")
 	# steps = -1
@@ -525,6 +547,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	# print('\n'.join([str(src) for src in copy]))
 
 	def gcd_incompatible(value):
+		nonlocal gcd
 		return value < gcd or value % gcd != 0
 
 	filtered_conveyor_speeds = [speed for speed in conveyor_speeds if not gcd_incompatible(speed)]
@@ -543,26 +566,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				child.parents.append(root)
 
 	queue = []
-	solution = None
-
-	def compute_cant_use(sources):
-		nonlocal target_counts
-		source_counts = {}
-		for src in sources:
-			if src.value in source_counts:
-				source_counts[src.value] += 1
-			else:
-				source_counts[src.value] = 1
-		cant_use = {}
-		for src in sources:
-			value = src.value
-			src_count = source_counts.get(value, None)
-			target_count = target_counts.get(value, None)
-			cant_use[value] = max(0, src_count - target_count) == 0 if src_count and target_count else False
-		return cant_use
 
 	def get_extract_sim(sources, i):
-		nonlocal solution
+		global solution
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
@@ -607,8 +613,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return simulations
 
 	def get_divide_sim(sources, i):
-		nonlocal solution
-		global allowed_divisors_r
+		global solution, allowed_divisors_r
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
@@ -704,8 +709,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return sim, to_sum_indices
 
 	def get_merge_sims(sources, cant_use, log=False):
-		global min_sum_count, max_sum_count
-		nonlocal solution
+		global min_sum_count, max_sum_count, solution
 		simulations, n = [], len(sources)
 		
 		if n < 2: return simulations
@@ -740,6 +744,22 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if r: simulations.append(r)
 		
 		return simulations
+
+	def compute_cant_use(sources):
+		nonlocal target_counts
+		source_counts = {}
+		for src in sources:
+			if src.value in source_counts:
+				source_counts[src.value] += 1
+			else:
+				source_counts[src.value] = 1
+		cant_use = {}
+		for src in sources:
+			value = src.value
+			src_count = source_counts.get(value, None)
+			target_count = target_counts.get(value, None)
+			cant_use[value] = max(0, src_count - target_count) == 0 if src_count and target_count else False
+		return cant_use
 
 	def compute_distance(sim):
 		nonlocal target_values, filtered_conveyor_speeds_r
@@ -951,18 +971,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 	def enqueue(nodes):
 		time_block("enqueue", _enqueue, nodes)
-	
-	def solution_found(new_solution_root):
-		nonlocal solution
-		new_solution_root._compute_size(set())
-		if solution is None or new_solution_root.size < solution.size:
-			solution = new_solution_root
-		else:
-			print("impossible case reached, should have been checked already")
-			exit(1)
-		print(f"\n\n\tSolution of size {solution.size} found\n")
-		print(solution)
-		# solution.visualize()
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
@@ -983,6 +991,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			print(sources_root)
 			lowest_score = score
 
+		n = len(sources)
+		cant_use = compute_cant_use(sources)
+
 		# steps -= 1
 		# if steps + 1 == 0:
 		# 	print("stopping")
@@ -998,9 +1009,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 		def copy_sources():
 			return time_block("copy_sources", _copy_sources)
-
-		n = len(sources)
-		cant_use = compute_cant_use(sources)
 
 		def _try_extract():
 			nonlocal sources, cant_use, sources_root
@@ -1100,8 +1108,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		# 	exit(0)
 
 		timings["total"] += time.time() - start_total
-	
-	return solution
 
 def solve(source_values, target_values):
 	sources_total = sum(source_values)
@@ -1110,9 +1116,10 @@ def solve(source_values, target_values):
 		target_values.append(sources_total - targets_total)
 	elif sources_total < targets_total:
 		source_values.append(targets_total - sources_total)
-	return _solve(source_values, target_values)
+	_solve(source_values, target_values)
 
 def main():
+	global solution
 	separator = 'to'
 	if len(sys.argv) < 3 or separator not in ' '.join(sys.argv[1:]):
 		print(f"Usage: python solve.py <source_args> {separator} <target_args>")
@@ -1181,13 +1188,8 @@ def main():
 			targets.append(target_value)
 		i += 2
 
-	sol = solve(sources, targets)
-	if sol:
-		print(f"\n\n\tSmallest solution found (size = {sol.size}):\n")
-		print(sol)
-		sol.visualize()
-	else:
-		print(f"\n\n\tNo solution found? bruh\n")
+	solve(sources, targets)
+	conclude()
 
 def test():
 	root = load_tree("""Node(value=250, short_node_id=93d, parents=[], children=[
@@ -1197,13 +1199,8 @@ def test():
 	root._compute_depth_informations()
 	print(root)
 	leaves = root.get_leaves()
-	sol = _solve(get_node_values(leaves), [70, 70, 70, 40], leaves)
-	if sol:
-		print(f"\n\tSmallest solution found (size = {sol.size}):\n")
-		print(sol)
-		sol.visualize()
-	else:
-		print(f"\n\tNo solution found? bruh\n")
+	_solve(get_node_values(leaves), [70, 70, 70, 40], leaves)
+	conclude()
 
 if __name__ == '__main__':
 	# test()
