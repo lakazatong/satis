@@ -61,7 +61,7 @@ def handler(signum, frame):
 	print("Stopping and printing timing averages...")
 	print_timings()
 	conclude()
-	exit(0)
+	sys.exit(0)
 
 signal.signal(signal.SIGINT, handler)
 
@@ -78,7 +78,7 @@ def set_time(key, start_time):
 # 	if node is parent or node.has_parent(parent):
 # 		print("self parent")
 # 		print(node)
-# 		exit(1)
+# 		sys.exit(1)
 # 	node.parents.append(parent)
 
 def visualize(src, nodes):
@@ -206,13 +206,13 @@ class Node:
 				new_child, child_leaves = child._deepcopy(copied_nodes)
 				if new_child in new_node.children:
 					print("wtf")
-					exit(1)
+					sys.exit(1)
 
 				new_node.children.append(new_child)
 
 				if new_node in new_child.parents:
 					print("nooooo")
-					exit(1)
+					sys.exit(1)
 
 				new_child.parents.append(new_node)
 
@@ -321,7 +321,7 @@ class Node:
 				plt.show()
 		except:
 			print("call compute_depth_informations before trying to visualize")
-			exit(1)
+			sys.exit(1)
 
 
 	def merge_down(self, other):
@@ -528,7 +528,7 @@ def solution_found(new_solution_root):
 		solution = new_solution_root
 	else:
 		print("impossible case reached, should have been checked already")
-		exit(1)
+		sys.exit(1)
 	print(f"\n\n\tSolution of size {solution.size} found\n")
 	print(solution)
 	# solution.visualize()
@@ -679,7 +679,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					continue
 			except:
 				print("binary?")
-				exit(1)
+				sys.exit(1)
 
 			src = sources[i]
 			
@@ -816,14 +816,14 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					if speed in targets:
 						if overflow in targets:
 							print("impossible case reached, all perfect extractions were removed already")
-							exit(1)
+							sys.exit(1)
 						sim.remove(value)
 						targets.remove(speed)
 						sim.append(overflow)
 					elif overflow in targets:
 						if speed in targets:
 							print("impossible case reached, all perfect extractions were removed already")
-							exit(1)
+							sys.exit(1)
 						sim.remove(value)
 						targets.remove(overflow)
 						sim.append(speed)
@@ -878,7 +878,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					if not matches: continue
 					if matches == divisor:
 						print("impossible case reached, all perfect divisions were removed already")
-						exit(1)
+						sys.exit(1)
 					sim.remove(value)
 					extras = divisor - matches
 					for _ in range(matches): targets.remove(divided_value)
@@ -998,7 +998,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		# if steps + 1 == 0:
 		# 	print("stopping")
 		# 	print_timings()
-		# 	exit(0)
+		# 	sys.exit(0)
 		# if (-steps) % 1000 == 0:
 		# 	print(f"step {abs(steps)}")
 
@@ -1045,7 +1045,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				# 	print("sources_to_enqueue ids")
 				# 	print(get_node_ids(sources_to_enqueue))
 				# 	print(src_copy)
-				# 	exit(0)
+				# 	sys.exit(0)
 				
 				# enqueued_sims.add(sim)
 
@@ -1105,7 +1105,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 		# if get_node_values(sources) == [30, 40, 40, 70, 70] and sources_root.tree_height == 5 and sources_root.size == 11:
 		# 	print("cacaAAAAAAAA")
-		# 	exit(0)
+		# 	sys.exit(0)
 
 		timings["total"] += time.time() - start_total
 
@@ -1123,7 +1123,7 @@ def main():
 	separator = 'to'
 	if len(sys.argv) < 3 or separator not in ' '.join(sys.argv[1:]):
 		print(f"Usage: python solve.py <source_args> {separator} <target_args>")
-		exit(1)
+		sys.exit(0)
 
 	source_part, target_part = ' '.join(sys.argv[1:]).split(separator)
 	source_args = source_part.strip().split()
@@ -1131,11 +1131,11 @@ def main():
 
 	if not source_args:
 		print("Error: At least one source value must be provided.")
-		exit(1)
+		sys.exit(1)
 
 	if not target_args:
 		print("Error: At least one target value must be provided.")
-		exit(1)
+		sys.exit(1)
 
 	sources = []
 	i = 0
@@ -1145,18 +1145,18 @@ def main():
 			source_value = int(src)
 			if source_value % 5 != 0:
 				print("Error: all values must be multiples of 5")
-				exit(1)
+				sys.exit(1)
 			sources.append(source_value)
 			i += 1
 			continue
 		if len(src) < 2 or not src[:-1].isdigit():
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
-			exit(1)
+			sys.exit(1)
 		multiplier = int(src[:-1])
 		source_value = int(source_args[source_args.index(src) + 1])
 		if source_value % 5 != 0:
 			print("Error: all values must be multiples of 5")
-			exit(1)
+			sys.exit(1)
 		for _ in range(multiplier):
 			sources.append(source_value)
 		i += 2
@@ -1169,21 +1169,21 @@ def main():
 			target_value = int(target)
 			if target_value % 5 != 0:
 				print("Error: all values must be multiples of 5")
-				exit(1)
+				sys.exit(1)
 			targets.append(target_value)
 			i += 1
 			continue
 		if len(target) < 2 or not target[:-1].isdigit():
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
-			exit(1)
+			sys.exit(1)
 		multiplier = int(target[:-1])
 		if i + 1 == len(target_args):
 			print("Error: You must provide a target value after Nx.")
-			exit(1)
+			sys.exit(1)
 		target_value = int(target_args[i + 1])
 		if target_value % 5 != 0:
 			print("Error: all values must be multiples of 5")
-			exit(1)
+			sys.exit(1)
 		for _ in range(multiplier):
 			targets.append(target_value)
 		i += 2
