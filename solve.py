@@ -1,24 +1,22 @@
-# import argparse
-import networkx as nx
-import matplotlib.pyplot as plt
-import uuid
-import pydot
-import sys
-import pathlib
-import os
-import tempfile
+import os, sys, re, math, time, uuid, random, signal, itertools, pathlib, tempfile
+import networkx as nx, matplotlib.pyplot as plt, pygraphviz, pydot
+from contextlib import redirect_stdout
+from networkx.drawing.nx_pydot import graphviz_layout
+from networkx.drawing.nx_agraph import to_agraph
+
 if sys.platform == 'win32':
 	path = pathlib.Path(r'C:\Program Files\Graphviz\bin')
 	if path.is_dir() and str(path) not in os.environ['PATH']:
 		os.environ['PATH'] += f';{path}'
-import pygraphviz
-from networkx.drawing.nx_pydot import graphviz_layout
-from networkx.drawing.nx_agraph import to_agraph
-import math
-import time
-import signal
-import random
-import itertools
+
+log_filename = "logs.txt"
+
+def printt(*args, **kwargs):
+	with open(log_filename, "a") as f:
+		with redirect_stdout(f):
+			print(*args, **kwargs)
+
+open(log_filename, "w+").close()
 
 timings = {
 	"total": 0,
@@ -58,6 +56,7 @@ conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = conveyor_speeds[::-1]
 conveyor_speed_limit = conveyor_speeds_r[0]
 short_repr = False
+include_depth_informations = False
 
 # def safe_add_parent(parent, node):
 # 	if node is parent or node.has_parent(parent):
@@ -125,7 +124,10 @@ class Node:
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_short_node_ids(self.parents)}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}"
+		if include_depth_informations:
+			r += f", depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}"
+		r += f", parents={get_short_node_ids(self.parents)}, children=["
 		if self.children:
 			r += "\n"
 			for child in self.children:
@@ -360,6 +362,48 @@ class Node:
 			return self.extract_down(amount)
 		raise ValueError("Amount must be a number")
 
+def load_tree(tree_representation):
+	node_dict = {}
+
+	def parse_node(node_str):
+		match = re.search(r'Node\(value=(\d+), short_node_id=([-0-9a-f]+)', node_str)
+		if match:
+			value, short_id = int(match.group(1)), match.group(2)
+			if short_id not in node_dict:
+				node_dict[short_id] = Node(value)
+			return node_dict[short_id]
+		return None
+
+	# def parse_children(children_str):
+	# 	children = []
+	# 	for child_str in re.findall(r'Node\(value=\d+, short_node_id=[-0-9a-f]+.*?\)', children_str):
+	# 		children.append(parse_node(child_str))
+	# 	return children
+
+	stack = []
+	root = None
+
+	for line in tree_representation.splitlines():
+		indent_level = len(line) - len(line.lstrip())
+		if 'Node' in line:
+			node = parse_node(line)
+			if not root:
+				root = node
+			if stack and indent_level > stack[-1][0]:
+				parent = stack[-1][1]
+				parent.children.append(node)
+				node.parents.append(parent)
+			else:
+				while stack and indent_level <= stack[-1][0]:
+					stack.pop()
+				if stack:
+					parent = stack[-1][1]
+					parent.children.append(node)
+					node.parents.append(parent)
+			stack.append((indent_level, node))
+
+	return root
+
 def _simplify_merge(nodes):
 	global allowed_divisors_r
 	# Step 1: Merge nodes with the same value until all are different
@@ -437,7 +481,7 @@ def _get_sim_without(sources, value):
 def get_sim_without(sources, value):
 	return time_block("get_sim_without", _get_sim_without, sources, value)
 
-def _solve(source_values, target_values):
+def _solve(source_values, target_values, starting_node_sources=None):
 	print(f"\nsolving: {source_values} to {target_values}\n")
 	steps = -1
 
@@ -447,7 +491,6 @@ def _solve(source_values, target_values):
 		value: target_values.count(value) for value in set(target_values)
 	}
 	gcd = math.gcd(*target_values)
-	node_sources = list(map(lambda value: Node(value), source_values))
 	# node_targets = list(map(lambda value: Node(value), target_values))
 	# print('\n'.join([str(src) for src in copy]))
 
@@ -458,6 +501,7 @@ def _solve(source_values, target_values):
 	filtered_conveyor_speeds_r = filtered_conveyor_speeds[::-1]
 	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}")
 
+	node_sources = starting_node_sources if starting_node_sources else list(map(lambda value: Node(value), source_values))
 	if len(node_sources) > 1:
 		root = Node(sum(source_values))
 		root.children = node_sources
@@ -785,21 +829,16 @@ def _solve(source_values, target_values):
 		score = compute_sources_score(sources)
 		if score < 0: return
 		insert_into_sorted(queue, (sources, score), key=lambda x: x[1])
-
-	def enqueue(sources):
-		time_block("enqueue", _enqueue, sources)
 	
-	def solution_found(sources):
+	def solution_found(new_solution_root):
 		nonlocal solution
-		new_solution = sources[0].get_root()
-		new_solution._compute_size(set())
-		if solution is None or new_solution.size < solution.size:
-			solution = new_solution
+		new_solution_root._compute_size(set())
+		if solution is None or new_solution_root.size < solution.size:
+			solution = new_solution_root
 		else:
 			print("impossible case reached, should have been checked already")
 			exit(1)
-		solution.compute_depth_informations()
-		print(f"one solution found of size {solution.size}\n")
+		print(f"\tSolution of size {solution.size} found\n")
 		print(solution)
 		solution.visualize()
 
@@ -811,12 +850,12 @@ def _solve(source_values, target_values):
 		start_total = time.time()
 		tmp, score = queue.pop(0)
 		sources = sort_nodes(tmp)
+		sources_root = sources[0].get_root()
+		sources_root.compute_depth_informations()
 		if score == 0:
-			solution_found(sources)
+			solution_found(sources_root)
 		elif score < lowest_score:
-			root = sources[0].get_root()
-			root.compute_depth_informations()
-			print(f"lowest score = {score}, tree =\n{root}")
+			print(f"lowest score = {score}, tree =\n{sources_root}")
 			lowest_score = score
 
 		steps -= 1
@@ -828,8 +867,8 @@ def _solve(source_values, target_values):
 			print(f"step {abs(steps)}")
 
 		def _copy_sources():
-			nonlocal sources
-			_, leaves = sources[0].deepcopy()
+			nonlocal sources, sources_root
+			_, leaves = sources_root._deepcopy({})
 			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
 
 		def copy_sources():
@@ -839,12 +878,25 @@ def _solve(source_values, target_values):
 
 		cant_use = compute_cant_use(sources)
 
+		def enqueue(new_sources):
+			nonlocal sources
+			# new_sources_root = new_sources.get_root()
+			# new_sources_root.compute_depth_informations()
+			# print(new_sources_root)
+			time_block("enqueue", _enqueue, new_sources)
+
 		def _try_extract():
-			nonlocal sources, cant_use
+			nonlocal sources, cant_use, sources_root
 			for sim, (i, speed) in get_extract_sims(sources, cant_use):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
+
+				printt("\n\nFROM")
+				printt(sources_root)
+				printt("DID")
+				printt(f"{sources[i]} - {speed}")
+
 				enqueue(copy + (src_copy - speed))
 				enqueued_sims.add(sim)
 
@@ -852,11 +904,17 @@ def _solve(source_values, target_values):
 			time_block("try_extract", _try_extract)
 		
 		def _try_divide():
-			nonlocal sources, cant_use
+			nonlocal sources, cant_use, sources_root
 			for sim, (i, divisor) in get_divide_sims(sources, cant_use):
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
+
+				printt("\n\nFROM")
+				printt(sources_root)
+				printt("DID")
+				printt(f"{sources[i]} / {divisor}")
+
 				enqueue(copy + (src_copy / divisor))
 				enqueued_sims.add(sim)
 
@@ -864,7 +922,7 @@ def _solve(source_values, target_values):
 			time_block("try_divide", _try_divide)
 
 		def _try_merge():
-			nonlocal sources, cant_use
+			nonlocal sources, cant_use, sources_root
 			for sim, to_sum_indices in get_merge_sims(sources, cant_use):
 				copy = copy_sources()
 				to_sum = [copy[i] for i in to_sum_indices]
@@ -872,6 +930,12 @@ def _solve(source_values, target_values):
 				list(map(lambda src: pop(src, copy), to_sum))
 				summed_node = to_sum[0] + to_sum[1:]
 				copy.append(summed_node)
+
+				printt("\n\nFROM")
+				printt(sources_root)
+				printt("DID")
+				printt("+".join(str(ts) for ts in to_sum))
+
 				enqueue(copy)
 				enqueued_sims.add(sim)
 
@@ -966,20 +1030,38 @@ def main():
 
 	sol = solve(sources, targets)
 	if sol:
-		print(f"\n Smallest solution found (size = {sol.size}):\n")
+		print(f"\n\tSmallest solution found (size = {sol.size}):\n")
 		print(sol)
 		sol.visualize()
 	else:
-		print(f"\n No solution found? bruh\n")
+		print(f"\n\tNo solution found? bruh\n")
 
 def test():
-	A = Node(100)
-	B, C = A - 60
-	D = B + C
-	A.compute_depth_informations()
-	A.compute_size()
-	print(A)
+	root = load_tree("""Node(value=250, short_node_id=93d, parents=[], children=[
+	Node(value=120, short_node_id=575, parents=['93d'], children=[
+		Node(value=40, short_node_id=44e, parents=['575'], children=[])
+		Node(value=40, short_node_id=580, parents=['575'], children=[])
+		Node(value=40, short_node_id=047, parents=['575'], children=[])
+	])
+	Node(value=130, short_node_id=c62, parents=['93d'], children=[
+		Node(value=60, short_node_id=7e0, parents=['c62'], children=[
+			Node(value=30, short_node_id=15b, parents=['7e0'], children=[])
+			Node(value=30, short_node_id=b59, parents=['7e0'], children=[])
+		])
+		Node(value=70, short_node_id=1b1, parents=['c62'], children=[])
+	])
+])""")
+	root.compute_depth_informations()
+	print(root)
+	leaves = root.get_leaves()
+	sol = _solve(get_node_values(leaves), [70, 70, 70, 40], leaves)
+	if sol:
+		print(f"\n\tSmallest solution found (size = {sol.size}):\n")
+		print(sol)
+		sol.visualize()
+	else:
+		print(f"\n\tNo solution found? bruh\n")
 
 if __name__ == '__main__':
-	# test()
-	main()
+	test()
+	# main()
