@@ -75,7 +75,7 @@ def visualize(src, nodes):
 def sort_nodes(nodes):
 	return sorted(nodes, key=lambda node: node.value)
 
-def get_values(nodes):
+def get_node_values(nodes):
 	return list(map(lambda node: node.value, nodes))
 
 def get_node_ids(nodes):
@@ -125,7 +125,7 @@ class Node:
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_short_node_ids(self.parents)}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={len(self.parents)}, {get_short_node_ids(self.parents)}, children=["
 		if self.children:
 			r += "\n"
 			for child in self.children:
@@ -166,36 +166,48 @@ class Node:
 		self.get_root()._compute_size(set())
 		return self.size
 
-	def _deepcopy(self):
+	def _deepcopy(self, copied_nodes):
+		if self.node_id in copied_nodes:
+			return copied_nodes[self.node_id], []
+
 		new_node = Node(self.value, node_id=self.node_id)
 		new_node.depth = self.depth
 		new_node.tree_height = self.tree_height
 		new_node.level = self.level
 		new_node.size = self.size
+
+		copied_nodes[self.node_id] = new_node
+
 		leaves = []
 		leave_ids = []
+
 		if self.children:
 			for child in self.children:
-				new_child, child_leaves = child._deepcopy()
+				new_child, child_leaves = child._deepcopy(copied_nodes)
 				if new_child in new_node.children:
 					print("wtf")
 					exit(1)
+
 				new_node.children.append(new_child)
+
 				if new_node in new_child.parents:
 					print("nooooo")
 					exit(1)
+
 				new_child.parents.append(new_node)
+
 				for child_leave in child_leaves:
-					if not child_leave.node_id in leave_ids:
+					if child_leave.node_id not in leave_ids:
 						leaves.append(child_leave)
 						leave_ids.append(child_leave.node_id)
 		else:
 			leaves.append(new_node)
 			leave_ids.append(new_node.node_id)
+
 		return new_node, leaves
 
 	def deepcopy(self):
-		return self.get_root()._deepcopy()
+		return self.get_root()._deepcopy({})
 
 	def find(self, node_id):
 		if self.node_id == node_id: return self
@@ -274,7 +286,7 @@ class Node:
 			exit(1)
 
 	def merge_down(self, other):
-		new_value = self.value + sum(get_values(other))
+		new_value = self.value + sum(get_node_values(other))
 		new_node = Node(new_value)
 		self.children.append(new_node)
 		new_node.parents.append(self)
@@ -284,7 +296,7 @@ class Node:
 		return new_node
 
 	def merge_up(self, other):
-		new_value = self.value + sum(get_values(other))
+		new_value = self.value + sum(get_node_values(other))
 		new_node = Node(new_value)
 		self.parents.append(new_node)
 		new_node.children.append(self)
@@ -337,7 +349,7 @@ class Node:
 			return self.merge_down(other)
 		elif isinstance(other, Node):
 			return self.merge_down([other])		
-		raise ValueError("Operand must be a Node")
+		raise ValueError("Operand must be a Node[] or Node")
 
 	def __truediv__(self, divisor):
 		if isinstance(divisor, (int, float)):
@@ -477,7 +489,7 @@ def _solve(source_values, target_values):
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
-		parent_values = get_values(src.parents)
+		parent_values = get_node_values(src.parents)
 		
 		for speed in filtered_conveyor_speeds:
 			if src.value <= speed: break
@@ -523,7 +535,7 @@ def _solve(source_values, target_values):
 		for divisor in allowed_divisors:
 			if not src.can_split(divisor): continue
 
-			if sum(get_values(src.parents)) == src.value and len(src.parents) == divisor: continue
+			if sum(get_node_values(src.parents)) == src.value and len(src.parents) == divisor: continue
 
 			if solution:
 				if not sources[0].size: sources[0].compute_size()
@@ -580,7 +592,7 @@ def _solve(source_values, target_values):
 				root = sources[0].get_root()
 				root.compute_depth_informations()
 				print(root)
-				print(get_values(sources))
+				print(get_node_values(sources))
 				print(flags, n)
 				exit(1)
 
@@ -857,8 +869,13 @@ def _solve(source_values, target_values):
 			for sim, to_sum_indices in get_merge_sims(sources, cant_use):
 				copy = copy_sources()
 				to_sum = [copy[i] for i in to_sum_indices]
+				to_sum_values = get_node_values(to_sum)
 				list(map(lambda src: pop(src, copy), to_sum))
-				enqueue(copy + [to_sum[0] + to_sum[1:]])
+				summed_node = to_sum[0] + to_sum[1:]
+				if 20 in to_sum_values and 30 in to_sum_values and len(to_sum_values) == 2:
+					print(summed_node)
+				copy.append(summed_node)
+				enqueue(copy)
 				enqueued_sims.add(sim)
 
 		def try_merge():
