@@ -873,7 +873,8 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		if score == 0:
 			solution_found(sources_root)
 		elif score < lowest_score:
-			print(f"\n\n\tlowest score = {score}, tree =\n{sources_root}")
+			print(f"\n\n\tlowest score = {score}, tree =\n")
+			print(sources_root)
 			lowest_score = score
 
 		steps -= 1
