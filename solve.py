@@ -872,8 +872,6 @@ def _solve(source_values, target_values):
 				to_sum_values = get_node_values(to_sum)
 				list(map(lambda src: pop(src, copy), to_sum))
 				summed_node = to_sum[0] + to_sum[1:]
-				if 20 in to_sum_values and 30 in to_sum_values and len(to_sum_values) == 2:
-					print(summed_node)
 				copy.append(summed_node)
 				enqueue(copy)
 				enqueued_sims.add(sim)
@@ -968,8 +966,11 @@ def main():
 		i += 2
 
 	sol = solve(sources, targets)
-	print(f"\n Smallest solution found (size = {sol.size}):\n")
-	print(sol)
+	if sol:
+		print(f"\n Smallest solution found (size = {sol.size}):\n")
+		print(sol)
+	else:
+		print(f"\n No solution found? bruh\n")
 	sol.visualize()
 
 def test():
