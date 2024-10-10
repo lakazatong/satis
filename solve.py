@@ -125,7 +125,7 @@ class Node:
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={len(self.parents)}, {get_short_node_ids(self.parents)}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_short_node_ids(self.parents)}, children=["
 		if self.children:
 			r += "\n"
 			for child in self.children:
