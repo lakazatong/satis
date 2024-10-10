@@ -78,7 +78,10 @@ def sort_nodes(nodes):
 def get_values(nodes):
 	return list(map(lambda node: node.value, nodes))
 
-def get_node_ids(nodes, short=3):
+def get_node_ids(nodes):
+	return list(map(lambda node: node.node_id, nodes))
+
+def get_short_node_ids(nodes, short=3):
 	return list(map(lambda node: node.node_id[-short:], nodes))
 
 def pop(node, nodes):
@@ -122,13 +125,13 @@ class Node:
 	def __repr__(self):
 		if short_repr:
 			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_node_ids(self.parents)}, children=["
+		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}, depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}, parents={get_short_node_ids(self.parents)}, children=["
 		if self.children:
 			r += "\n"
 			for child in self.children:
-				r += str(child)
+				r += str(child) + "\n"
 			r += "\t" * (self.depth - 1)
-		r += "])\n"
+		r += "])"
 		return r
 
 	def get_leaves(self):
@@ -482,17 +485,7 @@ def _solve(source_values, target_values):
 			# if so then it would have been better to leave it as is
 			# and merge all the other values to get the overflow value
 			# we would get by exctracting speed amount
-			if speed in parent_values:
-				root = src.get_root()
-				root.compute_depth_informations()
-				print(root)
-				print(src)
-				print(speed, parent_values)
-				root.visualize()
-				# root._compute_size(set())
-				print("sad that we got there")
-				exit(1)
-				# return None
+			if speed in parent_values: continue
 
 			if solution:
 				if not sources[0].size: sources[0].compute_size()
@@ -583,6 +576,7 @@ def _solve(source_values, target_values):
 					to_not_sum_indices.append(i)
 					continue
 			except:
+				print("caca10")
 				root = sources[0].get_root()
 				root.compute_depth_informations()
 				print(root)
@@ -825,7 +819,7 @@ def _solve(source_values, target_values):
 		def _copy_sources():
 			nonlocal sources
 			_, leaves = sources[0].deepcopy()
-			return sort_nodes([leaf for leaf in leaves if leaf.id in set(get_node_ids(sources))])
+			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
 
 		def copy_sources():
 			return time_block("copy_sources", _copy_sources)
