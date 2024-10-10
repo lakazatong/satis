@@ -1,4 +1,4 @@
-import os, sys, re, math, time, uuid, signal, pathlib, tempfile
+import os, sys, re, math, time, uuid, signal, pathlib, tempfile, matplotlib
 import networkx as nx, matplotlib.pyplot as plt, pygraphviz, pydot
 from contextlib import redirect_stdout
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -318,7 +318,12 @@ class Node:
 				# Remove margins
 				plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-				plt.show()
+				if hasattr(sys, '_MEIPASS'):
+					# matplotlib.use('Agg')
+					plt.savefig("graph_visualization.png", bbox_inches='tight', pad_inches=0)
+					print("Graph saved as 'graph_visualization.png'")
+				else:
+					plt.show()
 		except:
 			print("call compute_depth_informations before trying to visualize")
 			sys.exit(1)
