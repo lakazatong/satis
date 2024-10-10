@@ -1,4 +1,4 @@
-import os, sys, re, math, time, uuid, random, signal, itertools, pathlib, tempfile
+import os, sys, re, math, time, uuid, signal, pathlib, tempfile
 import networkx as nx, matplotlib.pyplot as plt, pygraphviz, pydot
 from contextlib import redirect_stdout
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -10,9 +10,10 @@ if sys.platform == 'win32':
 		os.environ['PATH'] += f';{path}'
 
 log_filename = "logs.txt"
-logging = False
+logging = True
 allowed_divisors = [2, 3]
 allowed_divisors_r = allowed_divisors[::-1]
+min_sum_count, max_sum_count = allowed_divisors[0], allowed_divisors_r[0]
 conveyor_speeds = [60, 120, 270, 480, 780, 1200]
 conveyor_speeds_r = conveyor_speeds[::-1]
 conveyor_speed_limit = conveyor_speeds_r[0]
@@ -44,6 +45,7 @@ def print_timings():
 	total_time = timings["total"]
 	for key, val in timings.items():
 		if key == "total": continue
+		if total_time == 0: continue
 		print(f"{key}: {val / total_time:.4f}")
 
 def handler(signum, frame):
@@ -101,7 +103,9 @@ def can_split(value, divisor):
 def increment(binary_array):
 	for i in range(len(binary_array)):
 		binary_array[i] = not binary_array[i]
-		if binary_array[i]: break
+		if binary_array[i]:
+			return True
+	return False
 
 def insert_into_sorted(sorted_list, item, key=lambda x: x):
 	low, high = 0, len(sorted_list)
@@ -594,13 +598,13 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 	def get_divide_sim(sources, i):
 		nonlocal solution
-		global allowed_divisors
+		global allowed_divisors_r
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
 		sources_root = None
 
-		for divisor in allowed_divisors:
+		for divisor in allowed_divisors_r:
 			if not src.can_split(divisor): continue
 
 			if sum(get_node_values(src.parents)) == src.value and len(src.parents) == divisor: continue
@@ -693,6 +697,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return sim, to_sum_indices
 
 	def get_merge_sims(sources, cant_use):
+		global min_sum_count, max_sum_count
 		nonlocal solution
 		simulations, n = [], len(sources)
 		
@@ -700,26 +705,21 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		
 		seen_sums = set()
 		binary = [False] * n
-		binary[0], binary[1] = True, True
+		binary[1] = True
 		sources_root = None
 		
-		for _ in range(3, 1 << n): # 2^n - 1
+		while increment(binary):
 			to_sum_count = sum(binary)
 			
-			if to_sum_count < 2 or to_sum_count > 3:
-				increment(binary)
-				continue
+			if to_sum_count < min_sum_count or to_sum_count > max_sum_count: continue
 			if solution:
 				if not sources_root:
 					sources_root = sources[0].get_root()
 					sources_root._compute_size(set())
-				if sources_root.size + 1 >= solution.size:
-					increment(binary)
-					continue
+				if sources_root.size + 1 >= solution.size: continue
 			
 			r = get_merge_sim(sources, binary, to_sum_count, seen_sums, cant_use)
 			if r: simulations.append(r)
-			increment(binary)
 		
 		return simulations
 
@@ -735,87 +735,90 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		# 	print("TARGETS\n", targets)
 		# 	print("DISTANCE\n", distance)
 		
-		for value in sim[:]:
-			if value in targets:
-				sim.remove(value)
-				targets.remove(value)
-		
-		if not sim and not targets: return distance
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
+		while True:
+			done = True
+			for value in sim[:]:
+				if value in targets:
+					sim.remove(value)
+					targets.remove(value)
+					done = False
+			
+			if not sim and not targets: return distance
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
 
-		# remove all perfect extractions
-		for speed in filtered_conveyor_speeds_r:
-			if not speed in targets: continue
+			# remove all perfect extractions
+			for speed in filtered_conveyor_speeds_r:
+				if not speed in targets: continue
 
-			for value in sim:
-				if value <= speed: continue
-				overflow = value - speed
-				if gcd_incompatible(overflow) or not overflow in targets: continue
-				sim.remove(value)
-				targets.remove(speed)
-				targets.remove(overflow)
-				distance += 1
-		
-		if not sim and not targets: return distance
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
-		
-		# remove all non perfect extractions
-		for speed in filtered_conveyor_speeds:
-			for value in sim:
-				if value <= speed: continue
-				overflow = value - speed
-				if gcd_incompatible(overflow): continue
-				if speed in targets:
-					if overflow in targets:
-						print("impossible case reached, all perfect extractions were removed already")
-						exit(1)
+				for value in sim:
+					if value <= speed: continue
+					overflow = value - speed
+					if gcd_incompatible(overflow) or not overflow in targets: continue
 					sim.remove(value)
 					targets.remove(speed)
-					sim.append(overflow)
-				elif overflow in targets:
-					if speed in targets:
-						print("impossible case reached, all perfect extractions were removed already")
-						exit(1)
-					sim.remove(value)
 					targets.remove(overflow)
-					sim.append(speed)
-				else:
-					continue
-				distance += 2
-		
-		# if not sim and not targets: return distance
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
-
-		def try_divide(value, divisor):
-			nonlocal targets
-			if value % divisor != 0: return None, 0
+					distance += 1
+					done = False
 			
-			divided_value = value // divisor
+			if not sim and not targets: return distance
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
 			
-			if gcd_incompatible(divided_value): return None, 0
+			# remove all non perfect extractions
+			for speed in filtered_conveyor_speeds:
+				for value in sim:
+					if value <= speed: continue
+					overflow = value - speed
+					if gcd_incompatible(overflow): continue
+					if speed in targets:
+						if overflow in targets:
+							print("impossible case reached, all perfect extractions were removed already")
+							exit(1)
+						sim.remove(value)
+						targets.remove(speed)
+						sim.append(overflow)
+					elif overflow in targets:
+						if speed in targets:
+							print("impossible case reached, all perfect extractions were removed already")
+							exit(1)
+						sim.remove(value)
+						targets.remove(overflow)
+						sim.append(speed)
+					else:
+						continue
+					distance += 2
+					done = False
+			
+			# if not sim and not targets: return distance
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
 
-			matches, remaining_targets = 0, targets[:]
+			def try_divide(value, divisor):
+				nonlocal targets
+				if value % divisor != 0: return None, 0
+				
+				divided_value = value // divisor
+				
+				if gcd_incompatible(divided_value): return None, 0
 
-			for _ in range(divisor):
-				if divided_value in remaining_targets:
-					matches += 1
-					remaining_targets.remove(divided_value)
+				matches, remaining_targets = 0, targets[:]
 
-			return divided_value, matches
+				for _ in range(divisor):
+					if divided_value in remaining_targets:
+						matches += 1
+						remaining_targets.remove(divided_value)
 
-		# remove all perfect divisions
-		for divisor in allowed_divisors_r:
-			while True:
-				done = True				
+				return divided_value, matches
+
+			# remove all perfect divisions
+			for divisor in allowed_divisors_r:
 				for value in sim[:]:
 					divided_value, matches = try_divide(value, divisor)
 					if not matches or matches != divisor: continue
@@ -823,18 +826,15 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					for _ in range(matches): targets.remove(divided_value)
 					distance += 1
 					done = False
-				if done: break
-		
-		if not sim and not targets: return distance
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
-		
-		# remove all divisions that have at least one match
-		for divisor in allowed_divisors:
-			while True:
-				done = True
+			
+			if not sim and not targets: return distance
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
+			
+			# remove all divisions that have at least one match
+			for divisor in allowed_divisors:
 				for value in sim[:]:
 					divided_value, matches = try_divide(value, divisor)
 					if not matches: continue
@@ -847,33 +847,39 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					for _ in range(extras): sim.append(divided_value)
 					distance += 1 + extras
 					done = False
-				if done: break
-		
-		if not sim and not targets: return distance
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
+			
+			if not sim and not targets: return distance
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
 
-		# remove all sums that yield a target
-		for target in targets[:]:
-			found = False
-			for to_sum_count in allowed_divisors_r:
-				for to_sum_values in itertools.combinations(sim, to_sum_count):
+			# remove all sums that yield a target
+			for target in targets[:]:
+				if len(sim) < 2: break
+				binary = [False] * len(sim)
+				binary[1] = True
+
+				while increment(binary):
+					to_sum_count = sum(binary)
+					if to_sum_count < min_sum_count or to_sum_count > max_sum_count: continue
+
+					to_sum_values = [sim[i] for i, b in enumerate(binary) if b]
+
 					if sum(to_sum_values) != target: continue
-					
+
 					targets.remove(target)
 					for val in to_sum_values: sim.remove(val)
 
 					distance += 1
-					found = True
+					done = False
 					break
-				if found: break
-		
-		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
+			
+			# if debug:
+			# 	print("\n\nSIM\n", sim)
+			# 	print("TARGETS\n", targets)
+			# 	print("DISTANCE\n", distance)
+			if done: break
 		
 		return distance + len(sim) + len(targets)
 
@@ -1123,15 +1129,8 @@ def main():
 
 def test():
 	root = load_tree("""Node(value=250, short_node_id=93d, parents=[], children=[
-	Node(value=120, short_node_id=575, parents=['93d'], children=[
-		Node(value=40, short_node_id=44e, parents=['575'], children=[])
-		Node(value=40, short_node_id=580, parents=['575'], children=[])
-		Node(value=40, short_node_id=047, parents=['575'], children=[])
-	])
-	Node(value=130, short_node_id=c62, parents=['93d'], children=[
-		Node(value=60, short_node_id=7e0, parents=['c62'], children=[])
-		Node(value=70, short_node_id=1b1, parents=['c62'], children=[])
-	])
+	Node(value=120, short_node_id=575, parents=['93d'], children=[])
+	Node(value=130, short_node_id=c62, parents=['93d'], children=[])
 ])""")
 	root.compute_depth_informations()
 	print(root)
@@ -1145,5 +1144,5 @@ def test():
 		print(f"\n\tNo solution found? bruh\n")
 
 if __name__ == '__main__':
-	# test()
-	main()
+	test()
+	# main()
