@@ -221,14 +221,14 @@ class Node:
 			if p is parent or p.has_parent(parent): return True
 		return False
 
-	def _compute_depth_and_tree_height(self, parent_depth):
+	def _compute_depth_and_tree_height(self):
+		self.depth = 1 + (max(parent.depth for parent in self.parents) if self.parents else 0)
 		max_child_tree_height = 0
 		for child in self.children:
-			child.depth = 1 + parent_depth
-			_, child_tree_height = child._compute_depth_and_tree_height(child.depth)
+			_, child_tree_height = child._compute_depth_and_tree_height()
 			if child_tree_height > max_child_tree_height:
 				max_child_tree_height = child_tree_height
-		self.tree_height = max_child_tree_height + 1
+		self.tree_height = max_child_tree_height + 1 if self.children else 0
 		return self.depth, self.tree_height
 
 	# def set_max_tree_height(self, max_tree_height):
@@ -243,8 +243,7 @@ class Node:
 			child.compute_level(max_tree_height)
 
 	def compute_depth_informations(self):
-		self.depth = 1 + (self.parents[0].depth if self.parents else 0)
-		self._compute_depth_and_tree_height(self.depth)
+		self._compute_depth_and_tree_height()
 		# self.set_max_tree_height(self.tree_height)
 		self.compute_level(self.tree_height)
 
