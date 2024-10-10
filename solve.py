@@ -11,6 +11,13 @@ if sys.platform == 'win32':
 
 log_filename = "logs.txt"
 logging = False
+allowed_divisors = [2, 3]
+allowed_divisors_r = allowed_divisors[::-1]
+conveyor_speeds = [60, 120, 270, 480, 780, 1200]
+conveyor_speeds_r = conveyor_speeds[::-1]
+conveyor_speed_limit = conveyor_speeds_r[0]
+short_repr = False
+include_depth_informations = True
 
 def printt(*args, **kwargs):
 	if logging:
@@ -54,14 +61,6 @@ def time_block(key, fn, *args, **kwargs):
 
 def set_time(key, start_time):
 	timings[key] += time.time() - start_time
-
-allowed_divisors = [2, 3]
-allowed_divisors_r = allowed_divisors[::-1]
-conveyor_speeds = [60, 120, 270, 480, 780, 1200]
-conveyor_speeds_r = conveyor_speeds[::-1]
-conveyor_speed_limit = conveyor_speeds_r[0]
-short_repr = False
-include_depth_informations = False
 
 # def safe_add_parent(parent, node):
 # 	if node is parent or node.has_parent(parent):
@@ -235,7 +234,8 @@ class Node:
 			_, child_tree_height = child._compute_depth_and_tree_height()
 			if child_tree_height > max_child_tree_height:
 				max_child_tree_height = child_tree_height
-		self.tree_height = max_child_tree_height + 1 if self.children else 0
+		# Include the current node level in the height calculation
+		self.tree_height = max_child_tree_height + 1
 		return self.depth, self.tree_height
 
 	# def set_max_tree_height(self, max_tree_height):
@@ -279,6 +279,17 @@ class Node:
 
 			A.graph_attr['rankdir'] = 'TB'
 
+			# Invert colors
+			A.graph_attr['bgcolor'] = 'black'
+			for node in A.nodes():
+				node.attr['color'] = 'white'
+				node.attr['fontcolor'] = 'white'
+				node.attr['style'] = 'filled'
+				node.attr['fillcolor'] = 'black'
+
+			for edge in A.edges():
+				edge.attr['color'] = 'white'
+
 			with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
 				A.layout(prog='dot')
 				A.draw(tmpfile.name, format='png')
@@ -286,10 +297,15 @@ class Node:
 				img = plt.imread(tmpfile.name)
 				plt.imshow(img)
 				plt.axis('off')
+
+				# Remove margins
+				plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
 				plt.show()
 		except:
 			print("call compute_depth_informations before trying to visualize")
 			exit(1)
+
 
 	def merge_down(self, other):
 		new_value = self.value + sum(get_node_values(other))
@@ -488,7 +504,7 @@ def get_sim_without(sources, value):
 
 def _solve(source_values, target_values, starting_node_sources=None):
 	print(f"\nsolving: {sorted(source_values)} to {sorted(target_values)}\n")
-	steps = -1
+	# steps = -1
 
 	enqueued_sims = set()
 	target_values = sorted(target_values)
@@ -901,7 +917,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		score = compute_sources_score(sources)
 		if score < 0: return
 		insert_into_sorted(queue, (sources, score), key=lambda x: x[1])
-	
+
 	def solution_found(new_solution_root):
 		nonlocal solution
 		new_solution_root._compute_size(set())
@@ -931,13 +947,13 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			print(sources_root)
 			lowest_score = score
 
-		steps -= 1
-		if steps + 1 == 0:
-			print("stopping")
-			print_timings()
-			exit(0)
-		if (-steps) % 1000 == 0:
-			print(f"step {abs(steps)}")
+		# steps -= 1
+		# if steps + 1 == 0:
+		# 	print("stopping")
+		# 	print_timings()
+		# 	exit(0)
+		# if (-steps) % 1000 == 0:
+		# 	print(f"step {abs(steps)}")
 
 		def _copy_sources():
 			nonlocal sources, sources_root
@@ -948,7 +964,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			return time_block("copy_sources", _copy_sources)
 
 		n = len(sources)
-
 		cant_use = compute_cant_use(sources)
 
 		def enqueue(new_sources):
@@ -1114,10 +1129,7 @@ def test():
 		Node(value=40, short_node_id=047, parents=['575'], children=[])
 	])
 	Node(value=130, short_node_id=c62, parents=['93d'], children=[
-		Node(value=60, short_node_id=7e0, parents=['c62'], children=[
-			Node(value=30, short_node_id=15b, parents=['7e0'], children=[])
-			Node(value=30, short_node_id=b59, parents=['7e0'], children=[])
-		])
+		Node(value=60, short_node_id=7e0, parents=['c62'], children=[])
 		Node(value=70, short_node_id=1b1, parents=['c62'], children=[])
 	])
 ])""")
