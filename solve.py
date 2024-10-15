@@ -1,5 +1,5 @@
-import os, sys, re, math, time, uuid, signal, pathlib, tempfile, matplotlib
-import networkx as nx, matplotlib.pyplot as plt, pygraphviz, pydot
+import os, sys, re, math, time, uuid, signal, pathlib, tempfile, threading, io
+import networkx as nx, pygraphviz, pydot
 from contextlib import redirect_stdout
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
@@ -11,6 +11,7 @@ if sys.platform == 'win32':
 
 log_filename = "logs.txt"
 logging = False
+timeit = False
 allowed_divisors = [2, 3]
 allowed_divisors_r = allowed_divisors[::-1]
 min_sum_count, max_sum_count = allowed_divisors[0], allowed_divisors_r[0]
@@ -19,7 +20,13 @@ conveyor_speeds_r = conveyor_speeds[::-1]
 conveyor_speed_limit = conveyor_speeds_r[0]
 short_repr = False
 include_depth_informations = False
-solution = None
+solutions = []
+best_size = 0
+solution_regex = re.compile(r'solution\d+\.png')
+concluding = False
+stop_concluding = False
+solving = False
+stop_solving = False
 
 def printt(*args, **kwargs):
 	if logging:
@@ -49,21 +56,27 @@ def print_timings():
 		if total_time == 0: continue
 		print(f"{key}: {val / total_time:.4f}")
 
+def clear_solution_files():
+	for filename in os.listdir('.'):
+		if solution_regex.match(filename):
+			os.remove(filename)
+
 def conclude():
-	if solution:
-		print(f"\n\n\tSmallest solution found (size = {solution.size}):\n")
-		print(solution)
-		solution.visualize()
+	global solutions, best_size, concluding, stop_concluding
+	if concluding or stop_concluding: return
+	concluding = True
+	stop_concluding = False
+	if solutions:
+		clear_solution_files()
+		print(f"\n\tSmallest solutions found (size = {best_size}):\n")
+		for solution in solutions:
+			print(solution)
+		for i in range(len(solutions)):
+			if stop_concluding: break
+			solutions[i].visualize(f"solution{i}")
 	else:
-		print(f"\n\n\tNo solution found? bruh\n")
-
-def handler(signum, frame):
-	print("Stopping and printing timing averages...")
-	print_timings()
-	conclude()
-	sys.exit(0)
-
-signal.signal(signal.SIGINT, handler)
+		print(f"\n\tNo solution found? bruh\n")
+	concluding = False
 
 def time_block(key, fn, *args, **kwargs):
 	start_time = time.time()
@@ -78,7 +91,7 @@ def set_time(key, start_time):
 # 	if node is parent or node.has_parent(parent):
 # 		print("self parent")
 # 		print(node)
-# 		sys.exit(1)
+# 		exit(1)
 # 	node.parents.append(parent)
 
 def visualize(src, nodes):
@@ -206,13 +219,13 @@ class Node:
 				new_child, child_leaves = child._deepcopy(copied_nodes)
 				if new_child in new_node.children:
 					print("wtf")
-					sys.exit(1)
+					exit(1)
 
 				new_node.children.append(new_child)
 
 				if new_node in new_child.parents:
 					print("nooooo")
-					sys.exit(1)
+					exit(1)
 
 				new_child.parents.append(new_node)
 
@@ -277,24 +290,21 @@ class Node:
 			G.add_edge(self.node_id, child.node_id)
 			child.populate(G)
 
-	def visualize(self):
+	def visualize(self, filename):
 		try:
 			G = nx.DiGraph()
 			self.populate(G)
 
 			A = to_agraph(G)
-
-			for node in G.nodes:
+			for node in A.nodes():
 				level = G.nodes[node]['level']
 				A.get_node(node).attr['rank'] = f'{level}'
 
 			for level in set(nx.get_node_attributes(G, 'level').values()):
-				subgraph = A.add_subgraph(
+				A.add_subgraph(
 					[n for n, attr in G.nodes(data=True) if attr['level'] == level],
 					rank='same'
 				)
-
-			A.graph_attr['rankdir'] = 'TB'
 
 			# Invert colors
 			A.graph_attr['bgcolor'] = 'black'
@@ -307,27 +317,26 @@ class Node:
 			for edge in A.edges():
 				edge.attr['color'] = 'white'
 
-			with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
-				A.layout(prog='dot')
-				A.draw(tmpfile.name, format='png')
-				plt.figure(figsize=(10, 7))
-				img = plt.imread(tmpfile.name)
-				plt.imshow(img)
-				plt.axis('off')
+			print(f"\nGenerating {filename}...")
+			# st = time.time()
 
-				# Remove margins
-				plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+			A.layout(prog='dot')
+			# print("A.layout(prog='dot')", time.time() - st)
+			# st = time.time()
 
-				if hasattr(sys, '_MEIPASS'):
-					# matplotlib.use('Agg')
-					plt.savefig("graph_visualization.png", bbox_inches='tight', pad_inches=0)
-					print("Graph saved as 'graph_visualization.png'")
-				else:
-					plt.show()
-		except:
-			print("call compute_depth_informations before trying to visualize")
-			sys.exit(1)
+			img_stream = io.BytesIO()
+			A.draw(img_stream, format='png')
+			# print("A.draw(img_stream, format='png')", time.time() - st)
 
+			img_stream.seek(0)
+			filepath = f"{filename}.png"
+			with open(filepath, 'wb') as f:
+				f.write(img_stream.getvalue())
+			print(f"Solution saved at '{filepath}'")
+
+			print("done")
+		except Exception as e:
+			return
 
 	def merge_down(self, other):
 		new_value = self.value + sum(get_node_values(other))
@@ -523,26 +532,33 @@ def _get_sim_without(sources, value):
 			sim.append(src.value)
 	return sim
 
-def get_sim_without(sources, value):
+def _get_sim_without_timed(sources, value):
 	return time_block("get_sim_without", _get_sim_without, sources, value)
 
+get_sim_without = _get_sim_without_timed if timeit else _get_sim_without
+
 def solution_found(new_solution_root):
-	global solution
+	global solutions, best_size
 	new_solution_root._compute_size(set())
-	if solution is None or new_solution_root.size < solution.size:
-		solution = new_solution_root
+	if len(solutions) == 0 or new_solution_root.size < best_size:
+		solutions = [new_solution_root]
+		best_size = new_solution_root.size
+		print(f"\n\tNew solution of size {best_size} found\n")
+	elif new_solution_root.size == best_size:
+		solutions.append(new_solution_root)
+		print(f"\n\tAnother solution of size {best_size} found\n")
 	else:
 		print("impossible case reached, should have been checked already")
-		sys.exit(1)
-	print(f"\n\n\tSolution of size {solution.size} found\n")
-	print(solution)
-	# solution.visualize()
+		exit(1)
+	print(new_solution_root)
+	# new_solution_root.visualize()
 
 def _solve(source_values, target_values, starting_node_sources=None):
+	global timeit, stop_solving, solutions, solving
+	solutions = []
 	print(f"\nsolving: {sorted(source_values)} to {sorted(target_values)}\n")
 	# steps = -1
 
-	# enqueued_sims = set()
 	target_values = sorted(target_values)
 	target_counts = {
 		value: target_values.count(value) for value in set(target_values)
@@ -573,7 +589,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	queue = []
 
 	def get_extract_sim(sources, i):
-		global solution
+		global solutions, best_size
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
@@ -588,18 +604,17 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			# we would get by exctracting speed amount
 			if speed in parent_values: continue
 
-			if solution:
+			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
 					sources_root._compute_size(set())
-				if sources_root.size + 2 >= solution.size: continue
+				if sources_root.size + 2 >= best_size: continue
 			
 			overflow_value = src.value - speed
 			if gcd_incompatible(overflow_value): continue
 
 			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
 			sim = tuple(tmp_sim + [speed, overflow_value])
-			# if sim in enqueued_sims: continue
 			simulations.append((sim, (i, speed)))
 		
 		return simulations
@@ -618,7 +633,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return simulations
 
 	def get_divide_sim(sources, i):
-		global solution, allowed_divisors_r
+		global solutions, best_size, allowed_divisors_r
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
@@ -629,18 +644,17 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 			if sum(get_node_values(src.parents)) == src.value and len(src.parents) == divisor: continue
 
-			if solution:
+			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
 					sources_root._compute_size(set())
-				if sources_root.size + divisor >= solution.size: continue
+				if sources_root.size + divisor >= best_size: continue
 			
 			divided_value = int(src.value / divisor)
 			if gcd_incompatible(divided_value): continue
 
 			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
 			sim = tuple(tmp_sim + [divided_value] * divisor)
-			# if sim in enqueued_sims: continue
 			simulations.append((sim, (i, divisor)))
 
 		return simulations
@@ -684,7 +698,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					continue
 			except:
 				print("binary?")
-				sys.exit(1)
+				exit(1)
 
 			src = sources[i]
 			
@@ -709,12 +723,11 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		seen_sums.add(to_sum_values)
 
 		sim = tuple([sources[i].value for i in to_not_sum_indices] + [summed_value])
-		# if sim in enqueued_sims: return None
 		
 		return sim, to_sum_indices
 
 	def get_merge_sims(sources, cant_use, log=False):
-		global min_sum_count, max_sum_count, solution
+		global min_sum_count, max_sum_count, solutions, best_size
 		simulations, n = [], len(sources)
 		
 		if n < 2: return simulations
@@ -728,12 +741,11 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			to_sum_count = sum(binary)
 			
 			if to_sum_count < min_sum_count or to_sum_count > max_sum_count: continue
-			if solution:
-				# print("coucou")
+			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
 					sources_root._compute_size(set())
-				if sources_root.size + 1 >= solution.size: continue
+				if sources_root.size + 1 >= best_size: continue
 			
 			# if log:
 			# 	print("coucou start")
@@ -821,14 +833,14 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					if speed in targets:
 						if overflow in targets:
 							print("impossible case reached, all perfect extractions were removed already")
-							sys.exit(1)
+							exit(1)
 						sim.remove(value)
 						targets.remove(speed)
 						sim.append(overflow)
 					elif overflow in targets:
 						if speed in targets:
 							print("impossible case reached, all perfect extractions were removed already")
-							sys.exit(1)
+							exit(1)
 						sim.remove(value)
 						targets.remove(overflow)
 						sim.append(speed)
@@ -883,7 +895,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					if not matches: continue
 					if matches == divisor:
 						print("impossible case reached, all perfect divisions were removed already")
-						sys.exit(1)
+						exit(1)
 					sim.remove(value)
 					extras = divisor - matches
 					for _ in range(matches): targets.remove(divided_value)
@@ -974,15 +986,17 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		# for e in queue:
 		# 	print("e = ", e)
 
-	def enqueue(nodes):
+	def _enqueue_timed(nodes):
 		time_block("enqueue", _enqueue, nodes)
+
+	enqueue = _enqueue_timed if timeit else _enqueue
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
 	lowest_score = 1000
 
-	while queue:
-		start_total = time.time()
+	while not stop_solving and queue:
+		if timeit: start_total = time.time()
 		tmp, score = queue.pop(0)
 		sources = sort_nodes(tmp)
 		sources_root = sources[0].get_root()
@@ -992,18 +1006,18 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			solution_found(sources_root)
 			continue
 		elif score < lowest_score:
-			print(f"\n\n\tlowest score = {score}, tree =\n")
-			print(sources_root)
 			lowest_score = score
+			print(f"\nlowest score = {lowest_score}")
+			# print(f"\n\tlowest score = {lowest_score}, tree =\n")
+			# print(sources_root)
 
 		n = len(sources)
 		cant_use = compute_cant_use(sources)
 
 		# steps -= 1
 		# if steps + 1 == 0:
-		# 	print("stopping")
 		# 	print_timings()
-		# 	sys.exit(0)
+		# 	exit(0)
 		# if (-steps) % 1000 == 0:
 		# 	print(f"step {abs(steps)}")
 
@@ -1012,25 +1026,19 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			_, leaves = sources_root._deepcopy({})
 			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
 
-		def copy_sources():
+		def _copy_sources_timed():
 			return time_block("copy_sources", _copy_sources)
+
+		copy_sources = _copy_sources_timed if timeit else _copy_sources
 
 		def _try_extract():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_extract_sims(sources, cant_use)
 			# print('extract', simulations)
 			for sim, (i, speed) in simulations:
+				if stop_solving: break
 				copy = copy_sources()
 				src_copy = copy[i]
-				
-				# if sources[i].value == 130 and speed == 60:
-				# 	print("caca")
-				# 	print(sources[0].get_root())
-				# 	print(copy)
-				# 	print("\n")
-				# 	print(sources[i])
-				# 	print(copy[i])
-				# 	print("\n")
 				
 				pop(src_copy, copy)
 
@@ -1042,26 +1050,17 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				sources_to_enqueue = copy + (src_copy - speed)
 				enqueue(sources_to_enqueue)
 
-				# if sources[i].value == 130 and speed == 60:
-				# 	sources_to_enqueue_root = sources_to_enqueue[0].get_root()
-				# 	sources_to_enqueue_root._compute_depth_informations()
-				# 	print("sources_to_enqueue")
-				# 	print(sources_to_enqueue_root)
-				# 	print("sources_to_enqueue ids")
-				# 	print(get_node_ids(sources_to_enqueue))
-				# 	print(src_copy)
-				# 	sys.exit(0)
-				
-				# enqueued_sims.add(sim)
-
-		def try_extract():
+		def _try_extract_timed():
 			time_block("try_extract", _try_extract)
 		
+		try_extract = _try_extract_timed if timeit else _try_extract
+
 		def _try_divide():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_divide_sims(sources, cant_use)
 			# print('divide', simulations)
 			for sim, (i, divisor) in simulations:
+				if stop_solving: break
 				copy = copy_sources()
 				src_copy = copy[i]
 				pop(src_copy, copy)
@@ -1072,16 +1071,18 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				printt(f"{sources[i]} / {divisor}")
 
 				enqueue(copy + (src_copy / divisor))
-				# enqueued_sims.add(sim)
 
-		def try_divide():
+		def _try_divide_timed():
 			time_block("try_divide", _try_divide)
+
+		try_divide = _try_divide_timed if timeit else _try_divide
 
 		def _try_merge():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_merge_sims(sources, cant_use)
 			# print('merge', simulations, cant_use)
 			for sim, to_sum_indices in simulations:
+				if stop_solving: break
 				copy = copy_sources()
 				to_sum = [copy[i] for i in to_sum_indices]
 				to_sum_values = get_node_values(to_sum)
@@ -1097,50 +1098,59 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				printt("+".join(str(ts) for ts in to_sum))
 
 				enqueue(copy)
-				# enqueued_sims.add(sim)
 
-		def try_merge():
+		def _try_merge_timed():
 			time_block("try_merge", _try_merge)
 		
-		# print("aluile", get_node_values(sources))
+		try_merge = _try_merge_timed if timeit else _try_merge
 
 		try_divide()
+		if stop_solving: break
 		try_extract()
+		if stop_solving: break
 		try_merge()
 
-		# if get_node_values(sources) == [30, 40, 40, 70, 70] and sources_root.tree_height == 5 and sources_root.size == 11:
-		# 	print("cacaAAAAAAAA")
-		# 	sys.exit(0)
-
-		timings["total"] += time.time() - start_total
+		if timeit: timings["total"] += time.time() - start_total
+	
+	solving = False
 
 def solve(source_values, target_values):
+	global solving, stop_solving
 	sources_total = sum(source_values)
 	targets_total = sum(target_values)
 	if sources_total > targets_total:
 		target_values.append(sources_total - targets_total)
 	elif sources_total < targets_total:
 		source_values.append(targets_total - sources_total)
-	_solve(source_values, target_values)
+	stop_solving = False
+	stop_concluding = False
+	solving = True
+	solve_thread = threading.Thread(target=_solve, args=(source_values, target_values), daemon=True)
+	solve_thread.start()
+	# keep this thread alive to catch ctrl + c
+	try:
+		while solving: time.sleep(0.25)
+	except KeyboardInterrupt:
+		pass
+	solve_thread.join()
 
-def main():
-	global solution
+def main(user_input):
 	separator = 'to'
-	if len(sys.argv) < 3 or separator not in ' '.join(sys.argv[1:]):
-		print(f"Usage: python solve.py <source_args> {separator} <target_args>")
-		sys.exit(0)
+	if len(user_input.split(" ")) < 3 or separator not in user_input:
+		print(f"Usage: <source_args> {separator} <target_args>")
+		return 0
 
-	source_part, target_part = ' '.join(sys.argv[1:]).split(separator)
+	source_part, target_part = user_input.split(separator)
 	source_args = source_part.strip().split()
 	target_args = target_part.strip().split()
 
 	if not source_args:
 		print("Error: At least one source value must be provided.")
-		sys.exit(1)
+		return 1
 
 	if not target_args:
 		print("Error: At least one target value must be provided.")
-		sys.exit(1)
+		return 1
 
 	sources = []
 	i = 0
@@ -1150,18 +1160,18 @@ def main():
 			source_value = int(src)
 			if source_value % 5 != 0:
 				print("Error: all values must be multiples of 5")
-				sys.exit(1)
+				return 1
 			sources.append(source_value)
 			i += 1
 			continue
 		if len(src) < 2 or not src[:-1].isdigit():
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
-			sys.exit(1)
+			return 1
 		multiplier = int(src[:-1])
 		source_value = int(source_args[source_args.index(src) + 1])
 		if source_value % 5 != 0:
 			print("Error: all values must be multiples of 5")
-			sys.exit(1)
+			return 1
 		for _ in range(multiplier):
 			sources.append(source_value)
 		i += 2
@@ -1174,21 +1184,21 @@ def main():
 			target_value = int(target)
 			if target_value % 5 != 0:
 				print("Error: all values must be multiples of 5")
-				sys.exit(1)
+				return 1
 			targets.append(target_value)
 			i += 1
 			continue
 		if len(target) < 2 or not target[:-1].isdigit():
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
-			sys.exit(1)
+			return 1
 		multiplier = int(target[:-1])
 		if i + 1 == len(target_args):
 			print("Error: You must provide a target value after Nx.")
-			sys.exit(1)
+			return 1
 		target_value = int(target_args[i + 1])
 		if target_value % 5 != 0:
 			print("Error: all values must be multiples of 5")
-			sys.exit(1)
+			return 1
 		for _ in range(multiplier):
 			targets.append(target_value)
 		i += 2
@@ -1207,6 +1217,63 @@ def test():
 	_solve(get_node_values(leaves), [70, 70, 70, 40], leaves)
 	conclude()
 
+user_input = None
+idle = True
+stop_event = threading.Event()
+input_lock = threading.Lock()
+
+def exit(code):
+	stop_event.set()
+	sys.exit(code)
+
+def handler(signum, frame):
+	global idle, concluding, stop_solving, stop_concluding
+	# print("\nreceived ctrl+c")
+	if idle:
+		# print("\nwas idle")
+		if timeit:
+			print("\nAverages:")
+			print_timings()
+		else:
+			print()
+		exit(0)
+	else:
+		if concluding:
+			# print("\nwas concluding")
+			stop_concluding = True
+		elif not stop_solving:
+			print("\nStopping...")
+			stop_solving = True
+
+signal.signal(signal.SIGINT, handler)
+
+def input_thread_callback():
+	global user_input, idle
+	while not stop_event.is_set():
+		try:
+			while not idle and not stop_event.is_set():
+				pass
+			if stop_event.is_set():
+				break
+			with input_lock:
+				user_input = input("\nSatisfactory Solver> ")
+			idle = False
+		except EOFError:
+			break
+
 if __name__ == '__main__':
-	# test()
-	main()
+	input_thread = threading.Thread(target=input_thread_callback, daemon=True)
+	input_thread.start()
+
+	while not stop_event.is_set():
+		if user_input is None:
+			continue
+		with input_lock:
+			if user_input in ["exit", "quit", "q"]:
+				stop_event.set()
+				break
+			main(user_input)
+			idle = True
+			user_input = None
+
+	input_thread.join()
