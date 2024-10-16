@@ -1,4 +1,4 @@
-import os, sys, re, math, time, uuid, signal, pathlib, tempfile, threading, io, cProfile
+import os, sys, re, math, time, uuid, signal, pathlib, tempfile, threading, io, cProfile, random
 import networkx as nx, pygraphviz, pydot
 from contextlib import redirect_stdout
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -423,7 +423,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	target_counts = {
 		value: target_values.count(value) for value in set(target_values)
 	}
-	gcd = math.gcd(*target_values)
+	gcd = math.gcd(*source_values, *target_values)
 	# node_targets = list(map(lambda value: Node(value), target_values))
 	# print('\n'.join([str(src) for src in copy]))
 
@@ -836,8 +836,18 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	# lowest_score = 1000
 	# steps = -1
 
+	def dequeue(queue):
+		n = len(queue)
+		i = 1
+		while True:
+			prob = 1 / (2 ** i)
+			idx = int((1 - 1 / (2 ** (i - 1))) * n)
+			i += 1
+			if i > n or idx >= n: return queue.pop(-1)
+			if random.random() < prob: return queue.pop(idx)
+
 	while not stop_solving and queue:
-		tmp, score = queue.pop(0)
+		tmp, score = dequeue(queue)
 		sources = sort_nodes(tmp)
 		sources_root = sources[0].get_root()
 		sources_root.compute_size()
