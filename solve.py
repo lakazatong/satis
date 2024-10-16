@@ -1,4 +1,4 @@
-import os, sys, re, math, time, uuid, signal, pathlib, tempfile, threading, io
+import os, sys, re, math, time, uuid, signal, pathlib, tempfile, threading, io, cProfile
 import networkx as nx, pygraphviz, pydot
 from contextlib import redirect_stdout
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -9,52 +9,43 @@ if sys.platform == 'win32':
 	if path.is_dir() and str(path) not in os.environ['PATH']:
 		os.environ['PATH'] += f';{path}'
 
-log_filename = "logs.txt"
+# user settings
+
+allowed_divisors = [2, 3] # must be sorted
+conveyor_speeds = [60, 120, 270, 480, 780, 1200] # must be sorted
+
 logging = False
-timeit = False
-allowed_divisors = [2, 3]
-allowed_divisors_r = allowed_divisors[::-1]
-min_sum_count, max_sum_count = allowed_divisors[0], allowed_divisors_r[0]
-conveyor_speeds = [60, 120, 270, 480, 780, 1200]
-conveyor_speeds_r = conveyor_speeds[::-1]
-conveyor_speed_limit = conveyor_speeds_r[0]
-short_repr = False
-include_depth_informations = False
-solutions = []
-best_size = 0
-solution_regex = re.compile(r'solution\d+\.png')
+log_filename = "logs.txt"
+
+short_repr = True
+include_depth_informations = True
+
+solutions_filename = lambda i: f"solution{i}"
+solution_regex = re.compile(r'solution\d+\.png') # ext is always png
+
+# internals
+
 concluding = False
 stop_concluding = False
 solving = False
 stop_solving = False
-
-def printt(*args, **kwargs):
-	if logging:
-		with open(log_filename, "a") as f:
-			with redirect_stdout(f):
-				print(*args, **kwargs)
+allowed_divisors_r = allowed_divisors[::-1]
+min_sum_count, max_sum_count = allowed_divisors[0], allowed_divisors_r[0]
+conveyor_speeds_r = conveyor_speeds[::-1]
+conveyor_speed_limit = conveyor_speeds_r[0]
+solutions = []
+best_size = 0
 
 if logging:
 	open(log_filename, "w").close()
 elif os.path.exists(log_filename):
 	os.remove(log_filename)
 
-timings = {
-	"total": 0,
-	"copy_sources": 0,
-	"try_divide": 0,
-	"try_extract": 0,
-	"try_merge": 0,
-	"get_sim_without": 0,
-	"enqueue": 0,
-}
-
-def print_timings():
-	total_time = timings["total"]
-	for key, val in timings.items():
-		if key == "total": continue
-		if total_time == 0: continue
-		print(f"{key}: {val / total_time:.4f}")
+def log(*args, **kwargs):
+	if logging:
+		with open(log_filename, "a") as f:
+			with redirect_stdout(f):
+				print(*args, **kwargs)
 
 def clear_solution_files():
 	for filename in os.listdir('.'):
@@ -73,32 +64,10 @@ def conclude():
 			print(solution)
 		for i in range(len(solutions)):
 			if stop_concluding: break
-			solutions[i].visualize(f"solution{i}")
+			solutions[i].visualize(solutions_filename)
 	else:
 		print(f"\n\tNo solution found? bruh\n")
 	concluding = False
-
-def time_block(key, fn, *args, **kwargs):
-	start_time = time.time()
-	result = fn(*args, **kwargs)
-	timings[key] += time.time() - start_time
-	return result
-
-def set_time(key, start_time):
-	timings[key] += time.time() - start_time
-
-# def safe_add_parent(parent, node):
-# 	if node is parent or node.has_parent(parent):
-# 		print("self parent")
-# 		print(node)
-# 		exit(1)
-# 	node.parents.append(parent)
-
-def visualize(src, nodes):
-	src.children = nodes
-	for node in nodes:
-		node.parents.append(src)
-	src.visualize()
 
 def sort_nodes(nodes):
 	return sorted(nodes, key=lambda node: node.value)
@@ -117,11 +86,6 @@ def pop(node, nodes):
 		if other.node_id == node.node_id:
 			return nodes.pop(i)
 	return None
-
-def can_split(value, divisor):
-	global allowed_divisors
-	if not divisor in allowed_divisors: return False
-	return value % divisor == 0
 
 def increment(binary_array):
 	for i in range(len(binary_array)):
@@ -152,28 +116,38 @@ class Node:
 		self.parents = []
 		self.children = []
 
-	def __repr__(self):
-		if short_repr:
-			return f"{"\t" * (self.depth - 1)}{self.value}({self.node_id[-3:]})"
-		r = f"{"\t" * (self.depth - 1)}Node(value={self.value}, short_node_id={self.node_id[-3:]}"
+	def _to_string(self):
+		if short_repr: return f"{self.value}({self.node_id[-3:]})"
+		r = "Node("
+		r += f"value={self.value}, "
+		r += f"short_node_id={self.node_id[-3:]}, "
 		if include_depth_informations:
-			r += f", depth={self.depth}, tree_height={self.tree_height}, level={self.level}, size={self.size}"
-		r += f", parents={get_short_node_ids(self.parents)}, children=["
-		if self.children:
-			r += "\n"
-			for child in self.children:
-				r += str(child) + "\n"
-			r += "\t" * (self.depth - 1)
-		r += "])"
+			r += f"depth={self.depth}, "
+			r += f"tree_height={self.tree_height}, "
+			r += f"level={self.level}, "
+		r += f"size={self.size}, "
+		r += f"parents={get_short_node_ids(self.parents)})"
 		return r
 
-	def get_leaves(self):
-		if not self.children:
-			return [self]
-		leaves = []
-		for child in self.children:
-			leaves.extend(child.get_leaves())
-		return leaves
+	def str(self, stack):
+		depth = len(stack)
+		stack.append(self)
+		r = ""
+		for i in range(depth):
+			if stack[i + 1].node_id != self.node_id:
+				r += (" " if stack[i].children and stack[i].children[-1].node_id == stack[i + 1].node_id else "│") + "\t"
+			else:
+				r += ("└" if stack[i].children[-1].node_id == self.node_id else "├") + "─────►"
+		r += self._to_string() + "\n"
+		for child in self.children: r += child.str(stack)
+		stack.pop()
+		return r
+
+	def __repr__(self):
+		stack = [self]
+		r = self._to_string() + "\n"
+		for child in self.children: r += child.str(stack)
+		return r
 
 	def get_root(self):
 		cur = self
@@ -181,22 +155,18 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def _compute_size(self, visited):
-		# the returned boolean is there to indicate if the returned size is unseen for parents
-		if self.node_id in visited:
-			return self.size, False
-		visited.add(self.node_id)
-		self.size = 1
-		unseen_size = self.size
-		for child in self.children:
-			child_size, child_unvisited = child._compute_size(visited)
-			if child_unvisited:
-				unseen_size += child_size
-			self.size += child_size
-		return unseen_size, True
-
 	def compute_size(self):
-		self.get_root()._compute_size(set())
+		root = self.get_root()
+		queue = [root]
+		visited = set()
+		self.size = 0
+		while queue:
+			current = queue.pop(0)
+			if current not in visited:
+				visited.add(current)
+				self.size += 1
+				for child in current.children:
+					queue.append(child)
 		return self.size
 
 	def _deepcopy(self, copied_nodes):
@@ -242,18 +212,6 @@ class Node:
 	def deepcopy(self):
 		return self.get_root()._deepcopy({})
 
-	def find(self, node_id):
-		if self.node_id == node_id: return self
-		for child in self.children:
-			result = child.find(node_id)
-			if result: return result
-		return None
-
-	def has_parent(self, parent):
-		for p in self.parents:
-			if p is parent or p.has_parent(parent): return True
-		return False
-
 	def _compute_depth_and_tree_height(self):
 		self.depth = 1 + (max(parent.depth for parent in self.parents) if self.parents else 0)
 		max_child_tree_height = 0
@@ -261,28 +219,21 @@ class Node:
 			_, child_tree_height = child._compute_depth_and_tree_height()
 			if child_tree_height > max_child_tree_height:
 				max_child_tree_height = child_tree_height
-		# Include the current node level in the height calculation
 		self.tree_height = max_child_tree_height + 1
 		return self.depth, self.tree_height
 
-	# def set_max_tree_height(self, max_tree_height):
-	# 	self.max_tree_height = max_tree_height
-	# 	for child in self.children:
-	# 		child.set_max_tree_height(max_tree_height)
-
-	def compute_level(self, max_tree_height):
+	def _compute_level(self, max_tree_height):
 		self.level = max_tree_height - \
-		(max(map(lambda node: node.tree_height, self.children)) if self.children else 0)
+		(max(child.tree_height for child in self.children) if self.children else 0)
 		for child in self.children:
-			child.compute_level(max_tree_height)
+			child._compute_level(max_tree_height)
 
 	def _compute_depth_informations(self):
 		self._compute_depth_and_tree_height()
-		# self.set_max_tree_height(self.tree_height)
-		self.compute_level(self.tree_height)
+		self._compute_level(self.tree_height)
 
 	def compute_depth_informations(self):
-		self._compute_depth_informations(self.get_root())
+		self.get_root()._compute_depth_informations()
 
 	def populate(self, G):
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
@@ -318,22 +269,14 @@ class Node:
 				edge.attr['color'] = 'white'
 
 			print(f"\nGenerating {filename}...")
-			# st = time.time()
-
 			A.layout(prog='dot')
-			# print("A.layout(prog='dot')", time.time() - st)
-			# st = time.time()
-
 			img_stream = io.BytesIO()
 			A.draw(img_stream, format='png')
-			# print("A.draw(img_stream, format='png')", time.time() - st)
-
 			img_stream.seek(0)
 			filepath = f"{filename}.png"
 			with open(filepath, 'wb') as f:
 				f.write(img_stream.getvalue())
 			print(f"Solution saved at '{filepath}'")
-
 			print("done")
 		except Exception as e:
 			return
@@ -359,7 +302,9 @@ class Node:
 		return new_node
 
 	def can_split(self, divisor):
-		return can_split(self.value, divisor)
+		global allowed_divisors
+		if not divisor in allowed_divisors: return False
+		return self.value % divisor == 0
 
 	def split_down(self, divisor):
 		new_value = int(self.value / divisor)
@@ -378,8 +323,6 @@ class Node:
 		return new_nodes
 
 	def extract_down(self, value):
-		# print("caca2")
-		# print(self)
 		extracted_node = Node(value)
 		overflow_value = self.value - value
 		overflow_node = Node(overflow_value)
@@ -403,7 +346,7 @@ class Node:
 		if isinstance(other, list) and all(isinstance(node, Node) for node in other):
 			return self.merge_down(other)
 		elif isinstance(other, Node):
-			return self.merge_down([other])		
+			return self.merge_down([other])     
 		raise ValueError("Operand must be a Node[] or Node")
 
 	def __truediv__(self, divisor):
@@ -416,113 +359,29 @@ class Node:
 			return self.extract_down(amount)
 		raise ValueError("Amount must be a number")
 
-def load_tree(tree_representation):
-	node_dict = {}
+	# graveyard
 
-	def parse_node(node_str):
-		match = re.search(r'Node\(value=(\d+), short_node_id=([-0-9a-f]+)', node_str)
-		if match:
-			value, short_id = int(match.group(1)), match.group(2)
-			if short_id not in node_dict:
-				node_dict[short_id] = Node(value)
-			return node_dict[short_id]
-		return None
+	# def get_leaves(self):
+	# 	if not self.children:
+	# 		return [self]
+	# 	leaves = []
+	# 	for child in self.children:
+	# 		leaves.extend(child.get_leaves())
+	# 	return leaves
 
-	# def parse_children(children_str):
-	# 	children = []
-	# 	for child_str in re.findall(r'Node\(value=\d+, short_node_id=[-0-9a-f]+.*?\)', children_str):
-	# 		children.append(parse_node(child_str))
-	# 	return children
+	# def find(self, node_id):
+	# 	if self.node_id == node_id: return self
+	# 	for child in self.children:
+	# 		result = child.find(node_id)
+	# 		if result: return result
+	# 	return None
 
-	stack = []
-	root = None
+	# def has_parent(self, parent):
+	# 	for p in self.parents:
+	# 		if p is parent or p.has_parent(parent): return True
+	# 	return False
 
-	for line in tree_representation.splitlines():
-		indent_level = len(line) - len(line.lstrip())
-		if 'Node' in line:
-			node = parse_node(line)
-			if not root:
-				root = node
-			if stack and indent_level > stack[-1][0]:
-				parent = stack[-1][1]
-				parent.children.append(node)
-				node.parents.append(parent)
-			else:
-				while stack and indent_level <= stack[-1][0]:
-					stack.pop()
-				if stack:
-					parent = stack[-1][1]
-					parent.children.append(node)
-					node.parents.append(parent)
-			stack.append((indent_level, node))
-
-	return root
-
-def _simplify_merge(nodes):
-	global allowed_divisors_r
-	# Step 1: Merge nodes with the same value until all are different
-	has_merged = False
-	while True:
-		merged_nodes = []
-		done = True
-		i = 0
-
-		while i < len(nodes):
-			current_node = nodes[i]
-			current_value = current_node.value
-			same_value_nodes = []
-
-			i += 1
-			while i < len(nodes) and nodes[i].value == current_value:
-				if len(same_value_nodes) == allowed_divisors_r[0] - 1:
-					break
-				same_value_nodes.append(nodes[i])
-				i += 1
-
-			if len(same_value_nodes) > 0:
-				merged_node = current_node.merge_up(same_value_nodes)
-				merged_nodes.append(merged_node)
-				done = False
-				has_merged = True
-			else:
-				merged_nodes.append(current_node)
-
-		if done: break
-
-		merged_nodes = sort_nodes(merged_nodes)
-		nodes = [node for node in merged_nodes]
-	return nodes, has_merged
-
-def _simplify_extract(nodes):
-	global conveyor_speeds_r
-	# Step 2: Extract maximum conveyor speed that fits (ignore nodes with value already equal to a conveyor speed)
-	extracted_nodes = []
-	for node in nodes:
-		extracted_flag = False
-		for speed in conveyor_speeds_r:
-			if node.value == speed: break
-			if node.value > speed:
-				extracted_node, overflow_node = node.extract_up(speed)
-				extracted_nodes.append(extracted_node)
-				extracted_nodes.append(overflow_node)
-				extracted_flag = True
-				break
-		if not extracted_flag:
-			extracted_nodes.append(node)
-
-	nodes = sort_nodes(extracted_nodes)
-	return nodes
-
-def simplify(nodes):
-	nodes, has_merged = _simplify_merge(nodes)
-	nodes = _simplify_extract(nodes)
-	while has_merged:
-		nodes, has_merged = _simplify_merge(nodes)
-		if not has_merged: break
-		nodes = _simplify_extract(nodes)
-	return nodes
-
-def _get_sim_without(sources, value):
+def get_sim_without(sources, value):
 	sim = []
 	found = False
 	for src in sources:
@@ -532,14 +391,9 @@ def _get_sim_without(sources, value):
 			sim.append(src.value)
 	return sim
 
-def _get_sim_without_timed(sources, value):
-	return time_block("get_sim_without", _get_sim_without, sources, value)
-
-get_sim_without = _get_sim_without_timed if timeit else _get_sim_without
-
 def solution_found(new_solution_root):
 	global solutions, best_size
-	new_solution_root._compute_size(set())
+	new_solution_root.compute_size()
 	if len(solutions) == 0 or new_solution_root.size < best_size:
 		solutions = [new_solution_root]
 		best_size = new_solution_root.size
@@ -554,10 +408,9 @@ def solution_found(new_solution_root):
 	# new_solution_root.visualize()
 
 def _solve(source_values, target_values, starting_node_sources=None):
-	global timeit, stop_solving, solutions, solving
+	global stop_solving, solutions, solving
 	solutions = []
 	print(f"\nsolving: {sorted(source_values)} to {sorted(target_values)}\n")
-	# steps = -1
 
 	target_values = sorted(target_values)
 	target_counts = {
@@ -607,7 +460,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
-					sources_root._compute_size(set())
+					sources_root.compute_size()
 				if sources_root.size + 2 >= best_size: continue
 			
 			overflow_value = src.value - speed
@@ -647,7 +500,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
-					sources_root._compute_size(set())
+					sources_root.compute_size()
 				if sources_root.size + divisor >= best_size: continue
 			
 			divided_value = int(src.value / divisor)
@@ -744,20 +597,20 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
-					sources_root._compute_size(set())
+					sources_root.compute_size()
 				if sources_root.size + 1 >= best_size: continue
 			
 			# if log:
-			# 	print("coucou start")
-			# 	print("sources", sources)
-			# 	print("binary", binary)
-			# 	print("to_sum_count", to_sum_count)
-			# 	print("seen_sums", seen_sums)
-			# 	print("cant_use", cant_use)
+			#   print("coucou start")
+			#   print("sources", sources)
+			#   print("binary", binary)
+			#   print("to_sum_count", to_sum_count)
+			#   print("seen_sums", seen_sums)
+			#   print("cant_use", cant_use)
 			r = get_merge_sim(sources, binary, to_sum_count, seen_sums, cant_use, log)
 			# if log:
-			# 	print("r", r)
-			# 	print("coucou end")
+			#   print("r", r)
+			#   print("coucou end")
 			if r: simulations.append(r)
 		
 		return simulations
@@ -786,9 +639,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		distance = 0
 		# debug = sim == [40, 70, 70, 70]
 		# if debug:
-		# 	print("\n\nSIM\n", sim)
-		# 	print("TARGETS\n", targets)
-		# 	print("DISTANCE\n", distance)
+		#   print("\n\nSIM\n", sim)
+		#   print("TARGETS\n", targets)
+		#   print("DISTANCE\n", distance)
 		
 		while True:
 			done = True
@@ -800,9 +653,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			if not sim and not targets: return distance
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 
 			# remove all perfect extractions
 			for speed in filtered_conveyor_speeds_r:
@@ -820,9 +673,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			if not sim and not targets: return distance
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 			
 			# remove all non perfect extractions
 			for speed in filtered_conveyor_speeds:
@@ -851,9 +704,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			# if not sim and not targets: return distance
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 
 			def try_divide(value, divisor):
 				nonlocal targets
@@ -884,9 +737,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			if not sim and not targets: return distance
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 			
 			# remove all divisions that have at least one match
 			for divisor in allowed_divisors:
@@ -905,9 +758,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			if not sim and not targets: return distance
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 
 			# remove all sums that yield a target
 			for target in targets[:]:
@@ -931,9 +784,9 @@ def _solve(source_values, target_values, starting_node_sources=None):
 					break
 			
 			# if debug:
-			# 	print("\n\nSIM\n", sim)
-			# 	print("TARGETS\n", targets)
-			# 	print("DISTANCE\n", distance)
+			#   print("\n\nSIM\n", sim)
+			#   print("TARGETS\n", targets)
+			#   print("DISTANCE\n", distance)
 			if done: break
 		
 		return distance + len(sim) + len(targets)
@@ -948,13 +801,13 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return True
 		# # Link the simplified targets' trees with the current one
 		# for target in node_targets:
-		# 	for child in target.children:
-		# 		child.parents = []
+		#   for child in target.children:
+		#       child.parents = []
 		# for i in range(n):
-		# 	src = sources[i]
-		# 	src.children = node_targets[i].children
-		# 	for child in src.children:
-		# 		src.parents.append(child)
+		#   src = sources[i]
+		#   src.children = node_targets[i].children
+		#   for child in src.children:
+		#       src.parents.append(child)
 
 	# computes how close the sources are from the target_values
 	# the lower the better
@@ -972,7 +825,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		if simulations: score = 1 + min(compute_distance(sim) for sim, _ in simulations)
 		return score
 
-	def _enqueue(nodes):
+	def enqueue(nodes):
 		nonlocal queue
 		nodes = sort_nodes(nodes)
 		score = compute_sources_score(nodes)
@@ -980,28 +833,23 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		if score < 0: return
 		# print("queue = ")
 		# for e in queue:
-		# 	print("e = ", e)
+		#   print("e = ", e)
 		insert_into_sorted(queue, (nodes, score), key=lambda x: x[1])
 		# print("queue = ")
 		# for e in queue:
-		# 	print("e = ", e)
-
-	def _enqueue_timed(nodes):
-		time_block("enqueue", _enqueue, nodes)
-
-	enqueue = _enqueue_timed if timeit else _enqueue
+		#   print("e = ", e)
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
 	lowest_score = 1000
+	steps = -1
 
 	while not stop_solving and queue:
-		if timeit: start_total = time.time()
 		tmp, score = queue.pop(0)
 		sources = sort_nodes(tmp)
 		sources_root = sources[0].get_root()
 		sources_root._compute_depth_informations()
-		sources_root._compute_size(set())
+		sources_root.compute_size()
 		if score == 0:
 			solution_found(sources_root)
 			continue
@@ -1014,24 +862,18 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		n = len(sources)
 		cant_use = compute_cant_use(sources)
 
-		# steps -= 1
+		steps += 1
 		# if steps + 1 == 0:
-		# 	print_timings()
-		# 	exit(0)
-		# if (-steps) % 1000 == 0:
-		# 	print(f"step {abs(steps)}")
+		#   exit(0)
+		# print(f"step {abs(steps)}")
+		# print(sources_root.size)
 
-		def _copy_sources():
+		def copy_sources():
 			nonlocal sources, sources_root
 			_, leaves = sources_root._deepcopy({})
 			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
 
-		def _copy_sources_timed():
-			return time_block("copy_sources", _copy_sources)
-
-		copy_sources = _copy_sources_timed if timeit else _copy_sources
-
-		def _try_extract():
+		def try_extract():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_extract_sims(sources, cant_use)
 			# print('extract', simulations)
@@ -1042,20 +884,15 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				
 				pop(src_copy, copy)
 
-				printt("\n\nFROM")
-				printt(sources_root)
-				printt("DID")
-				printt(f"{sources[i]} - {speed}")
+				log("\n\nFROM")
+				log(sources_root)
+				log("DID")
+				log(f"{sources[i]} - {speed}")
 
 				sources_to_enqueue = copy + (src_copy - speed)
 				enqueue(sources_to_enqueue)
 
-		def _try_extract_timed():
-			time_block("try_extract", _try_extract)
-		
-		try_extract = _try_extract_timed if timeit else _try_extract
-
-		def _try_divide():
+		def try_divide():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_divide_sims(sources, cant_use)
 			# print('divide', simulations)
@@ -1065,22 +902,16 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				src_copy = copy[i]
 				pop(src_copy, copy)
 
-				printt("\n\nFROM")
-				printt(sources_root)
-				printt("DID")
-				printt(f"{sources[i]} / {divisor}")
+				log("\n\nFROM")
+				log(sources_root)
+				log("DID")
+				log(f"{sources[i]} / {divisor}")
 
 				enqueue(copy + (src_copy / divisor))
 
-		def _try_divide_timed():
-			time_block("try_divide", _try_divide)
-
-		try_divide = _try_divide_timed if timeit else _try_divide
-
-		def _try_merge():
+		def try_merge():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_merge_sims(sources, cant_use)
-			# print('merge', simulations, cant_use)
 			for sim, to_sum_indices in simulations:
 				if stop_solving: break
 				copy = copy_sources()
@@ -1089,28 +920,19 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				list(map(lambda src: pop(src, copy), to_sum))
 				summed_node = to_sum[0] + to_sum[1:]
 				copy.append(summed_node)
-				# print(get_node_values(copy))
 
-				# print("allo?")
-				printt("\n\nFROM")
-				printt(sources_root)
-				printt("DID")
-				printt("+".join(str(ts) for ts in to_sum))
+				log("\n\nFROM")
+				log(sources_root)
+				log("DID")
+				log("+".join(str(ts) for ts in to_sum))
 
 				enqueue(copy)
-
-		def _try_merge_timed():
-			time_block("try_merge", _try_merge)
-		
-		try_merge = _try_merge_timed if timeit else _try_merge
 
 		try_divide()
 		if stop_solving: break
 		try_extract()
 		if stop_solving: break
 		try_merge()
-
-		if timeit: timings["total"] += time.time() - start_total
 	
 	solving = False
 
@@ -1206,17 +1028,6 @@ def main(user_input):
 	solve(sources, targets)
 	conclude()
 
-def test():
-	root = load_tree("""Node(value=250, short_node_id=93d, parents=[], children=[
-	Node(value=120, short_node_id=575, parents=['93d'], children=[])
-	Node(value=130, short_node_id=c62, parents=['93d'], children=[])
-])""")
-	root._compute_depth_informations()
-	print(root)
-	leaves = root.get_leaves()
-	_solve(get_node_values(leaves), [70, 70, 70, 40], leaves)
-	conclude()
-
 user_input = None
 idle = True
 stop_event = threading.Event()
@@ -1231,11 +1042,7 @@ def handler(signum, frame):
 	# print("\nreceived ctrl+c")
 	if idle:
 		# print("\nwas idle")
-		if timeit:
-			print("\nAverages:")
-			print_timings()
-		else:
-			print()
+		print()
 		exit(0)
 	else:
 		if concluding:
@@ -1261,7 +1068,13 @@ def input_thread_callback():
 		except EOFError:
 			break
 
+def test():
+	# cProfile.run('solve([475, 85, 100], [45, 50, 100])')
+	pass
+
 if __name__ == '__main__':
+	# test()
+	# exit(0)
 	input_thread = threading.Thread(target=input_thread_callback, daemon=True)
 	input_thread.start()
 
@@ -1277,3 +1090,69 @@ if __name__ == '__main__':
 			user_input = None
 
 	input_thread.join()
+
+# graveyard
+
+# def _simplify_merge(nodes):
+# 	global allowed_divisors_r
+# 	# Step 1: Merge nodes with the same value until all are different
+# 	has_merged = False
+# 	while True:
+# 		merged_nodes = []
+# 		done = True
+# 		i = 0
+
+# 		while i < len(nodes):
+# 			current_node = nodes[i]
+# 			current_value = current_node.value
+# 			same_value_nodes = []
+
+# 			i += 1
+# 			while i < len(nodes) and nodes[i].value == current_value:
+# 				if len(same_value_nodes) == allowed_divisors_r[0] - 1:
+# 					break
+# 				same_value_nodes.append(nodes[i])
+# 				i += 1
+
+# 			if len(same_value_nodes) > 0:
+# 				merged_node = current_node.merge_up(same_value_nodes)
+# 				merged_nodes.append(merged_node)
+# 				done = False
+# 				has_merged = True
+# 			else:
+# 				merged_nodes.append(current_node)
+
+# 		if done: break
+
+# 		merged_nodes = sort_nodes(merged_nodes)
+# 		nodes = [node for node in merged_nodes]
+# 	return nodes, has_merged
+
+# def _simplify_extract(nodes):
+# 	global conveyor_speeds_r
+# 	# Step 2: Extract maximum conveyor speed that fits (ignore nodes with value already equal to a conveyor speed)
+# 	extracted_nodes = []
+# 	for node in nodes:
+# 		extracted_flag = False
+# 		for speed in conveyor_speeds_r:
+# 			if node.value == speed: break
+# 			if node.value > speed:
+# 				extracted_node, overflow_node = node.extract_up(speed)
+# 				extracted_nodes.append(extracted_node)
+# 				extracted_nodes.append(overflow_node)
+# 				extracted_flag = True
+# 				break
+# 		if not extracted_flag:
+# 			extracted_nodes.append(node)
+
+# 	nodes = sort_nodes(extracted_nodes)
+# 	return nodes
+
+# def simplify(nodes):
+# 	nodes, has_merged = _simplify_merge(nodes)
+# 	nodes = _simplify_extract(nodes)
+# 	while has_merged:
+# 		nodes, has_merged = _simplify_merge(nodes)
+# 		if not has_merged: break
+# 		nodes = _simplify_extract(nodes)
+# 	return nodes
