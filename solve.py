@@ -17,7 +17,7 @@ conveyor_speeds = [60, 120, 270, 480, 780, 1200] # must be sorted
 logging = False
 log_filename = "logs.txt"
 
-short_repr = True
+short_repr = False
 include_depth_informations = True
 
 solutions_filename = lambda i: f"solution{i}"
@@ -64,7 +64,8 @@ def conclude():
 			print(solution)
 		for i in range(len(solutions)):
 			if stop_concluding: break
-			solutions[i].visualize(solutions_filename)
+			solutions[i].compute_levels()
+			solutions[i].visualize(solutions_filename(i))
 	else:
 		print(f"\n\tNo solution found? bruh\n")
 	concluding = False
@@ -109,10 +110,10 @@ class Node:
 		if value < 0: raise ValueError("negative value")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
-		self.depth = 1
-		self.tree_height = 1
-		self.level = None
+		# self.depth = None
 		self.size = None
+		self.tree_height = None
+		self.level = None
 		self.parents = []
 		self.children = []
 
@@ -122,10 +123,10 @@ class Node:
 		r += f"value={self.value}, "
 		r += f"short_node_id={self.node_id[-3:]}, "
 		if include_depth_informations:
-			r += f"depth={self.depth}, "
+			# r += f"depth={self.depth}, "
+			r += f"size={self.size}, "
 			r += f"tree_height={self.tree_height}, "
 			r += f"level={self.level}, "
-		r += f"size={self.size}, "
 		r += f"parents={get_short_node_ids(self.parents)})"
 		return r
 
@@ -135,9 +136,9 @@ class Node:
 		r = ""
 		for i in range(depth):
 			if stack[i + 1].node_id != self.node_id:
-				r += (" " if stack[i].children and stack[i].children[-1].node_id == stack[i + 1].node_id else "│") + "\t"
+				r += (" " if stack[i].children and stack[i].children[-1].node_id == stack[i + 1].node_id else "│") + "  "
 			else:
-				r += ("└" if stack[i].children[-1].node_id == self.node_id else "├") + "─────►"
+				r += ("└" if stack[i].children[-1].node_id == self.node_id else "├") + "─►"
 		r += self._to_string() + "\n"
 		for child in self.children: r += child.str(stack)
 		stack.pop()
@@ -155,85 +156,72 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def compute_size(self):
-		root = self.get_root()
-		queue = [root]
-		visited = set()
-		self.size = 0
-		while queue:
-			current = queue.pop(0)
-			if current not in visited:
-				visited.add(current)
-				self.size += 1
-				for child in current.children:
-					queue.append(child)
-		return self.size
-
 	def _deepcopy(self, copied_nodes):
 		if self.node_id in copied_nodes:
 			return copied_nodes[self.node_id], []
 
 		new_node = Node(self.value, node_id=self.node_id)
-		new_node.depth = self.depth
+		new_node.size = self.size
 		new_node.tree_height = self.tree_height
 		new_node.level = self.level
-		new_node.size = self.size
-
-		copied_nodes[self.node_id] = new_node
+		# new_node.depth = self.depth
 
 		leaves = []
-		leave_ids = []
+		leave_ids = set()
 
 		if self.children:
 			for child in self.children:
 				new_child, child_leaves = child._deepcopy(copied_nodes)
-				if new_child in new_node.children:
-					print("wtf")
-					exit(1)
-
 				new_node.children.append(new_child)
-
-				if new_node in new_child.parents:
-					print("nooooo")
-					exit(1)
-
 				new_child.parents.append(new_node)
-
 				for child_leave in child_leaves:
-					if child_leave.node_id not in leave_ids:
-						leaves.append(child_leave)
-						leave_ids.append(child_leave.node_id)
+					if child_leave.node_id in leave_ids: continue
+					leaves.append(child_leave)
+					leave_ids.add(child_leave.node_id)
 		else:
 			leaves.append(new_node)
-			leave_ids.append(new_node.node_id)
 
+		copied_nodes[self.node_id] = new_node
 		return new_node, leaves
 
 	def deepcopy(self):
-		return self.get_root()._deepcopy({})
+		return self._deepcopy({})
+	
+	def compute_size(self):
+		queue = [self]
+		visited = set()
+		self.size = 0
+		while queue:
+			cur = queue.pop()
+			if cur.node_id in visited: continue
+			visited.add(cur.node_id)
+			self.size += 1
+			for child in cur.children:
+				queue.append(child)
 
-	def _compute_depth_and_tree_height(self):
-		self.depth = 1 + (max(parent.depth for parent in self.parents) if self.parents else 0)
-		max_child_tree_height = 0
-		for child in self.children:
-			_, child_tree_height = child._compute_depth_and_tree_height()
-			if child_tree_height > max_child_tree_height:
-				max_child_tree_height = child_tree_height
-		self.tree_height = max_child_tree_height + 1
-		return self.depth, self.tree_height
-
-	def _compute_level(self, max_tree_height):
-		self.level = max_tree_height - \
-		(max(child.tree_height for child in self.children) if self.children else 0)
-		for child in self.children:
-			child._compute_level(max_tree_height)
-
-	def _compute_depth_informations(self):
-		self._compute_depth_and_tree_height()
-		self._compute_level(self.tree_height)
-
-	def compute_depth_informations(self):
-		self.get_root()._compute_depth_informations()
+	def compute_levels(self):
+		stack = [(self, 0)]
+		visited = set()
+		nodes = []
+		while stack:
+			node, state = stack.pop()
+			if state == 0:
+				if node.node_id not in visited:
+					visited.add(node.node_id)
+					stack.append((node, 1))
+					for child in node.children:
+						stack.append((child, 0))
+			else:
+				if node.children:
+					max_children_tree_height = max(child.tree_height for child in node.children)
+					node.tree_height = max_children_tree_height + 1
+					node.level = - max_children_tree_height
+				else:
+					node.tree_height = 1
+					node.level = 0
+				nodes.append(node)
+		for node in nodes:
+			node.level += self.tree_height
 
 	def populate(self, G):
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
@@ -381,6 +369,23 @@ class Node:
 	# 		if p is parent or p.has_parent(parent): return True
 	# 	return False
 
+	# def compute_depth(self):
+	# 	queue = [(self, 1)]
+	# 	while queue:
+	# 		cur, depth = queue.pop(0)
+	# 		cur.depth = depth
+	# 		for child in self.children: queue.append((child, depth + 1))
+
+	# def _compute_depth_and_tree_height(self):
+	# 	self.depth = 1 + (max(parent.depth for parent in self.parents) if self.parents else 0)
+	# 	max_child_tree_height = 0
+	# 	for child in self.children:
+	# 		_, child_tree_height = child._compute_depth_and_tree_height()
+	# 		if child_tree_height > max_child_tree_height:
+	# 			max_child_tree_height = child_tree_height
+	# 	self.tree_height = max_child_tree_height + 1
+	# 	return self.depth, self.tree_height
+
 def get_sim_without(sources, value):
 	sim = []
 	found = False
@@ -393,7 +398,6 @@ def get_sim_without(sources, value):
 
 def solution_found(new_solution_root):
 	global solutions, best_size
-	new_solution_root.compute_size()
 	if len(solutions) == 0 or new_solution_root.size < best_size:
 		solutions = [new_solution_root]
 		best_size = new_solution_root.size
@@ -405,7 +409,6 @@ def solution_found(new_solution_root):
 		print("impossible case reached, should have been checked already")
 		exit(1)
 	print(new_solution_root)
-	# new_solution_root.visualize()
 
 def _solve(source_values, target_values, starting_node_sources=None):
 	global stop_solving, solutions, solving
@@ -459,8 +462,8 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 			if solutions:
 				if not sources_root:
-					sources_root = sources[0].get_root()
-					sources_root.compute_size()
+					sources_root = src.get_root()
+					if not sources_root.size: sources_root.compute_size()
 				if sources_root.size + 2 >= best_size: continue
 			
 			overflow_value = src.value - speed
@@ -499,8 +502,8 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 			if solutions:
 				if not sources_root:
-					sources_root = sources[0].get_root()
-					sources_root.compute_size()
+					sources_root = src.get_root()
+					if not sources_root.size: sources_root.compute_size()
 				if sources_root.size + divisor >= best_size: continue
 			
 			divided_value = int(src.value / divisor)
@@ -597,20 +600,10 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			if solutions:
 				if not sources_root:
 					sources_root = sources[0].get_root()
-					sources_root.compute_size()
+					if not sources_root.size: sources_root.compute_size()
 				if sources_root.size + 1 >= best_size: continue
-			
-			# if log:
-			#   print("coucou start")
-			#   print("sources", sources)
-			#   print("binary", binary)
-			#   print("to_sum_count", to_sum_count)
-			#   print("seen_sums", seen_sums)
-			#   print("cant_use", cant_use)
+
 			r = get_merge_sim(sources, binary, to_sum_count, seen_sums, cant_use, log)
-			# if log:
-			#   print("r", r)
-			#   print("coucou end")
 			if r: simulations.append(r)
 		
 		return simulations
@@ -841,28 +834,27 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
-	lowest_score = 1000
-	steps = -1
+	# lowest_score = 1000
+	# steps = -1
 
 	while not stop_solving and queue:
 		tmp, score = queue.pop(0)
 		sources = sort_nodes(tmp)
 		sources_root = sources[0].get_root()
-		sources_root._compute_depth_informations()
 		sources_root.compute_size()
 		if score == 0:
 			solution_found(sources_root)
 			continue
-		elif score < lowest_score:
-			lowest_score = score
-			print(f"\nlowest score = {lowest_score}")
+		# elif score < lowest_score:
+		# 	lowest_score = score
+			# print(f"\nlowest score = {lowest_score}")
 			# print(f"\n\tlowest score = {lowest_score}, tree =\n")
 			# print(sources_root)
 
 		n = len(sources)
 		cant_use = compute_cant_use(sources)
 
-		steps += 1
+		# steps += 1
 		# if steps + 1 == 0:
 		#   exit(0)
 		# print(f"step {abs(steps)}")
@@ -870,7 +862,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 		def copy_sources():
 			nonlocal sources, sources_root
-			_, leaves = sources_root._deepcopy({})
+			_, leaves = sources_root.deepcopy()
 			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
 
 		def try_extract():
@@ -1069,7 +1061,7 @@ def input_thread_callback():
 			break
 
 def test():
-	# cProfile.run('solve([475, 85, 100], [45, 50, 100])')
+	cProfile.run('solve([475, 85, 100], [45, 55, 100])')
 	pass
 
 if __name__ == '__main__':
