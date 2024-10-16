@@ -18,7 +18,7 @@ logging = False
 log_filename = "logs.txt"
 
 short_repr = False
-include_depth_informations = True
+include_depth_informations = False
 
 solutions_filename = lambda i: f"solution{i}"
 solution_regex = re.compile(r'solution\d+\.png') # ext is always png
