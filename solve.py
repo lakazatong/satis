@@ -52,7 +52,7 @@ def clear_solution_files():
 		if solution_regex.match(filename):
 			os.remove(filename)
 
-def conclude():
+def conclude(trim_root):
 	global solutions, best_size, concluding, stop_concluding
 	if concluding or stop_concluding: return
 	concluding = True
@@ -64,8 +64,13 @@ def conclude():
 			print(solution)
 		for i in range(len(solutions)):
 			if stop_concluding: break
-			solutions[i].compute_levels()
-			solutions[i].visualize(solutions_filename(i))
+			solution = solutions[i]
+			if trim_root:
+				for child in solution.children:
+					child.compute_levels()
+			else:
+				solution.compute_levels()
+			solution.visualize(solutions_filename(i), trim_root)
 	else:
 		print(f"\n\tNo solution found? bruh\n")
 	concluding = False
@@ -224,10 +229,14 @@ class Node:
 			G.add_edge(self.node_id, child.node_id)
 			child.populate(G)
 
-	def visualize(self, filename):
+	def visualize(self, filename, trim_root=False):
 		try:
 			G = nx.DiGraph()
-			self.populate(G)
+			if trim_root and self.children:
+				for child in self.children:
+					child.populate(G)
+			else:
+				self.populate(G)
 
 			A = to_agraph(G)
 			for node in A.nodes():
@@ -922,9 +931,13 @@ def solve(source_values, target_values):
 	sources_total = sum(source_values)
 	targets_total = sum(target_values)
 	if sources_total > targets_total:
-		target_values.append(sources_total - targets_total)
+		value = sources_total - targets_total
+		target_values.append(value)
+		print(f"\nTargets are lacking, generating a {value} node as target")
 	elif sources_total < targets_total:
-		source_values.append(targets_total - sources_total)
+		value = targets_total - sources_total
+		source_values.append(value)
+		print(f"\nSources are lacking, generating a {value} node as source")
 	stop_solving = False
 	stop_concluding = False
 	solving = True
@@ -1007,7 +1020,7 @@ def main(user_input):
 		i += 2
 
 	solve(sources, targets)
-	conclude()
+	conclude(trim_root=len(sources) > 1)
 
 user_input = None
 idle = True
