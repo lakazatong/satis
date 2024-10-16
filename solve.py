@@ -156,38 +156,32 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def _deepcopy(self, copied_nodes):
-		new_node = Node(self.value, node_id=self.node_id)
-		new_node.size = self.size
-		new_node.tree_height = self.tree_height
-		new_node.level = self.level
-		# new_node.depth = self.depth
-
-		leaves = []
-		leave_ids = set()
-
-		if self.children:
-			for child in self.children:
-				new_child, child_leaves = None, None
-				if child.node_id in copied_nodes:
-					new_child, child_leaves = copied_nodes[child.node_id], []
+	def _deepcopy(self, copied_nodes, leaves):
+		stack = [(self, None)]
+		while stack:
+			current_node, parent_node = stack.pop()
+			if current_node.node_id in copied_nodes:
+				new_node = copied_nodes[current_node.node_id]
+			else:
+				new_node = Node(current_node.value, node_id=current_node.node_id)
+				new_node.size = current_node.size
+				new_node.tree_height = current_node.tree_height
+				new_node.level = current_node.level
+				copied_nodes[current_node.node_id] = new_node
+				if not current_node.children:
+					leaves.append(new_node)
 				else:
-					new_child, child_leaves = child._deepcopy(copied_nodes)
-				new_node.children.append(new_child)
-				new_child.parents.append(new_node)
-				for child_leave in child_leaves:
-					if child_leave.node_id in leave_ids: continue
-					leaves.append(child_leave)
-					leave_ids.add(child_leave.node_id)
-		else:
-			leaves.append(new_node)
-
-		copied_nodes[self.node_id] = new_node
-		return new_node, leaves
+					stack.extend([(child, new_node) for child in current_node.children])
+			if parent_node:
+				new_node.parents.append(parent_node)
+				parent_node.children.append(new_node)
+		return new_node
 
 	def deepcopy(self):
-		return self._deepcopy({})
-	
+		leaves = []
+		r = self._deepcopy({}, leaves)
+		return r, leaves
+
 	def compute_size(self):
 		queue = [self]
 		visited = set()
@@ -493,13 +487,15 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		global solutions, best_size, allowed_divisors_r
 		src = sources[i]
 		simulations = []
+		parents_value = None
 		tmp_sim = None
 		sources_root = None
 
 		for divisor in allowed_divisors_r:
 			if not src.can_split(divisor): continue
 
-			if sum(get_node_values(src.parents)) == src.value and len(src.parents) == divisor: continue
+			if not parents_value: parents_value = get_node_values(src.parents)
+			if sum(parents_value) == src.value and len(src.parents) == divisor: continue
 
 			if solutions:
 				if not sources_root:
@@ -510,7 +506,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			divided_value = int(src.value / divisor)
 			if gcd_incompatible(divided_value): continue
 
-			tmp_sim = tmp_sim if tmp_sim else get_sim_without(sources, src.value)
+			if not tmp_sim: tmp_sim = get_sim_without(sources, src.value)
 			sim = tuple(tmp_sim + [divided_value] * divisor)
 			simulations.append((sim, (i, divisor)))
 
@@ -823,15 +819,8 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		nonlocal queue
 		nodes = sort_nodes(nodes)
 		score = compute_sources_score(nodes)
-		# print("score", score, nodes)
 		if score < 0: return
-		# print("queue = ")
-		# for e in queue:
-		#   print("e = ", e)
 		insert_into_sorted(queue, (nodes, score), key=lambda x: x[1])
-		# print("queue = ")
-		# for e in queue:
-		#   print("e = ", e)
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16))
@@ -854,6 +843,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 		n = len(sources)
 		cant_use = compute_cant_use(sources)
+		sources_id = get_node_ids(sources)
 
 		# steps += 1
 		# if steps + 1 == 0:
@@ -862,14 +852,13 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		# print(sources_root.size)
 
 		def copy_sources():
-			nonlocal sources, sources_root
+			nonlocal sources, sources_root, sources_id
 			_, leaves = sources_root.deepcopy()
-			return sort_nodes([leaf for leaf in leaves if leaf.node_id in get_node_ids(sources)])
+			return sort_nodes([leaf for leaf in leaves if leaf.node_id in sources_id])
 
 		def try_extract():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_extract_sims(sources, cant_use)
-			# print('extract', simulations)
 			for sim, (i, speed) in simulations:
 				if stop_solving: break
 				copy = copy_sources()
@@ -888,7 +877,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		def try_divide():
 			nonlocal sources, cant_use, sources_root
 			simulations = get_divide_sims(sources, cant_use)
-			# print('divide', simulations)
 			for sim, (i, divisor) in simulations:
 				if stop_solving: break
 				copy = copy_sources()
