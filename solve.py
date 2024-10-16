@@ -157,9 +157,6 @@ class Node:
 		return cur
 
 	def _deepcopy(self, copied_nodes):
-		if self.node_id in copied_nodes:
-			return copied_nodes[self.node_id], []
-
 		new_node = Node(self.value, node_id=self.node_id)
 		new_node.size = self.size
 		new_node.tree_height = self.tree_height
@@ -171,7 +168,11 @@ class Node:
 
 		if self.children:
 			for child in self.children:
-				new_child, child_leaves = child._deepcopy(copied_nodes)
+				new_child, child_leaves = None, None
+				if child.node_id in copied_nodes:
+					new_child, child_leaves = copied_nodes[child.node_id], []
+				else:
+					new_child, child_leaves = child._deepcopy(copied_nodes)
 				new_node.children.append(new_child)
 				new_child.parents.append(new_node)
 				for child_leave in child_leaves:
