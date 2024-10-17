@@ -44,10 +44,9 @@ elif os.path.exists(log_filename):
 	os.remove(log_filename)
 
 def log(*args, **kwargs):
-	if logging:
-		with open(log_filename, "a") as f:
-			with redirect_stdout(f):
-				print(*args, **kwargs)
+	with open(log_filename, "a", encoding="utf-8") as f:
+		with redirect_stdout(f):
+			print(*args, **kwargs)
 
 def clear_solution_files():
 	for filename in os.listdir('.'):
@@ -63,7 +62,7 @@ def conclude():
 		clear_solution_files()
 		print(f"\n\tSmallest solutions found (size = {best_size}):\n")
 		for solution in solutions:
-			print(solution)
+			print(solution, end="\n"*2)
 		for i in range(len(solutions)):
 			if stop_concluding: break
 			solution = solutions[i]
@@ -432,18 +431,20 @@ def get_sim_without(sources, value):
 	return sim
 
 def solution_found(new_solution_root):
+	# return if found better size
 	global solutions, best_size
+	print(new_solution_root)
 	if len(solutions) == 0 or new_solution_root.size < best_size:
 		solutions = [new_solution_root]
 		best_size = new_solution_root.size
-		print(f"\n\tNew solution of size {best_size} found\n")
+		print(f"\n^^^ New solution of size {best_size} found ^^^\n")
+		return True
 	elif new_solution_root.size == best_size:
 		solutions.append(new_solution_root)
-		print(f"\n\tAnother solution of size {best_size} found\n")
-	else:
-		print("impossible case reached, should have been checked already")
-		exit(1)
-	print(new_solution_root)
+		print(f"\n^^^ Another solution of size {best_size} found ^^^\n")
+		return False
+	print("impossible case reached, should have been checked already")
+	exit(1)
 
 def _solve(source_values, target_values, starting_node_sources=None):
 	global stop_solving, solutions, solving
@@ -486,9 +487,12 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		src = sources[i]
 		simulations = []
 		tmp_sim = None
-		sources_root = None
 		parent_values = get_node_values(src.parents)
-		
+
+		if solutions:
+			sources_root = src.get_root()
+			if sources_root.size + 2 > best_size: return simulations
+
 		for speed in filtered_conveyor_speeds:
 			if src.value <= speed: break
 			
@@ -496,12 +500,6 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			# and merge all the other values to get the overflow value
 			# we would get by exctracting speed amount
 			if speed in parent_values: continue
-
-			if solutions:
-				if not sources_root:
-					sources_root = src.get_root()
-					if not sources_root.size: sources_root.compute_size()
-				if sources_root.size + 2 >= best_size: continue
 			
 			overflow_value = src.value - speed
 			if gcd_incompatible(overflow_value): continue
@@ -527,25 +525,22 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		return simulations
 
 	def get_divide_sim(sources, i, past):
-		global solutions, best_size, allowed_divisors_r
+		global solutions, best_size, allowed_divisors
 		src = sources[i]
 		n_parents = len(src.parents)
 		simulations = []
 		parents_value_sum = None
 		tmp_sim = None
-		sources_root = None
 
-		for divisor in allowed_divisors_r:
+		for divisor in allowed_divisors:
+			if solutions:
+				sources_root = src.get_root()
+				if sources_root.size + divisor > best_size: break
+
 			if not src.can_split(divisor): continue
 
 			if not parents_value_sum: parents_value_sum = sum(get_node_values(src.parents))
 			if parents_value_sum == src.value and n_parents == divisor: continue
-
-			if solutions:
-				if not sources_root:
-					sources_root = src.get_root()
-					if not sources_root.size: sources_root.compute_size()
-				if sources_root.size + divisor >= best_size: continue
 			
 			divided_value = int(src.value / divisor)
 			if gcd_incompatible(divided_value): continue
@@ -576,12 +571,15 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		n = len(sources)
 		
 		if n < 2: return simulations
+		if solutions:
+			sources_root = sources[0].get_root()
+			if sources_root.size + 1 > best_size: return simulations
 		
 		seen_sums = set()
 		binary = Binary(n)
 		binary[1] = True
 		sources_root = None
-		
+
 		def get_merge_sim(to_sum_count):
 			nonlocal sources, n, binary, seen_sums, cant_use, past, source_values_length
 			to_not_sum_indices = []
@@ -637,16 +635,10 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			
 			return sim, to_sum_indices
 
-		
 		while binary.increment():
 			to_sum_count = binary.bit_count
 			
 			if to_sum_count < min_sum_count or to_sum_count > max_sum_count: continue
-			if solutions:
-				if not sources_root:
-					sources_root = sources[0].get_root()
-					if not sources_root.size: sources_root.compute_size()
-				if sources_root.size + 1 >= best_size: continue
 
 			r = get_merge_sim(to_sum_count)
 			if r: simulations.append(r)
@@ -869,10 +861,10 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	def enqueue(nodes, past):
 		nonlocal queue
 		nodes = sort_nodes(nodes)
+		nodes[0].get_root().compute_size()
 		score = compute_sources_score(nodes, past)
 		if score < 0: return
 		insert_into_sorted(queue, (nodes, score, past), key=lambda x: x[1])
-
 
 	def select_next_trial(self):
 		if not self.trials:
@@ -883,6 +875,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	def dequeue():
 		nonlocal queue
 		n = len(queue)
+		
 		# 50% chance to pick the item at 0% of the queue
 		# 25% chance to pick the item at 50% of the queue
 		# 12.5% chance to pick the item at 75% of the queue
@@ -899,9 +892,17 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		
 		# 80% to pick the first
 		# otherwise all other are equally probable
-		return queue.pop(0 if random.random() < 0.8 else (random.randint(1, n - 1) if n > 2 else 1))
+		return queue.pop(0 if random.random() < 0.8 else random.randint(1, max(2, n - 1)))
+
+	def purge_queue():
+		nonlocal queue
+		for i in range(len(queue) - 1, -1, -1):
+			sources, _, _ = queue[i]
+			sources_root = sources[0].get_root()
+			if sources_root.size >= best_size: queue.pop(i)
 
 	# will be popped just after, no need to compute the score here
+	node_sources[0].get_root().compute_size()
 	queue.append((node_sources, 1 << 16, set()))
 	# lowest_score = 1000
 	# steps = -1
@@ -911,9 +912,8 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		sources = sort_nodes(tmp)
 		source_values = get_node_values(sources)
 		sources_root = sources[0].get_root()
-		sources_root.compute_size()
 		if score == 0:
-			solution_found(sources_root)
+			if solution_found(sources_root): purge_queue()
 			continue
 		# elif score < lowest_score:
 		# 	lowest_score = score
@@ -948,10 +948,11 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				
 				pop(src_copy, copy)
 
-				log("\n\nFROM")
-				log(sources_root)
-				log("DID")
-				log(f"{sources[i]} - {speed}")
+				if logging:
+					log("\n\nFROM")
+					log(sources_root)
+					log("DID")
+					log(f"{sources[i]} - {speed}")
 
 				enqueue(copy + (src_copy - speed), past_copy)
 
@@ -964,10 +965,11 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				src_copy = copy[i]
 				pop(src_copy, copy)
 
-				log("\n\nFROM")
-				log(sources_root)
-				log("DID")
-				log(f"{sources[i]} / {divisor}")
+				if logging:
+					log("\n\nFROM")
+					log(sources_root)
+					log("DID")
+					log(f"{sources[i]} / {divisor}")
 
 				enqueue(copy + (src_copy / divisor), past_copy)
 
@@ -982,10 +984,11 @@ def _solve(source_values, target_values, starting_node_sources=None):
 				summed_node = to_sum[0] + to_sum[1:]
 				copy.append(summed_node)
 
-				log("\n\nFROM")
-				log(sources_root)
-				log("DID")
-				log("+".join(str(ts) for ts in to_sum))
+				if logging:
+					log("\n\nFROM")
+					log(sources_root)
+					log("DID")
+					log("+".join(str(ts) for ts in to_sum))
 
 				enqueue(copy, past_copy)
 
@@ -998,7 +1001,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 	solving = False
 
 def solve(source_values, target_values):
-	global solving, stop_solving
+	global solving, stop_solving, trim_root
 	sources_total = sum(source_values)
 	targets_total = sum(target_values)
 	if sources_total > targets_total:
@@ -1009,6 +1012,7 @@ def solve(source_values, target_values):
 		value = targets_total - sources_total
 		source_values.append(value)
 		print(f"\nSources are lacking, generating a {value} node as source")
+	trim_root = len(source_values) > 1
 	stop_solving = False
 	stop_concluding = False
 	solving = True
@@ -1022,7 +1026,6 @@ def solve(source_values, target_values):
 	solve_thread.join()
 
 def main(user_input):
-	global trim_root
 	separator = 'to'
 	if len(user_input.split(" ")) < 3 or separator not in user_input:
 		print(f"Usage: <source_args> {separator} <target_args>")
@@ -1079,7 +1082,6 @@ def main(user_input):
 			targets.append(target_value)
 		i += 2
 
-	trim_root = len(sources) > 1
 	solve(sources, targets)
 	conclude()
 
