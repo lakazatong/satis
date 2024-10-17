@@ -467,7 +467,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 	filtered_conveyor_speeds = [speed for speed in conveyor_speeds if not gcd_incompatible(speed)]
 	filtered_conveyor_speeds_r = filtered_conveyor_speeds[::-1]
-	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}")
+	print(f"gcd = {gcd}, filtered_conveyor_speeds = {filtered_conveyor_speeds}", end="\n"*2)
 
 	node_sources = None
 	if starting_node_sources:
