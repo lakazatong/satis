@@ -882,12 +882,12 @@ def _solve(source_values, target_values, starting_node_sources=None):
 
 	def dequeue():
 		nonlocal queue
+		n = len(queue)
 		# 50% chance to pick the item at 0% of the queue
 		# 25% chance to pick the item at 50% of the queue
 		# 12.5% chance to pick the item at 75% of the queue
 		# 6.25% chance to pick the item at 87.5% of the queue
 		# ... (kind of)
-		# n = len(queue)
 		# i = 1
 		# while True:
 		# 	tmp = 1 << (i - 1)
@@ -899,7 +899,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		
 		# 80% to pick the first
 		# otherwise all other are equally probable
-		return queue.pop(0 if random.random() < 0.8 else random.randint(1, len(queue) - 1))
+		return queue.pop(0 if random.random() < 0.8 else (random.randint(1, n - 1) if n > 2 else 1))
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16, set()))
