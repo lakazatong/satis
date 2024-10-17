@@ -899,11 +899,7 @@ def _solve(source_values, target_values, starting_node_sources=None):
 		
 		# 80% to pick the first
 		# otherwise all other are equally probable
-		if random.random() < 0.8:
-			return queue.pop(0)
-		else:
-			backtrack_index = 
-			return queue.pop(random.randint(1, len(queue) - 1))
+		return queue.pop(0 if random.random() < 0.8 else random.randint(1, len(queue) - 1))
 
 	# will be popped just after, no need to compute the score here
 	queue.append((node_sources, 1 << 16, set()))
