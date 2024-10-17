@@ -2,3 +2,4 @@ logs.txt
 dist/
 build/
 **/solution*.png
+__pycache__
