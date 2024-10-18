@@ -1,4 +1,4 @@
-import os, sys, re, math, time, signal, pathlib, threading, io, cProfile, random, copy, traceback, itertools
+import os, sys, re, math, time, signal, pathlib, threading, cProfile, random, copy, traceback, itertools
 from contextlib import redirect_stdout
 from itertools import combinations
 
@@ -410,19 +410,23 @@ def _solve(source_values, target_values, starting_node_sources=None):
 			# solution_found(nodes_root)
 			# log(operation)
 			return
-		score = compute_sources_score(nodes, past)
-		# score = compute_sources_score(nodes)
-		if score < 0: return
-		# to_insert = (nodes, score, past, operation)
-		to_insert = (nodes, score, past)
-		# to_insert = (nodes, score)
-		insert_into_sorted(queue, to_insert, key=lambda x: x[1])
-		# queue.append(nodes)
-		# enqueued_sources.add(tuple(get_node_values(nodes)))
+		if solutions:
+			queue.append((nodes, 0, past))
+		else:
+			score = compute_sources_score(nodes, past)
+			# score = compute_sources_score(nodes)
+			if score < 0: return
+			# to_insert = (nodes, score, past, operation)
+			to_insert = (nodes, score, past)
+			# to_insert = (nodes, score)
+			insert_into_sorted(queue, to_insert, key=lambda x: x[1])
+			# queue.append(nodes)
+			# enqueued_sources.add(tuple(get_node_values(nodes)))
 
 	def dequeue():
 		nonlocal queue
-		# return queue.pop(0)
+		if solutions:
+			return queue.pop(0)
 		n = len(queue)
 		
 		# 50% chance to pick the item at 0% of the queue
@@ -674,7 +678,7 @@ def handler(signum, frame):
 			# print("\nwas concluding")
 			stop_concluding = True
 		elif not stop_solving:
-			print("Stopping...")
+			print("\n\nStopping...")
 			stop_solving = True
 
 signal.signal(signal.SIGINT, handler)
@@ -738,12 +742,12 @@ def test():
 	# print(results)
 	# cProfile.run('solve([475, 85, 100], [45, 55, 100])')
 	# cProfile.run('solve([5, 650], [150, 150, 150, 205])')
-	cProfile.run('solve([40, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], [420, 420])')
+	# cProfile.run('solve([40, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], [420, 420])')
 	pass
 
 if __name__ == '__main__':
-	test()
-	exit(0)
+	# test()
+	# exit(0)
 	input_thread = threading.Thread(target=input_thread_callback, daemon=True)
 	input_thread.start()
 
