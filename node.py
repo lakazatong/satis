@@ -1,4 +1,4 @@
-import uuid, tempfile
+import uuid, tempfile, traceback, io
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
@@ -166,6 +166,7 @@ class Node:
 				f.write(img_stream.getvalue())
 			print(f"done, solution saved at '{filepath}'")
 		except Exception as e:
+			print(traceback.format_exc(), end="")
 			return
 
 	def merge_down(self, other):
