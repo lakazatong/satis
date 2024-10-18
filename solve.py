@@ -5,6 +5,7 @@ from config import config
 from node import Node
 
 class SatisSolver:
+
 	def __init__(self):
 		# independant from any problem
 		self.extract_sims_cache = {}
@@ -66,6 +67,11 @@ class SatisSolver:
 		return value < self.gcd
 
 	def reset(self):
+		self.solving = False
+		self.done_solving = False
+		self.concluding = False
+		self.done_concluding = False
+
 		self.compute_distances_cache = {}
 
 		self.trim_root = False
@@ -108,7 +114,7 @@ class SatisSolver:
 		n = len(sources)
 
 		for i in range(n):
-			if not self.running: break
+			if not self.solving: break
 			src = sources[i]
 			if src.value in seen_values: continue
 			seen_values.add(src.value)
@@ -124,7 +130,7 @@ class SatisSolver:
 		sources_root = None
 
 		for divisor in config.allowed_divisors:
-			if not self.running: break
+			if not self.solving: break
 
 			if not src.can_split(divisor): continue
 			
@@ -150,7 +156,7 @@ class SatisSolver:
 		n = len(sources)
 		
 		for i in range(n):
-			if not self.running: break
+			if not self.solving: break
 			src = sources[i]
 			if src.value in seen_values: continue
 			seen_values.add(src.value)
@@ -172,9 +178,9 @@ class SatisSolver:
 		seen_sims = set()
 		
 		for to_sum_count in range(config.min_sum_count, config.max_sum_count + 1):
-			if not self.running: break
+			if not self.solving: break
 			for to_sum_indices in itertools.combinations(indices, to_sum_count):
-				if not self.running: break
+				if not self.solving: break
 				
 				to_sum_indices = list(to_sum_indices)
 				to_sum_nodes = [sources[i] for i in to_sum_indices]
@@ -347,7 +353,7 @@ class SatisSolver:
 			print(" " * 10 + f"\rFound {self.solutions_count} solutions of size {self.best_size}", end="")
 			return False
 		print("impossible case reached, should have been checked already")
-		exit(1)
+		self.solving = False
 
 	def solve(self):
 		print(f"\nsolving: {self.source_values} to {self.target_values}\n")
@@ -357,7 +363,7 @@ class SatisSolver:
 		def purge_queue():
 			nonlocal queue
 			for i in range(len(queue) - 1, -1, -1):
-				if not self.running: break
+				if not self.solving: break
 				sources, *_ = queue[i]
 				if sources[0].get_root().size >= self.best_size: queue.pop(i)
 
@@ -381,7 +387,7 @@ class SatisSolver:
 
 		enqueue(self.node_sources, set())
 
-		while not not self.running and queue:
+		while self.solving and queue:
 			sources, score, past = dequeue()
 			
 			sources_root = sources[0].get_root()
@@ -401,7 +407,7 @@ class SatisSolver:
 			def try_extract():
 				simulations = self.get_extract_sims(sources, source_values)
 				for sim, (i, speed) in simulations:
-					if not self.running: break
+					if not self.solving: break
 
 					if sim in past: continue
 
@@ -430,7 +436,7 @@ class SatisSolver:
 				simulations = self.get_divide_sims(sources, source_values)
 				parents_value_sum, n_parents = None, None
 				for sim, (i, divisor) in simulations:
-					if not self.running: break
+					if not self.solving: break
 
 					src = sources[i]
 
@@ -456,7 +462,7 @@ class SatisSolver:
 			def try_merge():
 				simulations = self.get_merge_sims(sources, source_values)
 				for sim, (to_sum_indices, to_sum_count) in simulations:
-					if not self.running: break
+					if not self.solving: break
 
 					to_sum_nodes = [sources[i] for i in to_sum_indices]
 
@@ -478,9 +484,9 @@ class SatisSolver:
 					enqueue(copy, past_copy)
 
 			try_divide()
-			if not self.running: break
+			if not self.solving: break
 			try_extract()
-			if not self.running: break
+			if not self.solving: break
 			try_merge()
 
 	def conclude(self):
@@ -488,7 +494,7 @@ class SatisSolver:
 		clear_solution_files()
 		print()
 		for i in range(len(self.solutions)):
-			if not self.running: break
+			if not self.concluding: break
 			solution = self.solutions[i]
 			if self.trim_root:
 				for child in solution.children:
@@ -497,12 +503,28 @@ class SatisSolver:
 				solution.compute_levels()
 			solution.visualize(config.solutions_filename(i), self.trim_root)
 
+	# simple state machine
+	def stop(self):
+		if self.solving:
+			self.solving = False
+		elif self.done_solving and self.concluding:
+			self.concluding = False
+
 	def run(self):
+		self.solving = True
 		self.solve()
+		self.solving = False
+		self.done_solving = True
+
+		self.concluding = True
 		self.conclude()
+		self.concluding = False
+		self.done_concluding = True
+		
 		self.running = False
 
 	def close(self):
+		print("backend close called")
 		pass
 
 # graveyard

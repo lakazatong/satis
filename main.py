@@ -20,7 +20,7 @@ class CLI:
 				self.backend.run()
 			except:
 				print(traceback.format_exc(), end="")
-				self.backend.running = False
+			self.backend.running = False
 		
 		if self.backend.load(self.user_input):
 			backend_thread = threading.Thread(target=catching_run, daemon=True)
@@ -37,7 +37,7 @@ class CLI:
 
 	def exit(self, signum, frame):
 		if self.backend.running:
-			self.backend.running = False
+			self.backend.stop()
 		else:
 			self.running.clear()
 
@@ -80,14 +80,20 @@ class Test:
 	def load(self, user_input):
 		return True
 
+	def stop(self):
+		# a callback that is called when SIGINT was catched
+		self.running = False
+		pass
+
 	def run(self):
+		# called if self.load returned True
 		print("backend running...")
 		for _ in range(30):
 			if not self.running: break
 			time.sleep(0.1)
-		self.running = False
 
 	def close(self):
+		# called before the CLI closes
 		pass
 
 if __name__ == "__main__":
