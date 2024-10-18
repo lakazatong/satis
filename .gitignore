@@ -3,3 +3,4 @@ dist/
 build/
 **/solution*.png
 __pycache__
+solve.spec
