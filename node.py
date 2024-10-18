@@ -1,10 +1,15 @@
-import uuid, tempfile, traceback, io
+import uuid, tempfile, traceback, io, sys, pathlib, os
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
 
 from utils import get_node_values, get_short_node_ids
-from config import allowed_divisors, short_repr, include_depth_informations
+from config import config
+
+if sys.platform == 'win32':
+	path = pathlib.Path(r'C:\Program Files\Graphviz\bin')
+	if path.is_dir() and str(path) not in os.environ['PATH']:
+		os.environ['PATH'] += f';{path}'
 
 class Node:
 	def __init__(self, value, node_id=None):
@@ -18,12 +23,12 @@ class Node:
 		self.parents = []
 		self.children = []
 
-	def _to_string(self, short_repr=short_repr):
+	def _to_string(self, short_repr=config.short_repr):
 		if short_repr: return f"{self.value}({self.node_id[-3:]})"
 		r = "Node("
 		r += f"value={self.value}, "
 		r += f"short_node_id={self.node_id[-3:]}, "
-		if include_depth_informations:
+		if config.include_depth_informations:
 			# r += f"depth={self.depth}, "
 			r += f"size={self.size}, "
 			r += f"tree_height={self.tree_height}, "
@@ -190,8 +195,7 @@ class Node:
 		return new_node
 
 	def can_split(self, divisor):
-		global allowed_divisors
-		if not divisor in allowed_divisors: return False
+		if not divisor in config.allowed_divisors: return False
 		return self.value % divisor == 0
 
 	def split_down(self, divisor):
@@ -240,7 +244,7 @@ class Node:
 	def __truediv__(self, divisor):
 		if isinstance(divisor, (int, float)):
 			return self.split_down(divisor)
-		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(allowed_divisors)})")
+		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(config.allowed_divisors)})")
 
 	def __sub__(self, amount):
 		if isinstance(amount, (int, float)):

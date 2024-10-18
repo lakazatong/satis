@@ -1,5 +1,5 @@
 import random, math, itertools, cProfile, time
-from utils import remove_pairs
+from ..utils import remove_pairs
 from itertools import combinations
 from collections import Counter
 
