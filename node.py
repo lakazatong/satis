@@ -23,7 +23,7 @@ class Node:
 		self.parents = []
 		self.children = []
 
-	def _to_string(self, short_repr=config.short_repr):
+	def to_string(self, short_repr=config.short_repr):
 		if short_repr: return f"{self.value}({self.node_id[-3:]})"
 		r = "Node("
 		r += f"value={self.value}, "
@@ -45,14 +45,14 @@ class Node:
 				r += (" " if stack[i].children and stack[i].children[-1].node_id == stack[i + 1].node_id else "│") + "  "
 			else:
 				r += ("└" if stack[i].children[-1].node_id == self.node_id else "├") + "─►"
-		r += self._to_string() + "\n"
+		r += self.to_string() + "\n"
 		for child in self.children: r += child.str(stack)
 		stack.pop()
 		return r
 
 	def __repr__(self):
 		stack = [self]
-		r = self._to_string() + "\n"
+		r = self.to_string() + "\n"
 		for child in self.children: r += child.str(stack)
 		return r[:-1] # ignore last \n
 
