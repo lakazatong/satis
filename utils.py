@@ -94,13 +94,13 @@ def sort_nodes(nodes):
 	return sorted(nodes, key=lambda node: node.value)
 
 def get_node_values(nodes):
-	return list(map(lambda node: node.value, nodes))
+	return tuple(map(lambda node: node.value, nodes))
 
 def get_node_ids(nodes):
-	return list(map(lambda node: node.node_id, nodes))
+	return set(map(lambda node: node.node_id, nodes))
 
 def get_short_node_ids(nodes, short=3):
-	return list(map(lambda node: node.node_id[-short:], nodes))
+	return set(map(lambda node: node.node_id[-short:], nodes))
 
 def pop_node(node, nodes):
 	for i, other in enumerate(nodes):

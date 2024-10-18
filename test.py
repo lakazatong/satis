@@ -3,10 +3,10 @@ from utils import remove_pairs
 from itertools import combinations
 from collections import Counter
 
-t = (1, 2, 3)
-t_copy = t
-t.remove(1)
-print(t)
+s = set()
+s.add('alo')
+s.add('belo')
+print(s)
 
 exit(0)
 
