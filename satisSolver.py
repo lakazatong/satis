@@ -18,6 +18,7 @@ class SatisSolver:
 			print(*args, **kwargs)
 
 	def load(self, user_input):
+		self.user_input = user_input
 		source_values, target_values = parse_user_input(user_input)
 		if not source_values or not target_values: return False
 		
@@ -57,7 +58,7 @@ class SatisSolver:
 		# for the SimsManager
 		self.filtered_conveyor_speeds_r = reversed(sorted(speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)))
 
-		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}")
+		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}\n")
 		
 		self.node_sources = list(map(lambda value: Node(value), self.source_values))
 		if self.source_values_length > 1:
@@ -194,8 +195,6 @@ class SatisSolver:
 		self.solving = False
 
 	def solve(self):
-		print(f"\nsolving: {self.source_values} to {self.target_values}\n")
-
 		queue = []
 
 		def purge_queue():
