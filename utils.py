@@ -1,6 +1,7 @@
 import networkx as nx
 import json
 import matplotlib.pyplot as plt
+from collections import Counter
 
 def show(G):
 	edge_labels = nx.get_edge_attributes(G, 'label')
@@ -74,3 +75,79 @@ if __name__ == "__main__":
 	
 	for res in all_operations:
 		print(res)
+
+def remove_pairs(list_a, list_b):
+	count_a = Counter(list_a)
+	count_b = Counter(list_b)
+	for item in count_a.keys():
+		if item in count_b:
+			pairs_to_remove = min(count_a[item], count_b[item])
+			count_a[item] -= pairs_to_remove
+			count_b[item] -= pairs_to_remove
+	remaining_a = []
+	remaining_b = []
+	for item, count in count_a.items(): remaining_a.extend([item] * count)
+	for item, count in count_b.items(): remaining_b.extend([item] * count)
+	return remaining_a, remaining_b
+
+def sort_nodes(nodes):
+	return sorted(nodes, key=lambda node: node.value)
+
+def get_node_values(nodes):
+	return list(map(lambda node: node.value, nodes))
+
+def get_node_ids(nodes):
+	return list(map(lambda node: node.node_id, nodes))
+
+def get_short_node_ids(nodes, short=3):
+	return list(map(lambda node: node.node_id[-short:], nodes))
+
+def pop_node(node, nodes):
+	for i, other in enumerate(nodes):
+		if other.node_id == node.node_id:
+			return nodes.pop(i)
+	return None
+
+def insert_into_sorted(sorted_list, item, key=lambda x: x):
+	low, high = 0, len(sorted_list)
+	while low < high:
+		mid = low + (high - low) // 2
+		if key(item) > key(sorted_list[mid]):
+			low = mid + 1
+		else:
+			high = mid
+	sorted_list.insert(low, item)
+
+class Binary:
+	def __init__(self, n):
+		self.n = n
+		self._arr = [0] * n
+		self.bit_count = 0
+
+	def increment(self):
+		# returns if it's 0 after the increment
+		for i in range(self.n):
+			self._arr[i] = not self._arr[i]
+			if self._arr[i]:
+				self.bit_count += 1
+				return True
+			self.bit_count -= 1
+		return False
+
+	def __iadd__(self, other):
+		for _ in range(other - 1): self.increment()
+		return self.increment()
+
+	def __getitem__(self, index):
+		return self._arr[index]
+
+	def __setitem__(self, index, value):
+		old_bit = self._arr[index]
+		self._arr[index] = value
+		self.bit_count += (value - old_bit) 
+
+	def __iter__(self):
+		return iter(self._arr)
+
+	def __str__(self):
+		return str(self._arr)
