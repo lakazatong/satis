@@ -3,7 +3,13 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from collections import Counter
 from config import config
-from contextlib import redirect_stdout
+from functools import partial
+
+def gcd_incompatible(gcd, value):
+	return value < gcd
+
+def get_gcd_incompatible(gcd):
+	return partial(gcd_incompatible, gcd)
 
 def remove_pairs(list_a, list_b):
 	count_a = Counter(list_a)
@@ -37,6 +43,25 @@ def pop_node(node, nodes):
 			return nodes.pop(i)
 	return None
 
+def compute_cant_use(target_counts, sources):
+	source_counts = {}
+	for src in sources:
+		if src.value in source_counts:
+			source_counts[src.value] += 1
+		else:
+			source_counts[src.value] = 1
+	cant_use = set()
+	for src in sources:
+		value = src.value
+		src_count = source_counts.get(value, None)
+		target_count = target_counts.get(value, None)
+		if src_count and target_count and max(0, src_count - target_count) == 0:
+			cant_use.add(value)
+	return cant_use
+
+def get_compute_cant_use(target_counts):
+	return partial(compute_cant_use, target_counts)
+
 def insert_into_sorted(sorted_list, item, key=lambda x: x):
 	low, high = 0, len(sorted_list)
 	while low < high:
@@ -56,11 +81,6 @@ def clear_solution_files():
 	for filename in os.listdir('.'):
 		if config.solution_regex.match(filename):
 			os.remove(filename)
-
-def log(*args, **kwargs):
-	with open(config.log_filename, "a", encoding="utf-8") as f:
-		with redirect_stdout(f):
-			print(*args, **kwargs)
 
 def parse_user_input(user_input):
 	separator = 'to'

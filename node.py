@@ -6,10 +6,10 @@ from networkx.drawing.nx_agraph import to_agraph
 from utils import get_node_values, get_short_node_ids
 from config import config
 
-if sys.platform == 'win32':
-	path = pathlib.Path(r'C:\Program Files\Graphviz\bin')
-	if path.is_dir() and str(path) not in os.environ['PATH']:
-		os.environ['PATH'] += f';{path}'
+if sys.platform == "win32":
+	path = pathlib.Path(r"C:\Program Files\Graphviz\bin")
+	if path.is_dir() and str(path) not in os.environ["PATH"]:
+		os.environ["PATH"] += f";{path}"
 
 class Node:
 	def __init__(self, value, node_id=None):
@@ -141,33 +141,33 @@ class Node:
 
 			A = to_agraph(G)
 			for node in A.nodes():
-				level = G.nodes[node]['level']
-				A.get_node(node).attr['rank'] = f'{level}'
+				level = G.nodes[node]["level"]
+				A.get_node(node).attr["rank"] = f"{level}"
 
-			for level in set(nx.get_node_attributes(G, 'level').values()):
+			for level in set(nx.get_node_attributes(G, "level").values()):
 				A.add_subgraph(
-					[n for n, attr in G.nodes(data=True) if attr['level'] == level],
-					rank='same'
+					[n for n, attr in G.nodes(data=True) if attr["level"] == level],
+					rank="same"
 				)
 
 			# Invert colors
-			A.graph_attr['bgcolor'] = 'black'
+			A.graph_attr["bgcolor"] = "black"
 			for node in A.nodes():
-				node.attr['color'] = 'white'
-				node.attr['fontcolor'] = 'white'
-				node.attr['style'] = 'filled'
-				node.attr['fillcolor'] = 'black'
+				node.attr["color"] = "white"
+				node.attr["fontcolor"] = "white"
+				node.attr["style"] = "filled"
+				node.attr["fillcolor"] = "black"
 
 			for edge in A.edges():
-				edge.attr['color'] = 'white'
+				edge.attr["color"] = "white"
 
 			print(f"\nGenerating {filename}...", end="")
-			A.layout(prog='dot')
+			A.layout(prog="dot")
 			img_stream = io.BytesIO()
-			A.draw(img_stream, format='png')
+			A.draw(img_stream, format=config.solutions_filename_extension)
 			img_stream.seek(0)
-			filepath = f"{filename}.png"
-			with open(filepath, 'wb') as f:
+			filepath = f"{filename}.{config.solutions_filename_extension}"
+			with open(filepath, "wb") as f:
 				f.write(img_stream.getvalue())
 			print(f"done, solution saved at '{filepath}'")
 		except Exception as e:

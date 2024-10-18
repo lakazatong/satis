@@ -1,6 +1,6 @@
 import threading, signal, time, traceback
 
-from solve import SatisSolver
+from satisSolver import SatisSolver
 from config import config
 from node import Node
 
