@@ -1,12 +1,42 @@
 import random, math, itertools, cProfile, time
-from ..utils import remove_pairs
+from utils import remove_pairs
 from itertools import combinations
 from collections import Counter
+from fastList import FastList
 
-s = set()
-s.add('alo')
-s.add('belo')
-print(s)
+def benchmark_lookup():
+	n = 10**6  # Size of the list
+	num_trials = 10**4  # Number of lookups
+
+	# Create a large list with random integers
+	regular_list = [random.randint(0, n) for _ in range(n)]
+	fast_list = FastList(*regular_list)
+
+	# Pick random elements to search for (some may not be in the list)
+	lookup_values = [random.randint(0, n) for _ in range(num_trials)]
+
+	# Regular list lookup benchmark
+	start = time.time()
+	for value in lookup_values:
+		_ = value in regular_list
+	regular_list_time = time.time() - start
+
+	# FastList lookup benchmark
+	start = time.time()
+	for value in lookup_values:
+		_ = fast_list.contains(value)
+	fast_list_time = time.time() - start
+
+	print(f"Regular list lookup time: {regular_list_time:.4f} seconds")
+	print(f"FastList lookup time: {fast_list_time:.4f} seconds")
+	"""
+	Regular list lookup time: 26.5218 seconds
+	FastList lookup time: 0.0020 seconds
+	[Finished in 27.6s]
+	"""
+
+if __name__ == "__main__":
+	benchmark_lookup()
 
 exit(0)
 

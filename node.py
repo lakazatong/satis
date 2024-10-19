@@ -16,9 +16,9 @@ class Node:
 		if value < 0: raise ValueError("negative value")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
-		# self.depth = None
-		self.size = None
+		self.depth = None
 		self.tree_height = None
+		self.size = None
 		self.level = None
 		self.parents = []
 		self.children = []
@@ -29,9 +29,9 @@ class Node:
 		r += f"value={self.value}, "
 		r += f"short_node_id={self.node_id[-3:]}, "
 		if config.include_depth_informations:
-			# r += f"depth={self.depth}, "
-			r += f"size={self.size}, "
+			r += f"depth={self.depth}, "
 			r += f"tree_height={self.tree_height}, "
+			r += f"size={self.size}, "
 			r += f"level={self.level}, "
 		r += f"parents={get_short_node_ids(self.parents)})"
 		return r
@@ -62,7 +62,7 @@ class Node:
 			cur = cur.parents[0]
 		return cur
 
-	def _deepcopy(self, copied_nodes, leaves):
+	def deepcopy(self, copied_nodes):
 		stack = [(self, None)]
 		while stack:
 			current_node, parent_node = stack.pop()
@@ -74,55 +74,12 @@ class Node:
 				new_node.tree_height = current_node.tree_height
 				new_node.level = current_node.level
 				copied_nodes[current_node.node_id] = new_node
-				if not current_node.children:
-					leaves.append(new_node)
-				else:
+				if current_node.children:
 					stack.extend([(child, new_node) for child in current_node.children])
 			if parent_node:
 				new_node.parents.append(parent_node)
 				parent_node.children.append(new_node)
 		return new_node
-
-	def deepcopy(self):
-		leaves = []
-		r = self._deepcopy({}, leaves)
-		return r, leaves
-
-	def compute_size(self, trim_root):
-		queue = [self]
-		visited = set()
-		self.size = -1 if trim_root else 0
-		while queue:
-			cur = queue.pop()
-			if cur.node_id in visited: continue
-			visited.add(cur.node_id)
-			self.size += 1
-			for child in cur.children:
-				queue.append(child)
-
-	def compute_levels(self):
-		stack = [(self, 0)]
-		visited = set()
-		nodes = []
-		while stack:
-			node, state = stack.pop()
-			if state == 0:
-				if node.node_id not in visited:
-					visited.add(node.node_id)
-					stack.append((node, 1))
-					for child in node.children:
-						stack.append((child, 0))
-			else:
-				if node.children:
-					max_children_tree_height = max(child.tree_height for child in node.children)
-					node.tree_height = max_children_tree_height + 1
-					node.level = - max_children_tree_height
-				else:
-					node.tree_height = 1
-					node.level = 0
-				nodes.append(node)
-		for node in nodes:
-			node.level += self.tree_height
 
 	def populate(self, G):
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
@@ -289,3 +246,39 @@ class Node:
 	# 			max_child_tree_height = child_tree_height
 	# 	self.tree_height = max_child_tree_height + 1
 	# 	return self.depth, self.tree_height
+
+		# def compute_size(self, trim_root):
+	# 	queue = [self]
+	# 	visited = set()
+	# 	self.size = -1 if trim_root else 0
+	# 	while queue:
+	# 		cur = queue.pop()
+	# 		if cur.node_id in visited: continue
+	# 		visited.add(cur.node_id)
+	# 		self.size += 1
+	# 		for child in cur.children:
+	# 			queue.append(child)
+
+	# def compute_levels(self):
+	# 	stack = [(self, 0)]
+	# 	visited = set()
+	# 	nodes = []
+	# 	while stack:
+	# 		node, state = stack.pop()
+	# 		if state == 0:
+	# 			if node.node_id not in visited:
+	# 				visited.add(node.node_id)
+	# 				stack.append((node, 1))
+	# 				for child in node.children:
+	# 					stack.append((child, 0))
+	# 		else:
+	# 			if node.children:
+	# 				max_children_tree_height = max(child.tree_height for child in node.children)
+	# 				node.tree_height = max_children_tree_height + 1
+	# 				node.level = - max_children_tree_height
+	# 			else:
+	# 				node.tree_height = 1
+	# 				node.level = 0
+	# 			nodes.append(node)
+	# 	for node in nodes:
+	# 		node.level += self.tree_height

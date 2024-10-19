@@ -61,10 +61,11 @@ class SimsManager:
 			simulations.append((sim, (i, speed)))
 		return simulations
 
-	def get_extract_sims(self, sources, source_values):
-		cached_simulations = self.extract_sims_cache.get(source_values)
+	def get_extract_sims(self, tree):
+		cached_simulations = self.extract_sims_cache.get(tree.source_values)
 		if cached_simulations: return cached_simulations
 		simulations = []
+		sources = tree.sources
 		n = len(sources)
 		seen_values = set()
 		for i in range(n):
@@ -72,7 +73,7 @@ class SimsManager:
 			if src.value in seen_values: continue
 			seen_values.add(src.value)
 			simulations.extend(self.get_extract_sim(sources, i))
-		self.extract_sims_cache[source_values] = simulations
+		self.extract_sims_cache[tree.source_values] = simulations
 		return simulations
 
 	def get_divide_sim(self, sources, i):
@@ -88,10 +89,11 @@ class SimsManager:
 			simulations.append((sim, (i, divisor)))
 		return simulations
 
-	def get_divide_sims(self, sources, source_values):
-		cached_simulations = self.divide_sims_cache.get(source_values)
+	def get_divide_sims(self, tree):
+		cached_simulations = self.divide_sims_cache.get(tree.source_values)
 		if cached_simulations: return cached_simulations
 		simulations = []
+		sources = tree.sources
 		n = len(sources)
 		seen_values = set()
 		for i in range(n):
@@ -99,13 +101,14 @@ class SimsManager:
 			if src.value in seen_values: continue
 			seen_values.add(src.value)
 			simulations.extend(self.get_divide_sim(sources, i))
-		self.divide_sims_cache[source_values] = simulations
+		self.divide_sims_cache[tree.source_values] = simulations
 		return simulations
 
-	def get_merge_sims(self, sources, source_values):
-		cached_simulations = self.merge_sims_cache.get(source_values)
+	def get_merge_sims(self, tree):
+		cached_simulations = self.merge_sims_cache.get(tree.source_values)
 		if cached_simulations: return cached_simulations
 		simulations = []
+		sources = tree.sources
 		n = len(sources)
 		seen_sims = set()
 		indices = range(n)
@@ -122,7 +125,7 @@ class SimsManager:
 				if sim in seen_sims: continue
 				seen_sims.add(sim)
 				simulations.append((sim, (to_sum_indices, to_sum_count)))
-		self.merge_sims_cache[source_values] = simulations
+		self.merge_sims_cache[tree.source_values] = simulations
 		return simulations
 
 	# doesn't have to be generic

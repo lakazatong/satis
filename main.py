@@ -1,4 +1,4 @@
-import threading, signal, time, traceback
+import threading, signal, time, traceback, cProfile
 
 from satisSolver import SatisSolver
 from config import config
@@ -99,7 +99,7 @@ class Test:
 if __name__ == "__main__":
 	cli = CLI("Satisfactory Solver", SatisSolver)
 	# cli = CLI("Test", Test)
-	cli.run()
+	cProfile.run('cli.run()')
 
 def test():
 	# node655 = Node(655)
