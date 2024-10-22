@@ -11,7 +11,6 @@ class CLI:
 		self.backend.running = False
 		self.user_input = None
 		self.running = threading.Event()
-		self.input_lock = threading.Lock()
 		signal.signal(signal.SIGINT, self.exit)
 
 	def main(self):
@@ -20,12 +19,11 @@ class CLI:
 				self.backend.run()
 			except:
 				print(traceback.format_exc(), end="")
-			self.backend.running = False
 		
 		if self.backend.load(self.user_input):
 			backend_thread = threading.Thread(target=catching_run, daemon=True)
-			backend_thread.start()
 			self.backend.running = True
+			backend_thread.start()
 			
 			# keep this thread alive to catch ctrl + c
 			try:
@@ -41,37 +39,22 @@ class CLI:
 		else:
 			self.running.clear()
 
-	def input_thread_callback(self):
+	def run(self):
+		self.running.set()
 		while self.running.is_set():
 			try:
-				if self.backend.running: continue
-				
-				with self.input_lock:
-					self.user_input = input(f"\n{self.name}> ")
-				self.backend.running = True
+				self.user_input = input(f"\n{self.name}> ")
 			except EOFError:
 				# SIGINT received while in input
 				break
+			if self.user_input in ["exit", "quit", "q"]:
+				break
 
-	def run(self):
-		input_thread = threading.Thread(target=self.input_thread_callback, daemon=True)
-		self.running.set()
-		input_thread.start()
-
-		while self.running.is_set():
-			if self.user_input is None: continue
-
-			with self.input_lock:
-				if self.user_input in ["exit", "quit", "q"]:
-					self.running.clear()
-					break
-			
 			self.main()
 			self.user_input = None
-			self.backend.running = False
-
-		input_thread.join()
+	
 		self.backend.close()
+		self.running.clear()
 
 class Test:
 	def __init__(self):
@@ -91,6 +74,7 @@ class Test:
 		for _ in range(30):
 			if not self.running: break
 			time.sleep(0.1)
+		self.running = False
 
 	def close(self):
 		# called before the CLI closes

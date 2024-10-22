@@ -1,7 +1,4 @@
-import uuid, tempfile, traceback, io, sys, pathlib, os
-import networkx as nx
-from networkx.drawing.nx_pydot import graphviz_layout
-from networkx.drawing.nx_agraph import to_agraph
+import uuid, sys, pathlib, os
 
 from utils import get_node_values, get_short_node_ids
 from config import config
@@ -17,7 +14,7 @@ class Node:
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.depth = None
-		self.tree_height = None
+		# self.tree_height = None # was needed to compute size
 		self.size = None
 		self.level = None
 		self.parents = []
@@ -30,7 +27,7 @@ class Node:
 		r += f"short_node_id={self.node_id[-3:]}, "
 		if config.include_depth_informations:
 			r += f"depth={self.depth}, "
-			r += f"tree_height={self.tree_height}, "
+			# r += f"tree_height={self.tree_height}, "
 			r += f"size={self.size}, "
 			r += f"level={self.level}, "
 		r += f"parents={get_short_node_ids(self.parents)})"
@@ -71,7 +68,7 @@ class Node:
 			else:
 				new_node = Node(current_node.value, node_id=current_node.node_id)
 				new_node.size = current_node.size
-				new_node.tree_height = current_node.tree_height
+				# new_node.tree_height = current_node.tree_height
 				new_node.level = current_node.level
 				copied_nodes[current_node.node_id] = new_node
 				if current_node.children:
@@ -86,50 +83,6 @@ class Node:
 		for child in self.children:
 			G.add_edge(self.node_id, child.node_id)
 			child.populate(G)
-
-	def visualize(self, filename, trim_root):
-		try:
-			G = nx.DiGraph()
-			if trim_root and self.children:
-				for child in self.children:
-					child.populate(G)
-			else:
-				self.populate(G)
-
-			A = to_agraph(G)
-			for node in A.nodes():
-				level = G.nodes[node]["level"]
-				A.get_node(node).attr["rank"] = f"{level}"
-
-			for level in set(nx.get_node_attributes(G, "level").values()):
-				A.add_subgraph(
-					[n for n, attr in G.nodes(data=True) if attr["level"] == level],
-					rank="same"
-				)
-
-			# Invert colors
-			A.graph_attr["bgcolor"] = "black"
-			for node in A.nodes():
-				node.attr["color"] = "white"
-				node.attr["fontcolor"] = "white"
-				node.attr["style"] = "filled"
-				node.attr["fillcolor"] = "black"
-
-			for edge in A.edges():
-				edge.attr["color"] = "white"
-
-			print(f"\nGenerating {filename}...", end="")
-			A.layout(prog="dot")
-			img_stream = io.BytesIO()
-			A.draw(img_stream, format=config.solutions_filename_extension)
-			img_stream.seek(0)
-			filepath = f"{filename}.{config.solutions_filename_extension}"
-			with open(filepath, "wb") as f:
-				f.write(img_stream.getvalue())
-			print(f"done, solution saved at '{filepath}'")
-		except Exception as e:
-			print(traceback.format_exc(), end="")
-			return
 
 	def merge_down(self, other):
 		new_value = self.value + sum(get_node_values(other))
@@ -247,10 +200,10 @@ class Node:
 	# 	self.tree_height = max_child_tree_height + 1
 	# 	return self.depth, self.tree_height
 
-		# def compute_size(self, trim_root):
+		# def compute_size(self):
 	# 	queue = [self]
 	# 	visited = set()
-	# 	self.size = -1 if trim_root else 0
+	# 	self.size = 0
 	# 	while queue:
 	# 		cur = queue.pop()
 	# 		if cur.node_id in visited: continue

@@ -7,14 +7,13 @@ from node import Node
 class SimsManager:
 	def __init__(self, solver):
 		self.solver = solver
-
-	def load_cache(self):
 		# independant from any problem but the config's conveyor_speeds and allowed_divisors
 		# which should not change since it's meant to solve a satisfactory problem lol
 		self.extract_sims_cache = {}
 		self.divide_sims_cache = {}
 		self.merge_sims_cache = {}
-		
+
+	def load_cache(self):
 		if not os.path.isfile(config.cache_filepath): return
 		
 		cache = None

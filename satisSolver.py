@@ -50,7 +50,7 @@ class SatisSolver:
 		gcd = math.gcd(*self.source_values, *self.target_values)
 		if not self.simsManager:
 			self.simsManager = SimsManager(self)
-			self.simsManager.load_cache()
+			# self.simsManager.load_cache()
 		self.gcd_incompatible = get_gcd_incompatible(gcd)
 		# just to show, extract does "gcd_incompatible(speed)" to check instead of doing "speed in self.filtered_conveyor_speeds"
 		filtered_conveyor_speeds = sorted([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
@@ -60,17 +60,7 @@ class SatisSolver:
 
 		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}\n")
 		
-		if self.source_values_length > 1:
-			self.trim_root = True
-			root = Node(sum(self.source_values))
-			root.children = list(map(lambda value: Node(value), self.source_values))
-			for child in root.children:
-				child.parents.append(root)
-			self.tree_source = Tree(root)
-			self.tree_source.add(root.children)
-		else:
-			self.trim_root = False
-			self.tree_source = Tree(Node(self.source_values[0]))
+		self.tree_source = Tree([Node(value) for value in self.source_values])
 
 		return True
 
@@ -79,8 +69,6 @@ class SatisSolver:
 		self.done_solving = False
 		self.concluding = False
 		self.done_concluding = False
-
-		self.trim_root = False
 		
 		self.solutions = []
 		self.solutions_count = 0
@@ -96,7 +84,7 @@ class SatisSolver:
 
 	def extract_sims(self, tree, cant_use):
 		sources = tree.sources
-		if self.solutions and sources[0].get_root().size + 2 > self.best_size: return []
+		if self.solutions and tree.size() + 2 > self.best_size: return []
 		filtered_simulations = []
 		for info in self.simsManager.get_divide_sims(tree):
 			sim, (i, speed) = info
@@ -120,7 +108,7 @@ class SatisSolver:
 		simulations = self.simsManager.get_divide_sims(tree)
 		if self.solutions:
 			if not simulations: return []
-			size = tree.root.size
+			size = tree.size()
 			# we need to filter here because the new size is unknown whereas for extract and merge
 			# they are a constant +2 or +1
 			# sim[1][1] is divisor aka the number of nodes added
@@ -143,7 +131,7 @@ class SatisSolver:
 
 	def merge_sims(self, tree, cant_use):
 		sources = tree.sources
-		if self.solutions and sources[0].get_root().size + 1 > self.best_size: return []
+		if self.solutions and tree.size() + 1 > self.best_size: return []
 		filtered_simulations = []
 		for info in self.simsManager.get_merge_sims(tree):
 			sim, (to_sum_indices, to_sum_count) = info
@@ -183,13 +171,13 @@ class SatisSolver:
 
 	def solution_found(self, tree):
 		# return if found better size
-		if self.solutions_count == 0 or tree.root.size < self.best_size:
+		if self.solutions_count == 0 or tree.size() < self.best_size:
 			self.solutions = [tree]
-			self.best_size = tree.root.size
+			self.best_size = tree.size()
 			self.solutions_count = 1
 			print(" " * 10 + f"\rFound {self.solutions_count} solutions of size {self.best_size}", end="")
 			return True
-		elif tree.root.size == self.best_size:
+		elif tree.size() == self.best_size:
 			self.solutions.append(tree)
 			self.solutions_count += 1
 			print(" " * 10 + f"\rFound {self.solutions_count} solutions of size {self.best_size}", end="")
@@ -219,8 +207,8 @@ class SatisSolver:
 			nonlocal queue
 			for i in range(len(queue) - 1, -1, -1):
 				if not self.solving: break
-				tree = queue[i]
-				if tree.root.size >= self.best_size: queue.pop(i)
+				tree, _ = queue[i]
+				if tree.size() >= self.best_size: queue.pop(i)
 
 		def enqueue(tree):
 			nonlocal queue
@@ -241,12 +229,11 @@ class SatisSolver:
 
 		while self.solving and queue:
 			tree, _ = dequeue()
-			print("a")
 			sources = tree.sources
 			# source_values = tree.source_values
 
 			# if source_values in self.seen_sources:
-			# 	insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.root.size)
+			# 	insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size())
 			# 	continue
 			
 			# seen_sources.add(source_values)
@@ -258,7 +245,7 @@ class SatisSolver:
 					tree_copy = copy.deepcopy(tree)
 					log_msg, result_nodes = op(tree_copy.sources, sim_metadata)
 					tree_copy.add(result_nodes)
-					if config.logging: self.log(f"\n\nFROM\n{tree.root}\nDID\n{log_msg}")
+					if config.logging: self.log(f"\n\nFROM\n{tree}\nDID\n{log_msg}")
 					enqueue(tree_copy)
 
 			def extract(sources_copy, sim_metadata):
@@ -288,9 +275,9 @@ class SatisSolver:
 		if not self.solutions: return
 		clear_solution_files()
 		print()
-		for tree in self.solutions:
+		for i, tree in enumerate(self.solutions):
 			if not self.concluding: break
-			tree.root.visualize(config.solutions_filename(i), self.trim_root)
+			tree.visualize(config.solutions_filename(i))
 
 	# simple state machine
 	def stop(self):
@@ -313,7 +300,7 @@ class SatisSolver:
 		self.running = False
 
 	def close(self):
-		if self.simsManager: self.simsManager.save_cache()
+		# if self.simsManager: self.simsManager.save_cache()
 		if config.logging: self.log_file_handle.close()
 
 # graveyard
