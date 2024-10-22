@@ -1,4 +1,4 @@
-import traceback, io, tempfile
+import traceback, io, tempfile, copy
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
@@ -9,8 +9,7 @@ from fastList import FastList
 from utils import get_node_values
 from node import Node
 
-# responsible for updating depth, tree_height, size and level of all nodes
-# also provides an easy way of accessing past sources
+# responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:
 	def __init__(self, sources):
 		self.roots = sources
@@ -19,68 +18,80 @@ class Tree:
 		self.past = FastList()
 		self.current_level = 1
 		self.source_values = tuple(src.value for src in sources)
-		self.nodes = sources
-		self.parents = None
-		self.init()
+		self.size = len(sources)
+		for src in sources:
+			# src.size = 1
+			src.level = self.current_level
+
+		# graveyard
+
+		# self.init()
 		# add it after the init of the roots so that they have no parents when initializing
-		if len(sources) == 1:
-			self.dummy_root = sources[0]
-		else:
-			self.dummy_root = Node(0)
-			self.dummy_root.children = sources
-			for src in sources:
-				src.parents.append(self.dummy_root)
-			# the dummy root is just there to accumulate the tree size
-			self.dummy_root.size = len(sources)
-			# self.dummy_root.tree_height = sources[0].tree_height # must init for future updates
+		# if len(sources) == 1:
+		# 	self.dummy_root = sources[0]
+		# else:
+		# 	self.dummy_root = Node(0)
+		# 	self.dummy_root.children = sources
+		# 	for src in sources:
+		# 		src.parents.append(self.dummy_root)
+		# 	# the dummy root is just there to accumulate the tree size
+		# 	self.dummy_root.size = len(sources)
+		# 	# self.dummy_root.tree_height = sources[0].tree_height # must init for future updates
 
 	def __repr__(self):
 		return "\n".join(str(root) for root in self.roots)
 
-	def size(self):
-		return self.dummy_root.size
+	def deepcopy(self):
+		copied_nodes = {}
+		new_tree = Tree([root.deepcopy(copied_nodes) for root in self.roots])
+		new_tree.sources = [copied_nodes[src.node_id] for src in self.sources]
+		for level in self.levels[1:]:
+			new_tree.levels.append([copied_nodes[src.node_id] for src in level])
+		new_tree.past = copy.deepcopy(self.past)
+		new_tree.current_level = self.current_level
+		new_tree.source_values = tuple(src.value for src in new_tree.sources)
+		new_tree.size = self.size
+		return new_tree
 
 	# def tree_height(self):
 	# 	return self.dummy_root.tree_height
 
-	def init(self):
-		new_depth = 1 + (min(p.depth for p in self.parents) if self.parents else 0)
-		for node in self.nodes:
-			node.depth = new_depth
-			# node.tree_height = 1
-			node.size = 1
-			node.level = self.current_level
-
-	def update(self):
-		n = len(self.nodes)
-		queue = [p for p in self.parents]
-		seen = set()
-		while queue:
-			p = queue.pop()
-			if p.node_id in seen: continue
-			seen.add(p.node_id)
-			# p.tree_height += 1
-			p.size += n
-			queue.extend(p.parents)
+	# def update(self):
+	# 	n = len(self.nodes)
+	# 	queue = [p for p in self.parents]
+	# 	seen = set()
+	# 	while queue:
+	# 		p = queue.pop()
+	# 		if p.node_id in seen: continue
+	# 		seen.add(p.node_id)
+	# 		# p.tree_height += 1
+	# 		p.size += n
+	# 		queue.extend(p.parents)
 
 	def add(self, nodes):
-		# just to avoid doing it three times
-		self.nodes = nodes
-		self.parents = nodes[0].parents
 		self.current_level += 1
-		self.init()
-		self.update()
-		parent_ids = set(p.node_id for p in self.parents)
+		# init new nodes
+		# for node in nodes: node.size = 1
+		
+		parent_ids = set(p.node_id for p in nodes[0].parents)
 		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids] + nodes
+		
+		# update levels and size
+		for src in self.sources: src.level = self.current_level
 		self.levels.append(self.sources)
+		self.size += len(nodes)
+
+		# update past
 		self.past.append(self.source_values)
 		self.source_values = get_node_values(self.sources)
 
 	def visualize(self, filename):
 		try:
 			G = nx.DiGraph()
+			seen_ids = set()
 			for root in self.roots:
-				root.populate(G)
+				root.level = 1
+				root.populate(G, seen_ids)
 
 			A = to_agraph(G)
 			for node in A.nodes():

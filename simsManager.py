@@ -1,11 +1,11 @@
 import os, itertools, json, pickle
 
-from utils import remove_pairs, get_sim_without, get_node_ids, insert_into_sorted, get_gcd_incompatible
+from utils import remove_pairs, get_sim_without, get_node_ids, insert_into_sorted, get_gcd_incompatible, can_split
 from config import config
 from node import Node
 
 class SimsManager:
-	def __init__(self, solver):
+	def __init__(self, solver=None):
 		self.solver = solver
 		# independant from any problem but the config's conveyor_speeds and allowed_divisors
 		# which should not change since it's meant to solve a satisfactory problem lol
@@ -16,19 +16,21 @@ class SimsManager:
 	def load_cache(self):
 		if not os.path.isfile(config.cache_filepath): return
 		
+		print("Loading cache...")
+
 		cache = None
 		with open(config.cache_filepath, "rb") as f: cache = pickle.load(f)
 		if not cache: return
 
-		cached_conveyor_speeds = sorted(cache["conveyor_speeds"])
-		cached_allowed_divisors = sorted(cache["allowed_divisors"])
+		cached_conveyor_speeds = cache["conveyor_speeds"]
+		cached_allowed_divisors = cache["allowed_divisors"]
 
-		if cached_conveyor_speeds == sorted(list(config.conveyor_speeds)):
+		if cached_conveyor_speeds == config.conveyor_speeds:
 			self.extract_sims_cache = cache["extract_sims_cache"]
 		else:
 			print("Invalidated extract_sims_cache cache because config.conveyor_speeds has changed")
 		
-		if cached_allowed_divisors == sorted(list(config.allowed_divisors)):
+		if cached_allowed_divisors == config.allowed_divisors:
 			self.divide_sims_cache = cache["divide_sims_cache"]
 		else:
 			print("Invalidated divide_sims_cache cache because config.allowed_divisors has changed")
@@ -39,96 +41,93 @@ class SimsManager:
 			print("Invalidated merge_sims_cache cache because config.conveyor_speed_limit has changed")
 
 	def save_cache(self):
+		print("Saving cache... please do not exit")
 		cache = {
-			"conveyor_speeds": list(config.conveyor_speeds),
-			"allowed_divisors": list(config.allowed_divisors),
+			"conveyor_speeds": config.conveyor_speeds,
+			"allowed_divisors": config.allowed_divisors,
 			"extract_sims_cache": self.extract_sims_cache,
 			"divide_sims_cache": self.divide_sims_cache,
 			"merge_sims_cache": self.merge_sims_cache
 		}
 		with open(config.cache_filepath, "wb") as f: pickle.dump(cache, f)
 
-	def get_extract_sim(self, sources, i):
-		src = sources[i]
+	def get_extract_sim(self, values, i):
+		value = values[i]
 		simulations = []
 		tmp_sim = None
 		for speed in config.conveyor_speeds:
-			if src.value <= speed: break
-			overflow = src.value - speed
-			if not tmp_sim: tmp_sim = get_sim_without(src.value, sources)
+			if value <= speed: break
+			overflow = value - speed
+			if not tmp_sim: tmp_sim = get_sim_without(value, values)
 			sim = tuple(sorted(tmp_sim + [speed, overflow]))
 			simulations.append((sim, (i, speed)))
 		return simulations
 
-	def get_extract_sims(self, tree):
-		cached_simulations = self.extract_sims_cache.get(tree.source_values)
+	def get_extract_sims(self, values):
+		cached_simulations = self.extract_sims_cache.get(values)
 		if cached_simulations: return cached_simulations
 		simulations = []
-		sources = tree.sources
-		n = len(sources)
+		n = len(values)
 		seen_values = set()
 		for i in range(n):
-			src = sources[i]
-			if src.value in seen_values: continue
-			seen_values.add(src.value)
-			simulations.extend(self.get_extract_sim(sources, i))
-		self.extract_sims_cache[tree.source_values] = simulations
+			value = values[i]
+			if value in seen_values: continue
+			seen_values.add(value)
+			simulations.extend(self.get_extract_sim(values, i))
+		self.extract_sims_cache[values] = simulations
 		return simulations
 
-	def get_divide_sim(self, sources, i):
-		src = sources[i]
+	def get_divide_sim(self, values, i):
+		value = values[i]
 		simulations = []
 		tmp_sim = None
-		sources_root = None
 		for divisor in config.allowed_divisors:
-			if not src.can_split(divisor): continue
-			divided_value = src.value // divisor
-			if not tmp_sim: tmp_sim = get_sim_without(src.value, sources)
+			if not can_split(value, divisor): continue
+			divided_value = value // divisor
+			if not tmp_sim: tmp_sim = get_sim_without(value, values)
 			sim = tuple(sorted(tmp_sim + [divided_value] * divisor))
 			simulations.append((sim, (i, divisor)))
 		return simulations
 
-	def get_divide_sims(self, tree):
-		cached_simulations = self.divide_sims_cache.get(tree.source_values)
+	def get_divide_sims(self, values):
+		cached_simulations = self.divide_sims_cache.get(values)
 		if cached_simulations: return cached_simulations
 		simulations = []
-		sources = tree.sources
-		n = len(sources)
+		n = len(values)
 		seen_values = set()
 		for i in range(n):
-			src = sources[i]
-			if src.value in seen_values: continue
-			seen_values.add(src.value)
-			simulations.extend(self.get_divide_sim(sources, i))
-		self.divide_sims_cache[tree.source_values] = simulations
+			value = values[i]
+			if value in seen_values: continue
+			seen_values.add(value)
+			simulations.extend(self.get_divide_sim(values, i))
+		self.divide_sims_cache[values] = simulations
 		return simulations
 
-	def get_merge_sims(self, tree):
-		cached_simulations = self.merge_sims_cache.get(tree.source_values)
+	def get_merge_sims(self, values):
+		cached_simulations = self.merge_sims_cache.get(values)
 		if cached_simulations: return cached_simulations
 		simulations = []
-		sources = tree.sources
-		n = len(sources)
-		seen_sims = set()
+		n = len(values)
+		seen_sums = set()
 		indices = range(n)
 		for to_sum_count in range(config.min_sum_count, config.max_sum_count + 1):
 			for to_sum_indices in itertools.combinations(indices, to_sum_count):
 				to_sum_indices = list(to_sum_indices)
-				to_sum_nodes = [sources[i] for i in to_sum_indices]
-				node_ids = get_node_ids(to_sum_nodes)
-				sim = sorted(node.value for node in sources if node.node_id not in node_ids)
-				summed_value = sum(node.value for node in to_sum_nodes)
+				to_sum_values = tuple(values[i] for i in to_sum_indices)
+				if to_sum_values in seen_sums: continue
+				seen_sums.add(to_sum_values)
+				summed_value = sum(to_sum_values)
 				if summed_value > config.conveyor_speed_limit: continue
+				sim = [value for value in values]
+				for value in to_sum_values: sim.remove(value)
 				insert_into_sorted(sim, summed_value)
-				sim = tuple(sim)
-				if sim in seen_sims: continue
-				seen_sims.add(sim)
-				simulations.append((sim, (to_sum_indices, to_sum_count)))
-		self.merge_sims_cache[tree.source_values] = simulations
+				simulations.append((tuple(sim), (to_sum_indices, to_sum_count)))
+		self.merge_sims_cache[values] = simulations
 		return simulations
 
 	# doesn't have to be generic
 	def compute_distance(self, sim, target_values):
+		if not self.solver: return -1
 		if sim in self.solver.compute_distances_cache: return self.solver.compute_distances_cache[sim]
 		original_sim = sim
 		sim = list(sim)

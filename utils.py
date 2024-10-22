@@ -72,10 +72,14 @@ def insert_into_sorted(sorted_list, item, key=lambda x: x):
 			high = mid
 	sorted_list.insert(low, item)
 
-def get_sim_without(value, sources):
-	sim = [src.value for src in sources]
+def get_sim_without(value, values):
+	sim = [v for v in values]
 	sim.remove(value)
 	return sim
+
+def can_split(value, divisor):
+	if not divisor in config.allowed_divisors: return False
+	return value % divisor == 0
 
 def clear_solution_files():
 	for filename in os.listdir('.'):

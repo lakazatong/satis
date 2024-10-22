@@ -18,6 +18,7 @@ class CLI:
 			try:
 				self.backend.run()
 			except:
+				self.backend.running = False
 				print(traceback.format_exc(), end="")
 		
 		if self.backend.load(self.user_input):
@@ -80,12 +81,11 @@ class Test:
 		# called before the CLI closes
 		pass
 
-if __name__ == "__main__":
-	cli = CLI("Satisfactory Solver", SatisSolver)
-	# cli = CLI("Test", Test)
-	cProfile.run('cli.run()')
-
 def test():
+	# from simsManager import SimsManager 
+	# simsManager = SimsManager()
+	# r = simsManager.get_extract_sims((5, 650))
+	# print(r)
 	# node655 = Node(655)
 
 	# node650 = Node(650)
@@ -130,5 +130,13 @@ def test():
 	# print(results)
 	# cProfile.run('solve([475, 85, 100], [45, 55, 100])')
 	# cProfile.run('solve([5, 650], [150, 150, 150, 205])')
-	cProfile.run('solve([40, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], [420, 420])')
+	# cProfile.run('solve([40, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50], [420, 420])')
 	pass
+
+if __name__ == "__main__":
+	# test()
+	# exit(0)
+	cli = CLI("Satisfactory Solver", SatisSolver)
+	# cli = CLI("Test", Test)
+	# cProfile.run('cli.run()')
+	cli.run()
