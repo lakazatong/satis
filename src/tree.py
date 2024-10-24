@@ -1,11 +1,12 @@
-import traceback, io, tempfile, copy
-import networkx as nx
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import traceback, io, tempfile, copy, networkx as nx
+
 from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
 from config import config
-
 from fastList import FastList
-
 from utils import get_node_values
 from node import Node
 

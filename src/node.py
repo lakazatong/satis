@@ -1,4 +1,7 @@
-import uuid, sys, pathlib, os
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import uuid, pathlib
 
 from utils import get_node_values, get_short_node_ids
 from config import config

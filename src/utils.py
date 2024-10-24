@@ -1,6 +1,8 @@
-import json, os, random
-import networkx as nx
-import matplotlib.pyplot as plt
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import json, random, networkx as nx, matplotlib.pyplot as plt
+
 from collections import Counter
 from config import config
 from functools import partial

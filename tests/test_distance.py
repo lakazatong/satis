@@ -1,5 +1,7 @@
-import cProfile, sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+
+import cProfile
 from utils import generate_test_cases
 from distance import distance
 

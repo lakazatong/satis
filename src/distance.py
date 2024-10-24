@@ -1,4 +1,8 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import itertools
+
 from utils import remove_pairs, insert_into_sorted
 from config import config
 
