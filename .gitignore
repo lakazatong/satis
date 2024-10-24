@@ -1,7 +1,7 @@
 logs.txt
 dist/
 build/
-**/solution*.png
+solution*.png
 __pycache__
 solve.spec
 sims_caches
