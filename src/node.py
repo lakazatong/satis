@@ -1,4 +1,4 @@
-import uuid, pathlib
+import uuid
 
 from utils import get_node_values, get_short_node_ids
 from config import config
@@ -8,9 +8,6 @@ class Node:
 		if value < 0: raise ValueError("negative value")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
-		# self.depth = None
-		# self.tree_height = None # was needed to compute size
-		# self.size = None
 		self.level = None
 		self.parents = []
 		self.children = []
@@ -21,9 +18,6 @@ class Node:
 		r += f"value={self.value}, "
 		r += f"short_node_id={self.node_id[-3:]}, "
 		if config.include_level_in_logs:
-			# r += f"depth={self.depth}, "
-			# r += f"tree_height={self.tree_height}, "
-			# r += f"size={self.size}, "
 			r += f"level={self.level}, "
 		r += f"parents={get_short_node_ids(self.parents)})"
 		return r
@@ -48,23 +42,26 @@ class Node:
 		for child in self.children: r += child.str(stack)
 		return r[:-1] # ignore last \n
 
-	def deepcopy(self, copied_nodes):
+	def _deepcopy(self, copied_nodes):
 		stack = [(self, None)]
 		while stack:
 			node, parent = stack.pop()
-			if node.node_id not in copied_nodes:
+			
+			if node.node_id in copied_nodes:
+				new_node = copied_nodes[node.node_id]
+				if parent: new_node.parents.append(parent)
+			else:
 				new_node = Node(node.value, node_id=node.node_id)
 				new_node.level = node.level
 				copied_nodes[node.node_id] = new_node
 				new_node.parents = [parent] if parent else []
 				stack.extend((child, new_node) for child in node.children)
-			else:
-				new_node = copied_nodes[node.node_id]
-				if parent:
-					new_node.parents.append(parent)
-			if parent:
-				parent.children.append(new_node)
+			
+			if parent: parent.children.append(new_node)
 		return copied_nodes[self.node_id]
+
+	def deepcopy(self):
+		return self._deepcopy({})
 
 	def populate(self, G, seen_ids):
 		seen_ids.add(self.node_id)
@@ -73,7 +70,7 @@ class Node:
 			G.add_edge(self.node_id, child.node_id)
 			if child.node_id not in seen_ids: child.populate(G, seen_ids)
 
-	def extract_down(self, value):
+	def extract(self, value):
 		extracted_node = Node(value)
 		overflow_value = self.value - value
 		overflow_node = Node(overflow_value)
@@ -83,68 +80,31 @@ class Node:
 		overflow_node.parents.append(self)
 		return [extracted_node, overflow_node]
 
-	def extract_up(self, value):
-		extracted_node = Node(value)
-		overflow_value = self.value - value
-		overflow_node = Node(overflow_value)
-		self.parents.append(extracted_node)
-		self.parents.append(overflow_node)
-		extracted_node.children.append(self)
-		overflow_node.children.append(self)
-		return [extracted_node, overflow_node]
-
-	def split_down(self, divisor):
-		new_value = int(self.value / divisor)
+	def split(self, divisor):
+		new_value = self.value // divisor
 		new_nodes = [Node(new_value) for _ in range(divisor)]
 		for node in new_nodes:
 			self.children.append(node)
 			node.parents.append(self)
 		return new_nodes
-
-	def split_up(self, divisor):
-		new_value = int(self.value / divisor)
-		new_nodes = [Node(new_value) for _ in range(divisor)]
+	
+	def split_loop(self, conveyor_speed):
+		# c = next((c for c in config.conveyor_speeds if c > self.value))
+		new_value = conveyor_speed // 3
+		overflow = self.value - new_value << 1
+		new_nodes = [Node(new_value), Node(new_value), Node(overflow)]
 		for node in new_nodes:
-			self.parents.append(node)
-			node.children.append(self)
+			self.children.append(node)
+			node.parents.append(self)
 		return new_nodes
 
-	def merge_down(self, other):
-		new_value = self.value + sum(get_node_values(other))
+	def merge(nodes):
+		new_value = sum(get_node_values(nodes))
 		new_node = Node(new_value)
-		self.children.append(new_node)
-		new_node.parents.append(self)
-		for node in other:
+		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
 		return new_node
-
-	def merge_up(self, other):
-		new_value = self.value + sum(get_node_values(other))
-		new_node = Node(new_value)
-		self.parents.append(new_node)
-		new_node.children.append(self)
-		for node in other:
-			node.parents.append(new_node)
-			new_node.children.append(node)
-		return new_node
-
-	def __sub__(self, amount):
-		if isinstance(amount, (int, float)):
-			return self.extract_down(amount)
-		raise ValueError("Amount must be a number")
-
-	def __truediv__(self, divisor):
-		if isinstance(divisor, (int, float)):
-			return self.split_down(divisor)
-		raise ValueError(f"Divisor must be an integer (one of these: {"/".join(config.allowed_divisors)})")
-
-	def __add__(self, other):
-		if isinstance(other, list) and all(isinstance(node, Node) for node in other):
-			return self.merge_down(other)
-		elif isinstance(other, Node):
-			return self.merge_down([other])     
-		raise ValueError("Operand must be a Node[] or Node")
 
 	# graveyard
 
@@ -226,3 +186,31 @@ class Node:
 	# 			nodes.append(node)
 	# 	for node in nodes:
 	# 		node.level += self.tree_height
+
+	# def extract_up(self, value):
+	# 	extracted_node = Node(value)
+	# 	overflow_value = self.value - value
+	# 	overflow_node = Node(overflow_value)
+	# 	self.parents.append(extracted_node)
+	# 	self.parents.append(overflow_node)
+	# 	extracted_node.children.append(self)
+	# 	overflow_node.children.append(self)
+	# 	return [extracted_node, overflow_node]
+
+	# def split_up(self, divisor):
+	# 	new_value = int(self.value / divisor)
+	# 	new_nodes = [Node(new_value) for _ in range(divisor)]
+	# 	for node in new_nodes:
+	# 		self.parents.append(node)
+	# 		node.children.append(self)
+	# 	return new_nodes
+
+	# def merge_up(self, other):
+	# 	new_value = self.value + sum(get_node_values(other))
+	# 	new_node = Node(new_value)
+	# 	self.parents.append(new_node)
+	# 	new_node.children.append(self)
+	# 	for node in other:
+	# 		node.parents.append(new_node)
+	# 		new_node.children.append(node)
+	# 	return new_node

@@ -4,14 +4,15 @@ from utils import sort_nodes, get_node_values, get_node_ids, pop_node, insert_in
 from config import config
 from node import Node
 from tree import Tree
-from simsManager import SimsManager
+# from simsManager import SimsManager
 from fastList import FastList
+from distance import distance
 
 class SatisSolver:
 	def __init__(self):
-		self.simsManager = None
+		# self.simsManager = None
 		# for the SimsManager
-		self.allowed_divisors_r = reversed(sorted(list(config.allowed_divisors)))
+		# self.allowed_divisors_r = reversed(sorted(list(config.allowed_divisors)))
 		self.reset()
 
 	def log(self, txt):
@@ -48,15 +49,15 @@ class SatisSolver:
 		}
 		self.compute_cant_use = get_compute_cant_use(target_counts)
 		gcd = math.gcd(*self.source_values, *self.target_values)
-		if not self.simsManager:
-			self.simsManager = SimsManager(self)
-			self.simsManager.load_cache()
+		# if not self.simsManager:
+		# 	self.simsManager = SimsManager(self)
+		# 	self.simsManager.load_cache()
 		self.gcd_incompatible = get_gcd_incompatible(gcd)
 		# just to show, extract does "gcd_incompatible(speed)" to check instead of doing "speed in self.filtered_conveyor_speeds"
 		filtered_conveyor_speeds = [speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)]
 		self.conveyor_speed_limit = filtered_conveyor_speeds[-1]
 		# for the SimsManager
-		self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
+		# self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
 
 		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}\n")
 		
@@ -74,91 +75,134 @@ class SatisSolver:
 		self.solutions_count = 0
 		self.best_size = None
 
-		self.cutted_trees = []
-		self.processed_sources = set()
-		self.compute_distances_cache = {}
+		# self.cutted_trees = []
+		# self.processed_sources = set()
 
 		if config.logging:
 			open(config.log_filepath, "w").close()
 			self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
 
-	def extract_sims(self, tree, cant_use):
-		if self.solutions and tree.size + 2 > self.best_size: return []
-		sources = tree.sources
-		filtered_simulations = []
-		for info in self.simsManager.get_extract_sims(tree.source_values):
-			sim, (i, speed) = info
-			if tree.past.contains(sim): continue
-			src = sources[i]
-			if src.value in cant_use: continue
-			if self.gcd_incompatible(speed): continue
-			overflow = src.value - speed
-			if self.gcd_incompatible(overflow): continue
+	def extract_sims(self, tree, cant_use, conveyor_speed):
+		if self.solutions and tree.size + 2 > self.best_size: yield StopIteration
+		
+		source_values = tree.source_values
+		seen_values = set()
+		
+		for src in tree.sources:
+			# common to all sims
+			
+			value = src.value
+			if value in cant_use or value <= conveyor_speed: continue
+			
+			if value in seen_values: continue
+			seen_values.add(value)
+			
+			# specific to the problem
+			
+			# if either speed or overflow is in parents then we would have been better
+			# keep it and use the other nodes differently
 			parent_values = set(get_node_values(src.parents))
-			# if speed in parent_values then it would have been better to leave it as is
-			# and merge all the other values to get the overflow value
-			# we would get by exctracting speed amount
-			# same logic applies if overflow is in parent values
-			if speed in parent_values or overflow in parent_values: continue
-			filtered_simulations.append(info)
-		return filtered_simulations
+			if self.gcd_incompatible(conveyor_speed) or conveyor_speed in parent_values: continue
 
-	def divide_sims(self, tree, cant_use):
-		simulations = self.simsManager.get_divide_sims(tree.source_values)
-		if self.solutions:
-			if not simulations: return []
-			size = tree.size
-			# we need to filter here because the new size is unknown whereas for extract and merge
-			# they are a constant +2 or +1
-			# sim[1][1] is divisor aka the number of nodes added
-			return list(filter(lambda sim: size + sim[1][1] <= self.best_size, simulations))
-		sources = tree.sources
-		filtered_simulations = []
-		parents_value_sum, n_parents = None, None
-		for info in simulations:
-			sim, (i, divisor) = info
+			overflow = value - conveyor_speed
+			if self.gcd_incompatible(overflow) or overflow in parent_values: continue
+
+			sim = tuple(sorted(get_sim_without(value, source_values) + [conveyor_speed, overflow]))
+
 			if tree.past.contains(sim): continue
-			src = sources[i]
-			if src.value in cant_use: continue
-			divided_value = src.value // divisor
+
+			yield sim, (i,)
+		
+		yield StopIteration
+
+	def divide_sims(self, tree, cant_use, divisor):
+		if self.solutions and tree.size + divisor > self.best_size: yield StopIteration
+		
+		source_values = tree.source_values
+		seen_values = set()
+		
+		for src in tree.sources:
+			# common to all sims
+			
+			value = source_values[i]
+			if value in cant_use or value % divisor != 0: continue
+
+			if value in seen_values: continue
+			seen_values.add(value)
+
+			# trying to divide freshly merged nodes
+			parents_value_sum = sum(get_node_values(src.parents))
+			n_parents = len(src.parents)
+			if parents_value_sum == value and n_parents == divisor: continue
+
+			# specific to the problem
+			
+			divided_value = value // divisor
 			if self.gcd_incompatible(divided_value): continue
-			if not parents_value_sum:
-				parents_value_sum = sum(get_node_values(src.parents))
-				n_parents = len(src.parents)
-			if parents_value_sum == src.value and n_parents == divisor: continue
-			filtered_simulations.append(info)
-		return filtered_simulations
 
-	def merge_sims(self, tree, cant_use):
-		if self.solutions and tree.size + 1 > self.best_size: return []
-		sources = tree.sources
-		filtered_simulations = []
-		for info in self.simsManager.get_merge_sims(tree.source_values):
-			sim, (to_sum_indices, to_sum_count) = info
+			sim = tuple(sorted(get_sim_without(value, source_values) + [divided_value] * divisor))
+
 			if tree.past.contains(sim): continue
+
+			yield sim, (i,)
+
+		yield StopIteration
+
+	def merge_sims(self, tree, cant_use, to_sum_count):
+		if self.solutions and tree.size + 1 > self.best_size: yield StopIteration
+		
+		sources = tree.sources
+		source_values = tree.source_values
+		seen_sums = set()
+
+		for to_sum_indices in itertools.combinations(range(tree.n_sources), to_sum_count):
+			# common to all sims
+			
+			to_sum_indices = [to_sum_indices]
+			to_sum_values = tuple(source_values[i] for i in to_sum_indices)
+			
+			if any(value in cant_use for value in to_sum_values): continue
+
+			if to_sum_values in seen_sums: continue
+			seen_sums.add(to_sum_values)
+			
+			# trying to merge freshly extracted / divided nodes
 			to_sum_nodes = [sources[i] for i in to_sum_indices]
-			if any(node.value in cant_use for node in to_sum_nodes): continue
-			summed_value = sum(node.value for node in to_sum_nodes)
-			if self.gcd_incompatible(summed_value) or summed_value > self.conveyor_speed_limit: continue
 			if all(len(node.parents) == 1 for node in to_sum_nodes):
 				parent = to_sum_nodes[0].parents[0]
-				if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count and (parent.parents or self.source_values_length == 1): continue
-			filtered_simulations.append(info)
-		return filtered_simulations
+				if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count: continue
+
+			# specific to the problem
+			
+			summed_value = sum(to_sum_values)
+			
+			if summed_value > self.conveyor_speed_limit or self.gcd_incompatible(summed_value): continue
+
+			sim = [value for value in source_values]
+			for value in to_sum_values: sim.remove(value)
+			insert_into_sorted(sim, summed_value)
+			
+			sim = tuple(sim)
+			if tree.past.contains(sim): continue
+
+			yield sim, (to_sum_indices,)
+
+		yield StopIteration
 
 	# computes how close the sources are from the target_values
 	# the lower the better
 	def compute_tree_score(self, tree):
-		sources = tree.sources
-		simulations = []
-		cant_use = self.compute_cant_use(sources)
-		simulations.extend(self.extract_sims(tree, cant_use))
-		simulations.extend(self.divide_sims(tree, cant_use))
-		simulations.extend(self.merge_sims(tree, cant_use))
-		score = -1
-		# it required at least one operation to get there, hence the 1 +
-		if simulations: score = 1 + min(self.simsManager.compute_distance(sim, self.target_values) for sim, _ in simulations)
-		return score
+		return distance(get_node_values(tree.sources), self.target_values)
+		# sources = tree.sources
+		# simulations = []
+		# cant_use = self.compute_cant_use(sources)
+		# simulations.extend(self.extract_sims(tree, cant_use))
+		# simulations.extend(self.divide_sims(tree, cant_use))
+		# simulations.extend(self.merge_sims(tree, cant_use))
+		# score = -1
+		# # it required at least one operation to get there, hence the 1 +
+		# if simulations: score = 1 + min(self.simsManager.compute_distance(sim, self.target_values) for sim, _ in simulations)
+		# return score
 
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
@@ -199,7 +243,7 @@ class SatisSolver:
 
 		# 				break
 		# 		current_sol_size += len(sp_sources)
-		print(f"{len(self.cutted_trees) = }")
+		# print(f"{len(self.cutted_trees) = }")
 
 	def solve(self):
 		queue = []
@@ -232,50 +276,65 @@ class SatisSolver:
 			return queue.pop(0 if random.random() < exploration_prob else random.randrange(1, n))
 
 		enqueue(self.tree_source)
-		self.processed_sources.add(self.tree_source.source_values)
+		# self.processed_sources.add(self.tree_source.source_values)
 
 		while self.solving and queue:
 			tree, _ = dequeue()
-			sources = tree.sources
-			source_values = tree.source_values
-			# print(len(queue))
-			
-			cant_use = self.compute_cant_use(sources)
+			cant_use = self.compute_cant_use(tree.sources)
 
-			def try_op(get_sims, op):
-				for sim, sim_metadata in get_sims(tree, cant_use):
+			def try_op(get_sims, op, get_sims_args=()):
+				for _, sim_metadata in get_sims(tree, cant_use, *get_sims_args):
 					if not self.solving: break
-					if sim in self.processed_sources:
-						insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
-						continue
-					self.processed_sources.add(sim)
+					# if sim in self.processed_sources:
+					# 	insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
+					# 	continue
+					# self.processed_sources.add(sim)
 					# tree_copy = copy.deepcopy(tree)
 					tree_copy = tree.deepcopy()
-					log_msg, result_nodes = op(tree_copy.sources, sim_metadata)
+					log_msg, result_nodes = op(tree_copy.sources, sim_metadata, *get_sims_args)
 					tree_copy.add(result_nodes)
 					if config.logging: self.log(f"\n\nFROM\n{tree}\nDID\n{log_msg}")
 					enqueue(tree_copy)
 
-			def extract(sources_copy, sim_metadata):
-				i, speed = sim_metadata
+			def extract(sources_copy, sim_metadata, conveyor_speed):
+				i, _ = sim_metadata
 				src_copy = sources_copy[i]
-				return f"{src_copy} - {speed}" if config.logging else None, src_copy - speed
+				return f"{src_copy} - {conveyor_speed}" if config.logging else None, src_copy.extract(conveyor_speed)
 
-			def divide(sources_copy, sim_metadata):
-				i, divisor = sim_metadata
+			def divide(sources_copy, sim_metadata, divisor):
+				i, _ = sim_metadata
 				src_copy = sources_copy[i]
-				return f"{src_copy} / {divisor}" if config.logging else None, src_copy / divisor
+				return f"{src_copy} / {divisor}" if config.logging else None, src_copy.divide(divisor)
+			
+			# def divide_loop(sources_copy, sim_metadata):
+			# 	i, conveyor_speed = sim_metadata
+			# 	src_copy = sources_copy[i]
+			# 	return f"{src_copy} /loop {conveyor_speed}" if config.logging else None, src_copy.divide_loop(conveyor_speed)
 
-			def merge(sources_copy, sim_metadata):
+			def merge(sources_copy, sim_metadata, to_sum_count):
 				to_sum_indices, _ = sim_metadata
 				to_sum = [sources_copy[i] for i in to_sum_indices]
-				return "\n+\n".join(str(ts) for ts in to_sum) if config.logging else None, [to_sum[0] + to_sum[1:]]
+				return "\n+\n".join(str(ts) for ts in to_sum) if config.logging else None, [Node.merge(to_sum)]
 
-			try_op(self.extract_sims, extract)
+			for conveyor_speed in config.conveyor_speeds:
+				try_op(self.extract_sims, extract, (conveyor_speed,))
+				if not self.solving: break
+			
 			if not self.solving: break
-			try_op(self.divide_sims, divide)
+			
+			for divisor in config.allowed_divisors:
+				try_op(self.divide_sims, divide, (divisor,))
+				if not self.solving: break
+			
 			if not self.solving: break
-			try_op(self.merge_sims, merge)
+			
+			# try_op(self.divide_loop_sims, divide_loop)
+			
+			if not self.solving: break
+
+			for to_sum_count in range(config.min_sum_count, config.max_sum_count + 1):
+				try_op(self.merge_sims, merge, (to_sum_count,))
+				if not self.solving: break
 
 		self.build_optimal_solutions()
 
@@ -308,7 +367,7 @@ class SatisSolver:
 		self.running = False
 
 	def close(self):
-		if self.simsManager: self.simsManager.save_cache()
+		# if self.simsManager: self.simsManager.save_cache()
 		if config.logging: self.log_file_handle.close()
 
 # graveyard

@@ -1,11 +1,9 @@
-import traceback, io, tempfile, copy, networkx as nx
+import traceback, io, networkx as nx
 
-from networkx.drawing.nx_pydot import graphviz_layout
 from networkx.drawing.nx_agraph import to_agraph
 from config import config
 from fastList import FastList
 from utils import get_node_values
-from node import Node
 
 # responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:
@@ -16,6 +14,7 @@ class Tree:
 		self.past = FastList()
 		self.current_level = 1
 		self.source_values = tuple(src.value for src in sources)
+		self.n_sources = len(sources)
 		self.size = len(sources)
 		for src in sources:
 			# src.size = 1
@@ -41,22 +40,14 @@ class Tree:
 
 	def deepcopy(self):
 		copied_nodes = {}
-		copied_roots = None
-		if len(self.roots) > 1:
-			dummy_root = Node(0)
-			dummy_root.children = self.roots
-			copied_roots = dummy_root.deepcopy(copied_nodes).children
-			for root in copied_roots: root.parents = []
-		else:
-			copied_roots = [self.roots[0].deepcopy(copied_nodes)]
+		copied_roots = [root._deepcopy(copied_nodes) for root in self.roots]
 		new_tree = Tree(copied_roots)
 		new_tree.sources = [copied_nodes[src.node_id] for src in self.sources]
-		for level in self.levels[1:]:
-			new_tree.levels.append([copied_nodes[src.node_id] for src in level])
+		new_tree.levels = [[copied_nodes[src.node_id] for src in level] for level in self.levels]
+		# new_tree.levels += [[copied_nodes[src.node_id] for src in level] for level in self.levels[1:]] # may be faster
 		new_tree.past = FastList(sources_tuple for sources_tuple in self.past)
-		new_tree.past._set = set(sources_tuple for sources_tuple in self.past._set)
 		new_tree.current_level = self.current_level
-		new_tree.source_values = tuple(src.value for src in new_tree.sources)
+		new_tree.source_values = self.source_values # tuples are deepcopied in python
 		new_tree.size = self.size
 		return new_tree
 

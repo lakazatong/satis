@@ -76,10 +76,6 @@ def get_sim_without(value, values):
 	sim.remove(value)
 	return sim
 
-def can_split(value, divisor):
-	if not divisor in config.allowed_divisors: return False
-	return value % divisor == 0
-
 def clear_solution_files():
 	for filename in os.listdir('.'):
 		if config.solution_regex.match(filename):
