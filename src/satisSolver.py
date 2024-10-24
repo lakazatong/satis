@@ -1,6 +1,6 @@
 import math, time, random, itertools, json, os
 
-from utils import sort_nodes, get_node_values, get_node_ids, pop_node, insert_into_sorted, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use
+from utils import get_node_values, insert_into_sorted, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
 from config import config
 from node import Node
 from tree import Tree
@@ -83,12 +83,12 @@ class SatisSolver:
 			self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
-		if self.solutions and tree.size + 2 > self.best_size: yield StopIteration
+		if self.solutions and tree.size + 2 > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
 		
-		for src in tree.sources:
+		for i, src in enumerate(tree.sources):
 			# common to all sims
 			
 			value = src.value
@@ -111,20 +111,18 @@ class SatisSolver:
 
 			if tree.past.contains(sim): continue
 
-			yield sim, (i,)
-		
-		yield StopIteration
+			yield (sim, (i,))
 
 	def divide_sims(self, tree, cant_use, divisor):
-		if self.solutions and tree.size + divisor > self.best_size: yield StopIteration
+		if self.solutions and tree.size + divisor > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
 		
-		for src in tree.sources:
+		for i, src in enumerate(tree.sources):
 			# common to all sims
 			
-			value = source_values[i]
+			value = src.value
 			if value in cant_use or value % divisor != 0: continue
 
 			if value in seen_values: continue
@@ -144,12 +142,10 @@ class SatisSolver:
 
 			if tree.past.contains(sim): continue
 
-			yield sim, (i,)
-
-		yield StopIteration
+			yield (sim, (i,))
 
 	def merge_sims(self, tree, cant_use, to_sum_count):
-		if self.solutions and tree.size + 1 > self.best_size: yield StopIteration
+		if self.solutions and tree.size + 1 > self.best_size: return
 		
 		sources = tree.sources
 		source_values = tree.source_values
@@ -158,9 +154,9 @@ class SatisSolver:
 		for to_sum_indices in itertools.combinations(range(tree.n_sources), to_sum_count):
 			# common to all sims
 			
-			to_sum_indices = [to_sum_indices]
+			to_sum_indices = list(to_sum_indices)
 			to_sum_values = tuple(source_values[i] for i in to_sum_indices)
-			
+
 			if any(value in cant_use for value in to_sum_values): continue
 
 			if to_sum_values in seen_sums: continue
@@ -185,9 +181,7 @@ class SatisSolver:
 			sim = tuple(sim)
 			if tree.past.contains(sim): continue
 
-			yield sim, (to_sum_indices,)
-
-		yield StopIteration
+			yield (sim, (to_sum_indices,))
 
 	# computes how close the sources are from the target_values
 	# the lower the better
@@ -229,7 +223,7 @@ class SatisSolver:
 		print("impossible case reached, should have been checked already")
 		self.solving = False
 
-	def build_optimal_solutions(self):
+	# def build_optimal_solutions(self):
 		# for i in range(self.solutions_count-1, -1, -1):
 		# 	sol_tree = self.solutions[i]
 		# 	current_sol_size = self.target_values_length
@@ -282,7 +276,7 @@ class SatisSolver:
 			tree, _ = dequeue()
 			cant_use = self.compute_cant_use(tree.sources)
 
-			def try_op(get_sims, op, get_sims_args=()):
+			def try_op(get_sims, op, get_sims_args=tuple([])):
 				for _, sim_metadata in get_sims(tree, cant_use, *get_sims_args):
 					if not self.solving: break
 					# if sim in self.processed_sources:
@@ -297,12 +291,12 @@ class SatisSolver:
 					enqueue(tree_copy)
 
 			def extract(sources_copy, sim_metadata, conveyor_speed):
-				i, _ = sim_metadata
+				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} - {conveyor_speed}" if config.logging else None, src_copy.extract(conveyor_speed)
 
 			def divide(sources_copy, sim_metadata, divisor):
-				i, _ = sim_metadata
+				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} / {divisor}" if config.logging else None, src_copy.divide(divisor)
 			
@@ -312,7 +306,7 @@ class SatisSolver:
 			# 	return f"{src_copy} /loop {conveyor_speed}" if config.logging else None, src_copy.divide_loop(conveyor_speed)
 
 			def merge(sources_copy, sim_metadata, to_sum_count):
-				to_sum_indices, _ = sim_metadata
+				to_sum_indices, *_ = sim_metadata
 				to_sum = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(str(ts) for ts in to_sum) if config.logging else None, [Node.merge(to_sum)]
 
@@ -336,7 +330,7 @@ class SatisSolver:
 				try_op(self.merge_sims, merge, (to_sum_count,))
 				if not self.solving: break
 
-		self.build_optimal_solutions()
+		# self.build_optimal_solutions()
 
 	def conclude(self):
 		if not self.solutions: return

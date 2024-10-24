@@ -38,7 +38,7 @@ class Test:
 		pass
 
 if __name__ == "__main__":
-	# cli = CLI("Satisfactory Solver", SatisSolver)
-	cli = CLI("Test", Test)
+	cli = CLI("Satisfactory Solver", SatisSolver)
+	# cli = CLI("Test", Test)
 	cProfile.run('cli.run()')
 	# cli.run()

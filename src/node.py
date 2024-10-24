@@ -80,7 +80,7 @@ class Node:
 		overflow_node.parents.append(self)
 		return [extracted_node, overflow_node]
 
-	def split(self, divisor):
+	def divide(self, divisor):
 		new_value = self.value // divisor
 		new_nodes = [Node(new_value) for _ in range(divisor)]
 		for node in new_nodes:
@@ -98,6 +98,7 @@ class Node:
 			node.parents.append(self)
 		return new_nodes
 
+	@staticmethod
 	def merge(nodes):
 		new_value = sum(get_node_values(nodes))
 		new_node = Node(new_value)

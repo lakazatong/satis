@@ -73,6 +73,7 @@ class Tree:
 		
 		parent_ids = set(p.node_id for p in nodes[0].parents)
 		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids] + nodes
+		self.n_sources = len(self.sources)
 		
 		# update levels and size
 		for src in self.sources: src.level = self.current_level
