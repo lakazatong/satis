@@ -1,7 +1,8 @@
-logs.txt
-dist/
-build/
+**/dist/
+**/build/
+**/__pycache__/
+
 solution*.png
-__pycache__
+logs.txt
 solve.spec
 sims_caches
