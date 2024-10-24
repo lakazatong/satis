@@ -1,6 +1,3 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
-
 import cProfile
 from utils import generate_test_cases
 from distance import distance
@@ -18,6 +15,3 @@ def test_distance():
 		# if d != d2:
 		# 	print("\nnope", d, d2, sources, targets)
 		# 	exit(0)
-
-cProfile.run("test_distance()")
-# test_distance()
