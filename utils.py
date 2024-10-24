@@ -1,4 +1,4 @@
-import json, os
+import json, os, random
 import networkx as nx
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -144,6 +144,14 @@ def parse_user_input(user_input):
 		i += 2
 
 	return source_values, target_values
+
+def generate_test_cases(num_cases, max_size, elements_max_size=1200*2):
+	test_cases = []
+	for _ in range(num_cases):
+		sim = sorted([random.randint(1, elements_max_size) for _ in range(random.randint(1, max_size))])
+		targets = sorted([random.randint(1, elements_max_size) for _ in range(random.randint(1, max_size))])
+		test_cases.append((sim, targets))
+	return test_cases
 
 # graveyard
 

@@ -138,5 +138,5 @@ if __name__ == "__main__":
 	# exit(0)
 	cli = CLI("Satisfactory Solver", SatisSolver)
 	# cli = CLI("Test", Test)
-	# cProfile.run('cli.run()')
-	cli.run()
+	cProfile.run('cli.run()')
+	# cli.run()

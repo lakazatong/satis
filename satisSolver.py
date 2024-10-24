@@ -16,6 +16,8 @@ class SatisSolver:
 
 	def log(self, txt):
 		self.log_file_handle.write(txt)
+		self.log_file_handle.flush()
+		os.fsync(self.log_file_handle.fileno())
 
 	def load(self, user_input):
 		self.user_input = user_input
@@ -73,7 +75,7 @@ class SatisSolver:
 		self.best_size = None
 
 		self.cutted_trees = []
-		self.seen_sources = {}
+		self.processed_sources = set()
 		self.compute_distances_cache = {}
 
 		if config.logging:
@@ -86,12 +88,12 @@ class SatisSolver:
 		filtered_simulations = []
 		for info in self.simsManager.get_extract_sims(tree.source_values):
 			sim, (i, speed) = info
+			if tree.past.contains(sim): continue
 			src = sources[i]
 			if src.value in cant_use: continue
 			if self.gcd_incompatible(speed): continue
 			overflow = src.value - speed
 			if self.gcd_incompatible(overflow): continue
-			if tree.past.contains(sim): continue
 			parent_values = set(get_node_values(src.parents))
 			# if speed in parent_values then it would have been better to leave it as is
 			# and merge all the other values to get the overflow value
@@ -115,11 +117,11 @@ class SatisSolver:
 		parents_value_sum, n_parents = None, None
 		for info in simulations:
 			sim, (i, divisor) = info
+			if tree.past.contains(sim): continue
 			src = sources[i]
 			if src.value in cant_use: continue
 			divided_value = src.value // divisor
 			if self.gcd_incompatible(divided_value): continue
-			if tree.past.contains(sim): continue
 			if not parents_value_sum:
 				parents_value_sum = sum(get_node_values(src.parents))
 				n_parents = len(src.parents)
@@ -133,6 +135,7 @@ class SatisSolver:
 		filtered_simulations = []
 		for info in self.simsManager.get_merge_sims(tree.source_values):
 			sim, (to_sum_indices, to_sum_count) = info
+			if tree.past.contains(sim): continue
 			to_sum_nodes = [sources[i] for i in to_sum_indices]
 			if any(node.value in cant_use for node in to_sum_nodes): continue
 			summed_value = sum(node.value for node in to_sum_nodes)
@@ -140,7 +143,6 @@ class SatisSolver:
 			if all(len(node.parents) == 1 for node in to_sum_nodes):
 				parent = to_sum_nodes[0].parents[0]
 				if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count and (parent.parents or self.source_values_length == 1): continue
-			if tree.past.contains(sim): continue
 			filtered_simulations.append(info)
 		return filtered_simulations
 
@@ -184,19 +186,20 @@ class SatisSolver:
 		self.solving = False
 
 	def build_optimal_solutions(self):
-		for i in range(self.solutions_count-1, -1, -1):
-			sol_tree = self.solutions[i]
-			current_sol_size = self.target_values_length
-			for j in range(len(sol_past)-1, -1, -1):
-				sp_sources = sol_past[j]
-				sp_source_values = get_node_values(sp_sources)
-				for ct_root, ct_sources, ct_past in cutted_trees:
-					ct_source_values = get_node_values(ct_sources)
-					if sp_source_values == ct_source_values and ct_root.size + current_sol_size < sol_root.size:
-						# we found the smallest cutted tree that can shorten the current solution
+		# for i in range(self.solutions_count-1, -1, -1):
+		# 	sol_tree = self.solutions[i]
+		# 	current_sol_size = self.target_values_length
+		# 	for j in range(len(sol_past)-1, -1, -1):
+		# 		sp_sources = sol_past[j]
+		# 		sp_source_values = get_node_values(sp_sources)
+		# 		for ct_root, ct_sources, ct_past in cutted_trees:
+		# 			ct_source_values = get_node_values(ct_sources)
+		# 			if sp_source_values == ct_source_values and ct_root.size + current_sol_size < sol_root.size:
+		# 				# we found the smallest cutted tree that can shorten the current solution
 
-						break
-				current_sol_size += len(sp_sources)
+		# 				break
+		# 		current_sol_size += len(sp_sources)
+		print(f"{len(self.cutted_trees) = }")
 
 	def solve(self):
 		queue = []
@@ -222,29 +225,30 @@ class SatisSolver:
 			n = len(queue)
 			if n < 3: return queue.pop(0)
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
-			# maximum exploration is reached at (0.85 - 0.3) / 5 = 6 solutions found
-			# 15% exploration when no solution is found
+			# maximum exploration is reached at (0.95 - 0.3) / 5 = 13 solutions found
+			# 5% exploration when no solution is found
 			# by exploration I mean trees with lower scores
-			exploration_prob = max(0.3, 0.85 - (5 * self.solutions_count / 100))
+			exploration_prob = max(0.3, 0.95 - (5 * self.solutions_count / 100))
 			return queue.pop(0 if random.random() < exploration_prob else random.randrange(1, n))
 
 		enqueue(self.tree_source)
+		self.processed_sources.add(self.tree_source.source_values)
 
 		while self.solving and queue:
 			tree, _ = dequeue()
 			sources = tree.sources
-			# source_values = tree.source_values
-
-			# if source_values in self.seen_sources:
-			# 	insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size
-			# 	continue
+			source_values = tree.source_values
+			# print(len(queue))
 			
-			# seen_sources.add(source_values)
 			cant_use = self.compute_cant_use(sources)
 
 			def try_op(get_sims, op):
-				for _, sim_metadata in get_sims(tree, cant_use):
+				for sim, sim_metadata in get_sims(tree, cant_use):
 					if not self.solving: break
+					if sim in self.processed_sources:
+						insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
+						continue
+					self.processed_sources.add(sim)
 					# tree_copy = copy.deepcopy(tree)
 					tree_copy = tree.deepcopy()
 					log_msg, result_nodes = op(tree_copy.sources, sim_metadata)
@@ -255,10 +259,6 @@ class SatisSolver:
 			def extract(sources_copy, sim_metadata):
 				i, speed = sim_metadata
 				src_copy = sources_copy[i]
-				if src_copy.value < speed:
-					print(src_copy)
-					self.running = False
-					return "", None
 				return f"{src_copy} - {speed}" if config.logging else None, src_copy - speed
 
 			def divide(sources_copy, sim_metadata):
@@ -277,7 +277,7 @@ class SatisSolver:
 			if not self.solving: break
 			try_op(self.merge_sims, merge)
 
-		# self.build_optimal_solutions()
+		self.build_optimal_solutions()
 
 	def conclude(self):
 		if not self.solutions: return
