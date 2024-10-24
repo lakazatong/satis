@@ -1,15 +1,7 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import uuid, pathlib
 
 from utils import get_node_values, get_short_node_ids
 from config import config
-
-if sys.platform == "win32":
-	path = pathlib.Path(r"C:\Program Files\Graphviz\bin")
-	if path.is_dir() and str(path) not in os.environ["PATH"]:
-		os.environ["PATH"] += f";{path}"
 
 class Node:
 	def __init__(self, value, node_id=None):

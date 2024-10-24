@@ -1,7 +1,4 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import itertools, json, pickle
+import itertools, json, pickle, os
 
 from utils import remove_pairs, get_sim_without, get_node_ids, insert_into_sorted, get_gcd_incompatible, can_split
 from config import config

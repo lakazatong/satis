@@ -1,7 +1,4 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import math, time, random, itertools, json
+import math, time, random, itertools, json, os
 
 from utils import sort_nodes, get_node_values, get_node_ids, pop_node, insert_into_sorted, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use
 from config import config

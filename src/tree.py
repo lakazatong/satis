@@ -1,6 +1,3 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import traceback, io, tempfile, copy, networkx as nx
 
 from networkx.drawing.nx_pydot import graphviz_layout
