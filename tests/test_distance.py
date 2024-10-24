@@ -1,4 +1,3 @@
-import cProfile
 from utils import generate_test_cases
 from distance import distance
 
