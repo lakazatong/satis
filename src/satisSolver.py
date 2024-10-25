@@ -209,16 +209,17 @@ class SatisSolver:
 
 	def solution_found(self, tree):
 		# return if found better size
+		msg = "\r" + " " * 100 + f"\rFound {self.solutions_count} solution{"s" if self.solutions_count > 0 else ""} of size {self.best_size}"
 		if self.solutions_count == 0 or tree.size < self.best_size:
 			self.solutions = [tree]
 			self.best_size = tree.size
 			self.solutions_count = 1
-			print("\r" + " " * 100 + f"\rFound {self.solutions_count} solutions of size {self.best_size}", end="")
+			print(msg, end="")
 			return True
 		elif tree.size == self.best_size:
 			self.solutions.append(tree)
 			self.solutions_count += 1
-			print("\r" + " " * 100 + f"\rFound {self.solutions_count} solutions of size {self.best_size}", end="")
+			print(msg, end="")
 			return False
 		print("impossible case reached, should have been checked already")
 		self.solving = False
