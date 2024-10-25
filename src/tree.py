@@ -46,7 +46,8 @@ class Tree:
 		new_tree.sources = [copied_nodes[src.node_id] for src in self.sources]
 		new_tree.levels = [[copied_nodes[src.node_id] for src in level] for level in self.levels]
 		# new_tree.levels += [[copied_nodes[src.node_id] for src in level] for level in self.levels[1:]] # may be faster
-		new_tree.past = FastList(sources_tuple for sources_tuple in self.past)
+		new_tree.past = FastList()
+		new_tree.past.extend(self.past)
 		new_tree.current_level = self.current_level
 		new_tree.source_values = self.source_values # tuples are deepcopied in python
 		new_tree.size = self.size

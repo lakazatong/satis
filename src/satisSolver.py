@@ -105,7 +105,7 @@ class SatisSolver:
 			overflow_value = value - conveyor_speed
 			if self.gcd_incompatible(overflow_value): continue
 
-			values_to_add = [value, overflow_value]
+			values_to_add = [conveyor_speed, overflow_value]
 			if any(src.past.contains(value) for value in values_to_add): continue
 
 			sim = get_sim_without(value, source_values)
@@ -177,9 +177,6 @@ class SatisSolver:
 			
 			summed_value = sum(to_sum_values)
 			
-			if summed_value == 330:
-				print(to_sum_nodes[0].value, [i for i in to_sum_nodes[0].past])
-				print(any(src.past.contains(summed_value) for src in to_sum_nodes))
 			if summed_value > self.conveyor_speed_limit or self.gcd_incompatible(summed_value) or any(src.past.contains(summed_value) for src in to_sum_nodes): continue
 
 			sim = [value for value in source_values]
