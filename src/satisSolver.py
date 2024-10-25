@@ -62,7 +62,8 @@ class SatisSolver:
 		# for the SimsManager
 		# self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
 
-		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}\n")
+		filtered_conveyor_speeds_txt = ", ".join(map(str, filtered_conveyor_speeds))
+		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {filtered_conveyor_speeds_txt}\n")
 		
 		self.tree_source = Tree([Node(value) for value in source_values])
 
