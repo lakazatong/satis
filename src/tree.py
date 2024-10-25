@@ -4,22 +4,20 @@ from networkx.drawing.nx_agraph import to_agraph
 from bisect import insort
 from config import config
 from fastList import FastList
-from utils import get_node_values
+from utils import get_node_values, get_node_ids
 
 # responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:
-	def __init__(self, sources):
-		self.roots = sources
-		self.sources = sources
-		self.levels = [sources]
+	def __init__(self, roots):
+		self.roots = roots
+		self.sources = roots
+		self.levels = [roots]
 		self.past = FastList()
-		self.current_level = 1
-		self.source_values = tuple(src.value for src in sources)
-		self.n_sources = len(sources)
-		self.size = len(sources)
-		for src in sources:
-			# src.size = 1
-			src.level = self.current_level
+		self.current_level = 0
+		self.source_values = tuple(root.value for root in roots)
+		self.n_sources = len(roots)
+		self.size = len(roots)
+		for root in roots: root.level = self.current_level
 
 		# graveyard
 
@@ -53,27 +51,12 @@ class Tree:
 		new_tree.size = self.size
 		return new_tree
 
-	# def tree_height(self):
-	# 	return self.dummy_root.tree_height
-
-	# def update(self):
-	# 	n = len(self.nodes)
-	# 	queue = [p for p in self.parents]
-	# 	seen = set()
-	# 	while queue:
-	# 		p = queue.pop()
-	# 		if p.node_id in seen: continue
-	# 		seen.add(p.node_id)
-	# 		# p.tree_height += 1
-	# 		p.size += n
-	# 		queue.extend(p.parents)
-
 	def add(self, nodes):
 		self.current_level += 1
 		# init new nodes
 		# for node in nodes: node.size = 1
 		
-		parent_ids = set(p.node_id for p in nodes[0].parents)
+		parent_ids = get_node_ids(nodes[0].parents)
 		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids]
 		for node in nodes: insort(self.sources, node, key=lambda node: node.value)
 		self.n_sources = len(self.sources)
@@ -87,12 +70,22 @@ class Tree:
 		self.past.append(self.source_values)
 		self.source_values = get_node_values(self.sources)
 
+	def level_optimal(self, i):
+		return len(self.levels[i - 1]) - len(self.levels[i]) == 2
+
+	def deepest_optimal_level(self):
+		i = 1
+		while i <= self.current_level:
+			if not self.level_optimal(i): break
+			i += 1
+		return i - 1
+
 	def visualize(self, filename):
 		try:
 			G = nx.DiGraph()
 			seen_ids = set()
 			for root in self.roots:
-				root.level = 1
+				root.level = 0
 				root.populate(G, seen_ids)
 
 			A = to_agraph(G)

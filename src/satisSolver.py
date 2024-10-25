@@ -1,6 +1,6 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
+from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
 from bisect import insort
 from config import config
 from node import Node
@@ -15,6 +15,9 @@ class SatisSolver:
 		# for the SimsManager
 		# self.allowed_divisors_r = reversed(sorted(list(config.allowed_divisors)))
 		self.reset()
+		if config.logging:
+			open(config.log_filepath, "w").close()
+			self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
 
 	def log(self, txt):
 		self.log_file_handle.write(txt)
@@ -22,13 +25,12 @@ class SatisSolver:
 		os.fsync(self.log_file_handle.fileno())
 
 	def load(self, user_input):
-		self.user_input = user_input
 		source_values, target_values = parse_user_input(user_input)
 		if not source_values or not target_values: return False
 		
 		self.reset()
 		
-		self.source_values = sorted(source_values)
+		source_values = sorted(source_values)
 		self.target_values = sorted(target_values)
 		sources_total = sum(source_values)
 		targets_total = sum(target_values)
@@ -40,16 +42,16 @@ class SatisSolver:
 		
 		elif sources_total < targets_total:
 			value = targets_total - sources_total
-			insort(self.source_values, value)
+			insort(source_values, value)
 			print(f"\nSources were lacking, generated a {value} node as source")
 
-		self.source_values_length = len(self.source_values)
+		source_values_length = len(source_values)
 		self.target_values_length = len(self.target_values)
 		target_counts = {
 			value: self.target_values.count(value) for value in set(self.target_values)
 		}
 		self.compute_cant_use = get_compute_cant_use(target_counts)
-		gcd = math.gcd(*self.source_values, *self.target_values)
+		gcd = math.gcd(*source_values, *self.target_values)
 		# if not self.simsManager:
 		# 	self.simsManager = SimsManager(self)
 		# 	self.simsManager.load_cache()
@@ -62,7 +64,7 @@ class SatisSolver:
 
 		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {", ".join(map(str, filtered_conveyor_speeds))}\n")
 		
-		self.tree_source = Tree([Node(value) for value in self.source_values])
+		self.tree_source = Tree([Node(value) for value in source_values])
 
 		return True
 
@@ -75,13 +77,6 @@ class SatisSolver:
 		self.solutions = []
 		self.solutions_count = 0
 		self.best_size = None
-
-		# self.cutted_trees = []
-		# self.processed_sources = set()
-
-		if config.logging:
-			open(config.log_filepath, "w").close()
-			self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
 		if self.solutions and tree.size + 2 > self.best_size: return
