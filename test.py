@@ -10,12 +10,11 @@ if sys.platform == "win32":
 import cProfile, random, time
 from bisect import insort
 from fastList import FastList
+from config import config
 
-L1 = FastList(2, 5, 6)
-L2 = FastList(5, 9)
-L2.append(L1[0])
-print(L1)
-print(L2)
+value = 45
+conveyor_speed = next(c for c in config.conveyor_speeds if c > value)
+print(conveyor_speed)
 
 # from tests.test_distance import test_distance
 
