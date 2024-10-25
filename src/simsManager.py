@@ -2,7 +2,8 @@
 
 # import itertools, json, pickle, os
 
-# from utils import remove_pairs, get_sim_without, get_node_ids, insert_into_sorted, get_gcd_incompatible, can_split
+# from utils import remove_pairs, get_sim_without, get_node_ids, get_gcd_incompatible, can_split
+# from bisect import insort
 # from config import config
 # from node import Node
 
@@ -123,7 +124,7 @@
 # 				if summed_value > config.conveyor_speed_limit: continue
 # 				sim = [value for value in values]
 # 				for value in to_sum_values: sim.remove(value)
-# 				insert_into_sorted(sim, summed_value)
+# 				insort(sim, summed_value)
 # 				simulations.append((tuple(sim), (to_sum_indices, to_sum_count)))
 # 		self.merge_sims_cache[values] = simulations
 # 		return simulations

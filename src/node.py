@@ -1,14 +1,17 @@
 import uuid
 
 from utils import get_node_values, get_short_node_ids
+from fastList import FastList
 from config import config
 
 class Node:
-	def __init__(self, value, node_id=None):
+	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.level = None
+		self.past = FastList(value)
+		if parent_past: self.past.extend(parent_past)
 		self.parents = []
 		self.children = []
 
@@ -53,6 +56,7 @@ class Node:
 			else:
 				new_node = Node(node.value, node_id=node.node_id)
 				new_node.level = node.level
+				new_node.past.extend(self.past)
 				copied_nodes[node.node_id] = new_node
 				new_node.parents = [parent] if parent else []
 				stack.extend((child, new_node) for child in node.children)
@@ -71,28 +75,26 @@ class Node:
 			if child.node_id not in seen_ids: child.populate(G, seen_ids)
 
 	def extract(self, value):
-		extracted_node = Node(value)
 		overflow_value = self.value - value
-		overflow_node = Node(overflow_value)
-		self.children.append(extracted_node)
-		self.children.append(overflow_node)
-		extracted_node.parents.append(self)
-		overflow_node.parents.append(self)
-		return [extracted_node, overflow_node]
+		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
+		for node in new_nodes:
+			self.children.append(node)
+			node.parents.append(self)
+		return new_nodes
 
 	def divide(self, divisor):
-		new_value = self.value // divisor
-		new_nodes = [Node(new_value) for _ in range(divisor)]
+		divided_value = self.value // divisor
+		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
 			self.children.append(node)
 			node.parents.append(self)
 		return new_nodes
 	
-	def split_loop(self, conveyor_speed):
+	def divide_loop(self, conveyor_speed):
 		# c = next((c for c in config.conveyor_speeds if c > self.value))
 		new_value = conveyor_speed // 3
-		overflow = self.value - new_value << 1
-		new_nodes = [Node(new_value), Node(new_value), Node(overflow)]
+		overflow_value = self.value - new_value << 1
+		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
 			self.children.append(node)
 			node.parents.append(self)
@@ -100,11 +102,12 @@ class Node:
 
 	@staticmethod
 	def merge(nodes):
-		new_value = sum(get_node_values(nodes))
-		new_node = Node(new_value)
+		summed_value = sum(node.value for node in nodes)
+		new_node = Node(summed_value)
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
+			new_node.past.extend(node.past)
 		return new_node
 
 	# graveyard

@@ -1,6 +1,7 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, insert_into_sorted, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
+from utils import get_node_values, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
+from bisect import insort
 from config import config
 from node import Node
 from tree import Tree
@@ -34,12 +35,12 @@ class SatisSolver:
 		
 		if sources_total > targets_total:
 			value = sources_total - targets_total
-			insert_into_sorted(self.target_values, value)
+			insort(self.target_values, value)
 			print(f"\nTargets were lacking, generated a {value} node as target")
 		
 		elif sources_total < targets_total:
 			value = targets_total - sources_total
-			insert_into_sorted(self.source_values, value)
+			insort(self.source_values, value)
 			print(f"\nSources were lacking, generated a {value} node as source")
 
 		self.source_values_length = len(self.source_values)
@@ -99,15 +100,17 @@ class SatisSolver:
 			
 			# specific to the problem
 			
-			# if either speed or overflow is in parents then we would have been better
-			# keep it and use the other nodes differently
-			parent_values = set(get_node_values(src.parents))
-			if self.gcd_incompatible(conveyor_speed) or conveyor_speed in parent_values: continue
+			if self.gcd_incompatible(conveyor_speed): continue
 
-			overflow = value - conveyor_speed
-			if self.gcd_incompatible(overflow) or overflow in parent_values: continue
+			overflow_value = value - conveyor_speed
+			if self.gcd_incompatible(overflow_value): continue
 
-			sim = tuple(sorted(get_sim_without(value, source_values) + [conveyor_speed, overflow]))
+			values_to_add = [value, overflow_value]
+			if any(src.past.contains(value) for value in values_to_add): continue
+
+			sim = get_sim_without(value, source_values)
+			for value in values_to_add: insort(sim, value)
+			sim = tuple(sim)
 
 			if tree.past.contains(sim): continue
 
@@ -129,16 +132,18 @@ class SatisSolver:
 			seen_values.add(value)
 
 			# trying to divide freshly merged nodes
-			parents_value_sum = sum(get_node_values(src.parents))
-			n_parents = len(src.parents)
-			if parents_value_sum == value and n_parents == divisor: continue
+			# parents_value_sum = sum(get_node_values(src.parents))
+			# n_parents = len(src.parents)
+			# if parents_value_sum == value and n_parents == divisor: continue
 
 			# specific to the problem
 			
 			divided_value = value // divisor
-			if self.gcd_incompatible(divided_value): continue
+			if self.gcd_incompatible(divided_value) or src.past.contains(divided_value): continue
 
-			sim = tuple(sorted(get_sim_without(value, source_values) + [divided_value] * divisor))
+			sim = get_sim_without(value, source_values)
+			for _ in range(divisor): insort(sim, divided_value)
+			sim = tuple(sim)
 
 			if tree.past.contains(sim): continue
 
@@ -164,21 +169,24 @@ class SatisSolver:
 			
 			# trying to merge freshly extracted / divided nodes
 			to_sum_nodes = [sources[i] for i in to_sum_indices]
-			if all(len(node.parents) == 1 for node in to_sum_nodes):
-				parent = to_sum_nodes[0].parents[0]
-				if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count: continue
+			# if all(len(node.parents) == 1 for node in to_sum_nodes):
+			# 	parent = to_sum_nodes[0].parents[0]
+			# 	if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count: continue
 
 			# specific to the problem
 			
 			summed_value = sum(to_sum_values)
 			
-			if summed_value > self.conveyor_speed_limit or self.gcd_incompatible(summed_value): continue
+			if summed_value == 330:
+				print(to_sum_nodes[0].value, [i for i in to_sum_nodes[0].past])
+				print(any(src.past.contains(summed_value) for src in to_sum_nodes))
+			if summed_value > self.conveyor_speed_limit or self.gcd_incompatible(summed_value) or any(src.past.contains(summed_value) for src in to_sum_nodes): continue
 
 			sim = [value for value in source_values]
 			for value in to_sum_values: sim.remove(value)
-			insert_into_sorted(sim, summed_value)
-			
+			insort(sim, summed_value)
 			sim = tuple(sim)
+
 			if tree.past.contains(sim): continue
 
 			yield (sim, (to_sum_indices,))
@@ -256,31 +264,36 @@ class SatisSolver:
 				return
 			score = self.compute_tree_score(tree)
 			if score < 0: return
-			insert_into_sorted(queue, (tree, score), key=lambda x: x[1])
+			insort(queue, (tree, score), key=lambda x: -x[1])
 		
 		def dequeue():
 			nonlocal queue
 			n = len(queue)
-			if n < 3: return queue.pop(0)
+			if n < 3: return queue.pop()
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
-			# maximum exploration is reached at (0.95 - 0.3) / 5 = 13 solutions found
-			# 5% exploration when no solution is found
+			# maximum exploration is reached at (70 - 30) / 5 = 8 solutions found
+			# 30% exploration when no solution is found
 			# by exploration I mean trees with lower scores
-			exploration_prob = max(0.3, 0.95 - (5 * self.solutions_count / 100))
-			return queue.pop(0 if random.random() < exploration_prob else random.randrange(1, n))
+			exploration_prob = max(0.3, 0.70 - (5 * self.solutions_count / 100))
+			return queue.pop(-1 if random.random() < exploration_prob else random.randrange(n-1))
 
 		enqueue(self.tree_source)
 		# self.processed_sources.add(self.tree_source.source_values)
 
+		# max_size = 0
+
 		while self.solving and queue:
 			tree, _ = dequeue()
+			# if tree.n_sources > max_size:
+			# 	max_size = tree.n_sources
+			# 	print(max_size)
 			cant_use = self.compute_cant_use(tree.sources)
 
 			def try_op(get_sims, op, get_sims_args=tuple([])):
 				for _, sim_metadata in get_sims(tree, cant_use, *get_sims_args):
 					if not self.solving: break
 					# if sim in self.processed_sources:
-					# 	insert_into_sorted(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
+					# 	insort(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
 					# 	continue
 					# self.processed_sources.add(sim)
 					# tree_copy = copy.deepcopy(tree)
@@ -307,8 +320,8 @@ class SatisSolver:
 
 			def merge(sources_copy, sim_metadata, to_sum_count):
 				to_sum_indices, *_ = sim_metadata
-				to_sum = [sources_copy[i] for i in to_sum_indices]
-				return "\n+\n".join(str(ts) for ts in to_sum) if config.logging else None, [Node.merge(to_sum)]
+				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
+				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
 			for conveyor_speed in config.conveyor_speeds:
 				try_op(self.extract_sims, extract, (conveyor_speed,))

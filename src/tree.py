@@ -1,6 +1,7 @@
 import traceback, io, networkx as nx
 
 from networkx.drawing.nx_agraph import to_agraph
+from bisect import insort
 from config import config
 from fastList import FastList
 from utils import get_node_values
@@ -72,7 +73,8 @@ class Tree:
 		# for node in nodes: node.size = 1
 		
 		parent_ids = set(p.node_id for p in nodes[0].parents)
-		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids] + nodes
+		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids]
+		for node in nodes: insort(self.sources, node, key=lambda node: node.value)
 		self.n_sources = len(self.sources)
 		
 		# update levels and size

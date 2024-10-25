@@ -1,6 +1,7 @@
 import itertools
 
-from utils import remove_pairs, insert_into_sorted
+from utils import remove_pairs
+from bisect import insort
 from config import config
 
 def distance_division(sources, targets, divisor, threshold):
@@ -13,7 +14,7 @@ def distance_division(sources, targets, divisor, threshold):
 		if n_matches == threshold:
 			sources.pop(i)
 			for _ in range(n_matches): targets.remove(divided_value)
-			for _ in range(divisor - n_matches): insert_into_sorted(sources, divided_value)
+			for _ in range(divisor - n_matches): insort(sources, divided_value)
 	return len(targets) != original_n_targets
 
 def distance_loop_division(sources, targets, threshold):
@@ -32,11 +33,11 @@ def distance_loop_division(sources, targets, threshold):
 		if n_matches == threshold:
 			sources.pop(i)
 			for _ in range(n_c_over_3): targets.remove(c_over_3)
-			for _ in range(2 - n_c_over_3): insert_into_sorted(sources, c_over_3)
+			for _ in range(2 - n_c_over_3): insort(sources, c_over_3)
 			if n_overflow == 1:
 				targets.remove(overflow)
 			else:
-				insert_into_sorted(sources, overflow)
+				insort(sources, overflow)
 	return len(targets) != original_n_targets
 
 def distance_extraction(sources, targets, threshold):
@@ -57,11 +58,11 @@ def distance_extraction(sources, targets, threshold):
 			if c_in_targets:
 				targets.remove(c)
 			else:
-				insert_into_sorted(sources, c)
+				insort(sources, c)
 			if overflow_in_targets:
 				targets.remove(overflow)
 			else:
-				insert_into_sorted(sources, overflow)
+				insort(sources, overflow)
 			break
 	return len(targets) != original_n_targets
 

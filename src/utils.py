@@ -61,15 +61,15 @@ def compute_cant_use(target_counts, sources):
 def get_compute_cant_use(target_counts):
 	return partial(compute_cant_use, target_counts)
 
-def insert_into_sorted(sorted_list, item, key=lambda x: x):
-	low, high = 0, len(sorted_list)
-	while low < high:
-		mid = low + (high - low) // 2
-		if key(item) > key(sorted_list[mid]):
-			low = mid + 1
-		else:
-			high = mid
-	sorted_list.insert(low, item)
+# def insert_into_sorted(sorted_list, item, key=lambda x: x):
+	# low, high = 0, len(sorted_list)
+	# while low < high:
+	# 	mid = low + (high - low) // 2
+	# 	if key(item) > key(sorted_list[mid]):
+	# 		low = mid + 1
+	# 	else:
+	# 		high = mid
+	# sorted_list.insert(low, item)
 
 def get_sim_without(value, values):
 	sim = [v for v in values]

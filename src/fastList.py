@@ -1,11 +1,12 @@
 
-# handles like a regular list, but has a contains method for fast lookup
+# handles like a regular list, rejects duplicates, has a contains method for fast lookup
 class FastList(list):
 	def __init__(self, *args):
-		super().__init__(args)
-		self._set = set(self)
+		self._set = set()
+		self.extend(args)
 
 	def append(self, item):
+		if self.contains(item): return
 		super().append(item)
 		self._set.add(item)
 
@@ -17,8 +18,7 @@ class FastList(list):
 		return item in self._set
 
 	def extend(self, iterable):
-		super().extend(iterable)
-		self._set.update(iterable)
+		for item in iterable: self.append(item)
 
 	def clear(self):
 		super().clear()
