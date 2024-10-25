@@ -4,5 +4,5 @@
 
 solution*.png
 logs.txt
-solve.spec
+**/*.spec
 sims_caches
