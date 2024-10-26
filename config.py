@@ -8,7 +8,7 @@ class SatisSolverConfig:
 			conveyor_speeds: list[int],
 			logging: bool,
 			log_filepath: str,
-			cache_filepath: str,
+			# cache_filepath: str,
 			short_repr: bool,
 			include_level_in_logs: bool,
 			solutions_filename: Callable[[int], str],
@@ -19,7 +19,7 @@ class SatisSolverConfig:
 		self.conveyor_speeds = sorted(conveyor_speeds)
 		self.logging = logging
 		self.log_filepath = log_filepath
-		self.cache_filepath = cache_filepath
+		# self.cache_filepath = cache_filepath
 		self.short_repr = short_repr
 		self.include_level_in_logs = include_level_in_logs
 		self.solutions_filename = solutions_filename
@@ -35,7 +35,7 @@ config = SatisSolverConfig(
 	conveyor_speeds = [60, 120, 270, 480, 780, 1200],
 	logging = False,
 	log_filepath = "logs.txt",
-	cache_filepath = "sims_caches",
+	# cache_filepath = "sims_caches",
 	short_repr = True,
 	include_level_in_logs = False,
 	solutions_filename = lambda i: f"solution{i}",

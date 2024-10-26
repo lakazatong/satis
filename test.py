@@ -7,14 +7,60 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
-import cProfile, random, time
+import cProfile, random, time, math
 from bisect import insort
 from fastList import FastList
 from config import config
 
-value = 45
-conveyor_speed = next(c for c in config.conveyor_speeds if c > value)
-print(conveyor_speed)
+def compute(x, n, m, l):
+	d = 2**n*3**m
+	b = x / d
+	t = b + (l * b) / (d - l)
+	return t
+
+# print(compute(780, 1, 1, 1))
+# print(compute(28, 0, 2, 2))
+
+def count_splits(n, m):
+	result = 0
+	nodes = 1
+	for _ in range(n):
+		nodes *= 2
+		result += nodes // 2
+	for _ in range(m):
+		nodes *= 3
+		result += nodes // 3
+	return result
+
+def find_n_m_l(X):
+	max_n = 0
+	max_m = 0
+	while 2 ** max_n <= X: max_n += 1
+	while 3 ** max_m <= X: max_m += 1
+	min_splits = float('inf')
+	best_n = best_m = 0
+	best_l = 0
+	for n in range(max_n + 1):
+		for m in range(max_m + 1):
+			product = 2 ** n * 3 ** m
+			if product > X:
+				l = product - X
+				splits = count_splits(n, m)
+				if splits < min_splits:
+					min_splits = splits
+					best_n = n
+					best_m = m
+					best_l = l
+	return best_n, best_m, best_l
+
+def test(x, t):
+	t_count = int(x/t)
+	n, m, l = find_n_m_l(t_count)
+	print(n, m, l, count_splits(n, m))
+	print(f"splitting {x} {n} times in 2, then {m} times in 3, will result in {t_count} {t}'s, looping back {l} branches to {x}")
+
+test(780, 156)
+test(28, 4)
 
 # from tests.test_distance import test_distance
 
