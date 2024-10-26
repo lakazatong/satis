@@ -54,14 +54,29 @@ def find_n_m_l(X):
 					best_l = l
 	return best_n, best_m, best_l, min_splits
 
+def count_merges(n):
+	if n < 0: raise ValueError("cannot merge negative amount of nodes")
+	if n <= 1: return n
+	r = 0
+	while n > 1:
+		r += 1
+		n -= 2
+	return r
+
 def test(x, t):
 	t_count = int(x/t)
 	n, m, l, splits = find_n_m_l(t_count)
-	print(f"\nsplitting {x} {n} times in 2, then {m} times in 3\nresults in {t_count}x {t}\nloops back {l} branches to {x}\nuses {splits} splitters")
+	print("\n" + "\n".join([
+		f"splitting {x} {n} times in 2, then {m} times in 3",
+		f"results in {t_count}x {t}",
+		f"loops back {l} branches to {x}",
+		f"uses {splits} splitters + {count_merges(l)} mergers"
+	]))
 
 test(780, 156)
 test(28, 4)
 test(1200, 1)
+test(5, 0.5)
 
 # from tests.test_distance import test_distance
 

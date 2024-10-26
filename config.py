@@ -31,7 +31,7 @@ class SatisSolverConfig:
 		self.conveyor_speed_limit = self.conveyor_speeds[-1]
 
 config = SatisSolverConfig(
-	allowed_divisors = [2, 3],
+	allowed_divisors = [i for i in range(2, 1200+1)],
 	conveyor_speeds = [60, 120, 270, 480, 780, 1200],
 	logging = False,
 	log_filepath = "logs.txt",
