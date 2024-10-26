@@ -7,19 +7,15 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
-import cProfile, random, time, math
 from bisect import insort
 from fastList import FastList
 from config import config
-from utils import get_divisors, maximum_value
+from utils import get_divisors
 
 sources = [475, 85, 100]
 targets = [45, 55, 100, 460, 11]
 # for t in targets:
 # 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
-# gcd = math.gcd(*targets)
-
-
 
 h = lambda value: f"{value}: {maximum_value(value, targets)}"
 print(h(5))
@@ -98,8 +94,3 @@ test(780, 156)
 test(28, 4)
 test(1200, 1)
 test(5, 0.5)
-
-# from tests.test_distance import test_distance
-
-# cProfile.run("test_distance()")
-# test_distance()

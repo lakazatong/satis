@@ -11,9 +11,6 @@ from distance import find_best_merges
 
 class SatisSolver:
 	def __init__(self):
-		# self.simsManager = None
-		# for the SimsManager
-		# self.allowed_divisors_r = reversed(sorted(list(config.allowed_divisors)))
 		self.reset()
 		if config.logging:
 			open(config.log_filepath, "w").close()
@@ -349,24 +346,6 @@ class SatisSolver:
 				return False
 		return True
 
-	def solution_found(self, tree):
-		# return if found better size
-		if self.solutions_count == 0 or tree.size < self.best_size:
-			self.solutions = [tree]
-			self.best_size = tree.size
-			self.solutions_count = 1
-			optional_s_txt = "s" if self.solutions_count > 1 else ""
-			print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
-			return True
-		elif tree.size == self.best_size:
-			self.solutions.append(tree)
-			self.solutions_count += 1
-			optional_s_txt = "s" if self.solutions_count > 1 else ""
-			print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
-			return False
-		print("impossible case reached, should have been checked already")
-		self.solving = False
-
 	# def build_optimal_solutions(self):
 		# for i in range(self.solutions_count-1, -1, -1):
 		# 	sol_tree = self.solutions[i]
@@ -393,10 +372,33 @@ class SatisSolver:
 				tree, _ = queue[i]
 				if tree.size >= self.best_size: queue.pop(i)
 
+		def solution_found(tree):
+			# return if found better size
+			if self.solutions_count == 0 or tree.size < self.best_size:
+				self.solutions = [tree]
+				self.best_size = tree.size
+				self.solutions_count = 1
+				optional_s_txt = "s" if self.solutions_count > 1 else ""
+				print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
+				# print()
+				# print(tree)
+				return True
+			elif tree.size == self.best_size:
+				if any(t == tree for t in self.solutions): return False
+				self.solutions.append(tree)
+				self.solutions_count += 1
+				optional_s_txt = "s" if self.solutions_count > 1 else ""
+				print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
+				# print()
+				# print(tree)
+				return False
+			print("impossible case reached, should have been checked already")
+			self.solving = False
+
 		def enqueue(tree):
 			nonlocal queue
 			if self.is_solution(tree.sources):
-				if self.solution_found(tree): purge_queue()
+				if solution_found(tree): purge_queue()
 				return
 			score = self.compute_tree_score(tree)
 			if score < 0: return

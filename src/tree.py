@@ -5,6 +5,7 @@ from bisect import insort
 from config import config
 from fastList import FastList
 from utils import get_node_values, get_node_ids
+from networkx import is_isomorphic
 
 # responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:
@@ -39,6 +40,22 @@ class Tree:
 
 	def __repr__(self):
 		return "\n".join(str(root) for root in self.roots)
+
+	def to_nx_graph(self):
+		g = nx.Graph()
+		
+		def add_edges(node):
+			for child in node.children:
+				g.add_edge(node.node_id, child.node_id)
+				add_edges(child)
+		
+		for root in self.roots:
+			add_edges(root)
+		
+		return g
+
+	def __eq__(self, t2):
+		return is_isomorphic(self.to_nx_graph(), t2.to_nx_graph())
 
 	def deepcopy(self):
 		copied_nodes = {}
