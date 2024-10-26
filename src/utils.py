@@ -1,8 +1,23 @@
-import os, json, random, networkx as nx, matplotlib.pyplot as plt
+import os, json, random, networkx as nx, matplotlib.pyplot as plt, re
 
 from collections import Counter
 from config import config
 from functools import partial
+from fractions import Fraction
+
+def compute_minimum_possible_fraction(values):
+	min_fraction = None
+
+	for value in values:
+		if value.denominator == 1:
+			fraction = Fraction(1, 1)  # Treat integers as Fraction(1, 1)
+		else:
+			fraction = value - Fraction(value.numerator // value.denominator)  # Get the fractional part
+
+		if min_fraction is None or fraction < min_fraction:
+			min_fraction = fraction
+
+	return min_fraction
 
 def get_divisors(n):
 	return (x for x in range(2, n+1) if n % x == 0)
@@ -84,6 +99,42 @@ def clear_solution_files():
 		if config.solution_regex.match(filename):
 			os.remove(filename)
 
+def parse_fraction(value):
+	if '/' in value:
+		numerator, denominator = value.split('/')
+		return Fraction(int(numerator), int(denominator))
+	
+	match = re.match(r'(\d*)\.(\d*)\((\d+)\)', value)
+	if match:
+		whole_part = match.group(1)
+		non_repeating = match.group(2)
+		repeating = match.group(3)
+		
+		if not whole_part:
+			whole_part = '0'
+		
+		non_repeating_len = len(non_repeating)
+		repeating_len = len(repeating)
+
+		numerator = int(whole_part + non_repeating + repeating) - int(whole_part + non_repeating)
+		denominator = (10 ** (non_repeating_len + repeating_len) - 10 ** non_repeating_len)
+
+		return Fraction(numerator, denominator)
+
+	if '.' in value:
+		return Fraction(str(float(value))).limit_denominator()
+	
+	return Fraction(int(value), 1)
+
+def debug_parsed_values(source_values, target_values):
+	if source_values is not None and target_values is not None:
+		print("Source values:")
+		for val in source_values:
+			print(f"{val} (as fraction: {val.numerator}/{val.denominator})")
+		print("\nTarget values:")
+		for val in target_values:
+			print(f"{val} (as fraction: {val.numerator}/{val.denominator})")
+
 def parse_user_input(user_input):
 	separator = 'to'
 	if len(user_input.split(" ")) < 3 or separator not in user_input:
@@ -97,7 +148,6 @@ def parse_user_input(user_input):
 	if not source_args:
 		print("Error: At least one source value must be provided.")
 		return None, None
-
 	if not target_args:
 		print("Error: At least one target value must be provided.")
 		return None, None
@@ -107,7 +157,7 @@ def parse_user_input(user_input):
 	while i < len(source_args):
 		src = source_args[i]
 		if not src.endswith('x'):
-			source_value = int(src)
+			source_value = parse_fraction(src)
 			source_values.append(source_value)
 			i += 1
 			continue
@@ -115,9 +165,8 @@ def parse_user_input(user_input):
 			print("Error: Invalid Nx format. N must be a number followed by 'x'.")
 			return None, None
 		multiplier = int(src[:-1])
-		source_value = int(source_args[source_args.index(src) + 1])
-		for _ in range(multiplier):
-			source_values.append(source_value)
+		source_value = parse_fraction(source_args[i + 1])
+		source_values.extend([source_value] * multiplier)
 		i += 2
 
 	target_values = []
@@ -125,7 +174,7 @@ def parse_user_input(user_input):
 	while i < len(target_args):
 		target = target_args[i]
 		if not target.endswith('x'):
-			target_value = int(target)
+			target_value = parse_fraction(target)
 			target_values.append(target_value)
 			i += 1
 			continue
@@ -136,11 +185,11 @@ def parse_user_input(user_input):
 		if i + 1 == len(target_args):
 			print("Error: You must provide a target value after Nx.")
 			return None, None
-		target_value = int(target_args[i + 1])
-		for _ in range(multiplier):
-			target_values.append(target_value)
+		target_value = parse_fraction(target_args[i + 1])
+		target_values.extend([target_value] * multiplier)
 		i += 2
 
+	# debug_parsed_values(source_values, target_values)
 	return source_values, target_values
 
 def generate_test_cases(num_cases, max_size, elements_max_size=1200*2):

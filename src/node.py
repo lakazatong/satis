@@ -83,7 +83,7 @@ class Node:
 		return new_nodes
 
 	def divide(self, divisor):
-		divided_value = self.value // divisor
+		divided_value = self.value / divisor
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
 			self.children.append(node)
@@ -91,8 +91,8 @@ class Node:
 		return new_nodes
 	
 	def divide_loop(self, conveyor_speed):
-		new_value = conveyor_speed // 3
-		overflow_value = self.value - (new_value << 1)
+		new_value = conveyor_speed / 3
+		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
 			self.children.append(node)

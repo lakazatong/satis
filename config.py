@@ -17,6 +17,7 @@ class SatisSolverConfig:
 		):
 		self.allowed_divisors = sorted(allowed_divisors)
 		self.conveyor_speeds = sorted(conveyor_speeds)
+		self.conveyor_speeds_r = reversed(self.conveyor_speeds)
 		self.logging = logging
 		self.log_filepath = log_filepath
 		# self.cache_filepath = cache_filepath

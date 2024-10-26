@@ -1,6 +1,6 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors
+from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors, compute_minimum_possible_fraction
 from bisect import insort
 from config import config
 from node import Node
@@ -25,7 +25,11 @@ class SatisSolver:
 		os.fsync(self.log_file_handle.fileno())
 
 	def load(self, user_input):
-		source_values, target_values = parse_user_input(user_input)
+		try:
+			source_values, target_values = parse_user_input(user_input)
+		except:
+			print("\nTu racontes quoi mon reuf")
+			return False
 		if not source_values or not target_values: return False
 		
 		self.reset()
@@ -45,26 +49,17 @@ class SatisSolver:
 			insort(source_values, value)
 			print(f"\nSources were lacking, generated a {value} node as source")
 
+		print()
+
 		source_values_length = len(source_values)
 		self.target_values_length = len(self.target_values)
 		target_counts = {
 			value: self.target_values.count(value) for value in set(self.target_values)
 		}
 		self.compute_cant_use = get_compute_cant_use(target_counts)
-		gcd = math.gcd(*source_values, *self.target_values)
-		# if not self.simsManager:
-		# 	self.simsManager = SimsManager(self)
-		# 	self.simsManager.load_cache()
-		self.gcd_incompatible = get_gcd_incompatible(gcd)
-		# just to show, extract does "gcd_incompatible(speed)" to check instead of doing "speed in self.filtered_conveyor_speeds"
-		self.filtered_conveyor_speeds = [speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)]
-		self.conveyor_speed_limit = self.filtered_conveyor_speeds[-1]
-		# for the SimsManager
-		self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
+		self.conveyor_speed_limit = config.conveyor_speeds[-1]
+		self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
 
-		filtered_conveyor_speeds_txt = ", ".join(map(str, self.filtered_conveyor_speeds))
-		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {filtered_conveyor_speeds_txt}\n")
-		
 		self.tree_source = Tree([Node(value) for value in source_values])
 
 		return True
@@ -104,12 +99,9 @@ class SatisSolver:
 			if value in seen_values: continue
 			seen_values.add(value)
 			
-			# specific to the problem
-			
-			if self.gcd_incompatible(conveyor_speed): continue
-
 			overflow_value = value - conveyor_speed
-			if self.gcd_incompatible(overflow_value): continue
+			
+			# specific to the problem
 
 			values_to_add = [conveyor_speed, overflow_value]
 			if any(src.past.contains(value) for value in values_to_add): continue
@@ -139,20 +131,16 @@ class SatisSolver:
 			
 			seen_values.add(value)
 
-			# specific to the problem
-
-			conveyor_speed = next((c for c in self.filtered_conveyor_speeds if c > value), None)
+			conveyor_speed = next((c for c in config.conveyor_speeds if c > value), None)
 			if not conveyor_speed: continue
 			
-			new_value = conveyor_speed // 3
-			if self.gcd_incompatible(new_value): continue # may be useless
-			
-			tmp = new_value << 1
+			new_value = conveyor_speed / 3
+			tmp = new_value * 2
 			if value < tmp: continue
-
 			overflow_value = value - tmp
-			if self.gcd_incompatible(overflow_value): continue
 
+			# specific to the problem
+			
 			if src.past.contains(new_value) or src.past.contains(overflow_value): continue
 
 			sim = get_sim_without(value, source_values)
@@ -179,20 +167,15 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
-			if value in cant_use or value % divisor != 0: continue
-
-			if value in seen_values: continue
+			if value in cant_use or value in seen_values: continue
 			seen_values.add(value)
 
-			# trying to divide freshly merged nodes
-			# parents_value_sum = sum(get_node_values(src.parents))
-			# n_parents = len(src.parents)
-			# if parents_value_sum == value and n_parents == divisor: continue
+			divided_value = value / divisor
+			if divided_value < self.minimum_possible_fraction: continue
 
 			# specific to the problem
 			
-			divided_value = value // divisor
-			if self.gcd_incompatible(divided_value) or src.past.contains(divided_value): continue
+			if src.past.contains(divided_value): continue
 
 			sim = get_sim_without(value, source_values)
 			for _ in range(divisor): insort(sim, divided_value)
@@ -219,18 +202,13 @@ class SatisSolver:
 
 			if to_sum_values in seen_sums: continue
 			seen_sums.add(to_sum_values)
-			
-			# trying to merge freshly extracted / divided nodes
-			to_sum_nodes = [sources[i] for i in to_sum_indices]
-			# if all(len(node.parents) == 1 for node in to_sum_nodes):
-			# 	parent = to_sum_nodes[0].parents[0]
-			# 	if all(node.parents[0] is parent for node in to_sum_nodes) and len(parent.children) == to_sum_count: continue
 
-			# specific to the problem
-			
 			summed_value = sum(to_sum_values)
+			to_sum_nodes = [sources[i] for i in to_sum_indices]
+
+			# specific to the problem			
 			
-			if summed_value > self.conveyor_speed_limit or self.gcd_incompatible(summed_value) or any(src.past.contains(summed_value) for src in to_sum_nodes): continue
+			if summed_value > self.conveyor_speed_limit or any(src.past.contains(summed_value) for src in to_sum_nodes): continue
 
 			sim = [value for value in source_values]
 			for value in to_sum_values: sim.remove(value)
@@ -252,11 +230,10 @@ class SatisSolver:
 		sources_set = set(sources)
 		possible_extractions = [
 			(value, speed, overflow)
-			for speed in self.filtered_conveyor_speeds_r
+			for speed in config.conveyor_speeds_r
 			for value in sources_set
 			if (overflow := value - speed) \
 				and value > speed \
-				and not self.gcd_incompatible(overflow) \
 				and (speed in targets or overflow in targets)
 		]
 
@@ -293,9 +270,8 @@ class SatisSolver:
 			(value, divisor, divided_value, min(divisor, sum(1 for v in targets if v == divided_value)))
 			for divisor in config.allowed_divisors
 			for value in sources_set
-			if (divided_value := value // divisor) \
+			if (divided_value := value / divisor) \
 				and value % divisor == 0 \
-				and not self.gcd_incompatible(divided_value) \
 				and divided_value in targets
 		], key=lambda x: x[3]-x[1])
 
@@ -395,10 +371,6 @@ class SatisSolver:
 		# 		current_sol_size += len(sp_sources)
 		# print(f"{len(self.cutted_trees) = }")
 
-	def minimum_value(value):
-		all_divisors = [get_divisors(t) for t in self.target_values]
-		return sum(1 if value == targets[i] or ((all_divisors[i].get(0, None) == value or True) and all_divisors[i][0] >= self.gcd) else 0 for i in range(self.target_counts))
-
 	def solve(self):
 		queue = []
 
@@ -475,7 +447,7 @@ class SatisSolver:
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
-			for conveyor_speed in self.filtered_conveyor_speeds:
+			for conveyor_speed in config.conveyor_speeds:
 				try_op(self.extract_sims, extract, (conveyor_speed,))
 				if not self.solving: break
 			
@@ -572,7 +544,7 @@ class SatisSolver:
 # 	extracted_nodes = []
 # 	for node in nodes:
 # 		extracted_flag = False
-# 		for speed in self.filtered_conveyor_speeds:
+# 		for speed in config.conveyor_speeds:
 # 			if node.value == speed: break
 # 			if node.value > speed:
 # 				extracted_node, overflow_node = node.extract_up(speed)
