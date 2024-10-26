@@ -60,6 +60,10 @@ class SatisSolver:
 		self.conveyor_speed_limit = config.conveyor_speeds[-1]
 		self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
 
+		print(f"{self.minimum_possible_fraction = }")
+
+		print()
+
 		self.tree_source = Tree([Node(value) for value in source_values])
 
 		return True
@@ -110,10 +114,12 @@ class SatisSolver:
 			for value in values_to_add: insort(sim, value)
 			sim, sim_set = tuple(sim), set(sim)
 
-			if tree.past.contains(sim) or \
-				tree.total_seen.get(conveyor_speed, 0) + 1 > self.maximum_value(conveyor_speed) or \
-				tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
-				continue
+			# if tree.past.contains(sim) or \
+			# 	tree.total_seen.get(conveyor_speed, 0) + 1 > self.maximum_value(conveyor_speed) or \
+			# 	tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
+			# 	continue
+
+			if tree.past.contains(sim): continue
 
 			yield (sim, (i,))
 
@@ -150,10 +156,12 @@ class SatisSolver:
 
 			sim = tuple(sim)
 
-			if tree.past.contains(sim) or \
-				tree.total_seen.get(new_value, 0) + 2 > self.maximum_value(new_value) or \
-				tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
-				continue
+			# if tree.past.contains(sim) or \
+			# 	tree.total_seen.get(new_value, 0) + 2 > self.maximum_value(new_value) or \
+			# 	tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
+			# 	continue
+
+			if tree.past.contains(sim): continue
 
 			yield (sim, (i, conveyor_speed))
 
@@ -171,7 +179,7 @@ class SatisSolver:
 			seen_values.add(value)
 
 			divided_value = value / divisor
-			if divided_value < self.minimum_possible_fraction: continue
+			if divided_value.denominator != 1 and (all(divided_value.denominator != value.denominator for value in self.target_values) or divided_value < self.minimum_possible_fraction): continue
 
 			# specific to the problem
 			
@@ -181,7 +189,9 @@ class SatisSolver:
 			for _ in range(divisor): insort(sim, divided_value)
 			sim = tuple(sim)
 
-			if tree.past.contains(sim) or tree.total_seen.get(divided_value, 0) + divisor > self.maximum_value(divided_value): continue
+			# if tree.past.contains(sim) or tree.total_seen.get(divided_value, 0) + divisor > self.maximum_value(divided_value): continue
+			
+			if tree.past.contains(sim): continue
 
 			yield (sim, (i,))
 
@@ -215,7 +225,9 @@ class SatisSolver:
 			insort(sim, summed_value)
 			sim = tuple(sim)
 
-			if tree.past.contains(sim) or tree.total_seen.get(summed_value, 0) + 1 > self.maximum_value(summed_value): continue
+			# if tree.past.contains(sim) or tree.total_seen.get(summed_value, 0) + 1 > self.maximum_value(summed_value): continue
+
+			if tree.past.contains(sim): continue
 
 			yield (sim, (to_sum_indices,))
 
@@ -388,7 +400,7 @@ class SatisSolver:
 				return
 			score = self.compute_tree_score(tree)
 			if score < 0: return
-			insort(queue, (tree, score), key=lambda x: -x[1])
+			insort(queue, (tree, score), key=lambda x: (-x[1], -x[0].size))
 		
 		def dequeue():
 			nonlocal queue
