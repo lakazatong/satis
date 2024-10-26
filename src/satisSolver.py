@@ -81,13 +81,13 @@ class SatisSolver:
 
 	def maximum_value(self, value):
 		# all_divisors = [[i for i in get_divisors(t)] for t in self.target_values]
-		r = 0
-		for i in range(self.target_values_length):
-			t = self.target_values[i]
-			if value <= t:
-				r += 1
-				continue
-		return r
+		# r = 0
+		# for i in range(self.target_values_length):
+		# 	t = self.target_values[i]
+		# 	if value <= t:
+		# 		r += 1
+		# 		continue
+		return self.target_values_length
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
 		if self.solutions and tree.size + 2 > self.best_size: return
@@ -498,7 +498,9 @@ class SatisSolver:
 		# self.build_optimal_solutions()
 
 	def conclude(self):
-		if not self.solutions: return
+		if not self.solutions:
+			print("No bitches?")
+			return
 		clear_solution_files()
 		print()
 		for i, tree in enumerate(self.solutions):

@@ -5,4 +5,4 @@
 solution*.png
 logs.txt
 **/*.spec
-sims_caches
+profile.out
