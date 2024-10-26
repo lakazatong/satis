@@ -4,6 +4,9 @@ from collections import Counter
 from config import config
 from functools import partial
 
+def get_divisors(n):
+	return (x for x in range(2, n+1) if n % x == 0)
+
 def gcd_incompatible(gcd, value):
 	return value < gcd
 

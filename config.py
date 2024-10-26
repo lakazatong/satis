@@ -26,8 +26,8 @@ class SatisSolverConfig:
 		self.solutions_filename_extension = solutions_filename_extension
 		self.solution_regex = solution_regex
 		
-		self.min_sum_count = self.allowed_divisors[0]
-		self.max_sum_count = self.allowed_divisors[-1]
+		self.min_sum_count = 2
+		self.max_sum_count = 3
 		self.conveyor_speed_limit = self.conveyor_speeds[-1]
 
 config = SatisSolverConfig(

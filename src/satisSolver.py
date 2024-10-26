@@ -1,13 +1,13 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without
+from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_gcd_incompatible, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors
 from bisect import insort
 from config import config
 from node import Node
 from tree import Tree
 # from simsManager import SimsManager
 from fastList import FastList
-from distance import distance
+from distance import find_best_merges
 
 class SatisSolver:
 	def __init__(self):
@@ -60,7 +60,7 @@ class SatisSolver:
 		self.filtered_conveyor_speeds = [speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)]
 		self.conveyor_speed_limit = self.filtered_conveyor_speeds[-1]
 		# for the SimsManager
-		# self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
+		self.filtered_conveyor_speeds_r = reversed([speed for speed in config.conveyor_speeds if not self.gcd_incompatible(speed)])
 
 		filtered_conveyor_speeds_txt = ", ".join(map(str, self.filtered_conveyor_speeds))
 		print(f"\ngcd: {gcd}\nfiltered conveyor speeds: {filtered_conveyor_speeds_txt}\n")
@@ -78,6 +78,16 @@ class SatisSolver:
 		self.solutions = []
 		self.solutions_count = 0
 		self.best_size = None
+
+	def maximum_value(self, value):
+		# all_divisors = [[i for i in get_divisors(t)] for t in self.target_values]
+		r = 0
+		for i in range(self.target_values_length):
+			t = self.target_values[i]
+			if value <= t:
+				r += 1
+				continue
+		return r
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
 		if self.solutions and tree.size + 2 > self.best_size: return
@@ -106,9 +116,12 @@ class SatisSolver:
 
 			sim = get_sim_without(value, source_values)
 			for value in values_to_add: insort(sim, value)
-			sim = tuple(sim)
+			sim, sim_set = tuple(sim), set(sim)
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or \
+				tree.total_seen.get(conveyor_speed, 0) + 1 > self.maximum_value(conveyor_speed) or \
+				tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
+				continue
 
 			yield (sim, (i,))
 
@@ -149,7 +162,10 @@ class SatisSolver:
 
 			sim = tuple(sim)
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or \
+				tree.total_seen.get(new_value, 0) + 2 > self.maximum_value(new_value) or \
+				tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
+				continue
 
 			yield (sim, (i, conveyor_speed))
 
@@ -182,7 +198,7 @@ class SatisSolver:
 			for _ in range(divisor): insort(sim, divided_value)
 			sim = tuple(sim)
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or tree.total_seen.get(divided_value, 0) + divisor > self.maximum_value(divided_value): continue
 
 			yield (sim, (i,))
 
@@ -221,14 +237,110 @@ class SatisSolver:
 			insort(sim, summed_value)
 			sim = tuple(sim)
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or tree.total_seen.get(summed_value, 0) + 1 > self.maximum_value(summed_value): continue
 
 			yield (sim, (to_sum_indices,))
+
+	def compute_distance(self, sources):
+		sources = list(sources)
+		targets = self.target_values[:]
+		distance = 0
+		
+		# remove common elements
+		sources, targets = remove_pairs(sources, targets)
+
+		sources_set = set(sources)
+		possible_extractions = [
+			(value, speed, overflow)
+			for speed in self.filtered_conveyor_speeds_r
+			for value in sources_set
+			if (overflow := value - speed) \
+				and value > speed \
+				and not self.gcd_incompatible(overflow) \
+				and (speed in targets or overflow in targets)
+		]
+
+		# remove perfect extractions
+		for i in range(len(possible_extractions)-1, -1, -1):
+			value, speed, overflow = possible_extractions[i]
+			if value not in sources: continue
+			if speed == overflow:
+				if len([v for v in targets if v == speed]) < 2: continue
+			else:
+				if speed not in targets or overflow not in targets: continue
+			sources.remove(value)
+			targets.remove(speed)
+			targets.remove(overflow)
+			distance += 1
+			possible_extractions.pop(i)
+
+		# remove unperfect extractions
+		for value, speed, overflow in possible_extractions:
+			if value not in sources: continue
+			if speed in targets:
+				sources.remove(value)
+				targets.remove(speed)
+				sources.append(overflow)
+				distance += 2
+			elif overflow in targets:
+				sources.remove(value)
+				targets.remove(overflow)
+				sources.append(speed)
+				distance += 2
+
+		sources_set = set(sources)
+		possible_divisions = sorted([
+			(value, divisor, divided_value, min(divisor, sum(1 for v in targets if v == divided_value)))
+			for divisor in config.allowed_divisors
+			for value in sources_set
+			if (divided_value := value // divisor) \
+				and value % divisor == 0 \
+				and not self.gcd_incompatible(divided_value) \
+				and divided_value in targets
+		], key=lambda x: x[3]-x[1])
+
+		# remove perfect divisions
+		for i in range(len(possible_divisions)-1, -1, -1):
+			value, divisor, divided_value, divided_values_count = possible_divisions[i]
+			if divided_values_count != divisor: break
+			if value not in sources or len([v for v in targets if v == divided_value]) < divisor: continue
+			sources.remove(value)
+			for _ in range(divided_values_count): targets.remove(divided_value)
+			possible_divisions.pop(i)
+			distance += 1
+		
+		# remove unperfect divisions
+		for i in range(len(possible_divisions)-1, -1, -1):
+			value, divisor, divided_value, divided_values_count = possible_divisions[i]
+			if value not in sources or len([v for v in targets if v == divided_value]) < divided_values_count: continue
+			sources.remove(value)
+			for _ in range(divided_values_count): targets.remove(divided_value)
+			for _ in range(divisor - divided_values_count): sources.append(divided_value)
+			distance += 2
+
+		# remove all possible merges that yield a target, prioritizing the ones that merge the most amount of values in sources
+		for to_sum_count in range(config.max_sum_count, config.min_sum_count-1, -1):
+			all_combinations = list(itertools.combinations(sources, to_sum_count))
+			combinations_count = len(all_combinations)
+			all_combinations_sum = [sum(combination) for combination in all_combinations]
+			all_merges = [[
+				all_combinations[i]
+				for i in range(combinations_count)
+				if all_combinations_sum[i] == target
+			] for target in reversed(sorted(targets))]
+			sources_left, targets_left, n_targets_left = find_best_merges(all_merges, sources, targets)
+			if sources_left: # and targets_left and n_targets_left
+				sources = sources_left
+				targets = targets_left
+				distance += 1
+
+		return distance + len(sources) + len(targets)
 
 	# computes how close the sources are from the target_values
 	# the lower the better
 	def compute_tree_score(self, tree):
-		return distance(get_node_values(tree.sources), self.target_values)
+		# return distance(get_node_values(tree.sources), self.target_values)
+		return self.compute_distance(get_node_values(tree.sources))
 		# sources = tree.sources
 		# simulations = []
 		# cant_use = self.compute_cant_use(sources)
@@ -282,6 +394,10 @@ class SatisSolver:
 		# 				break
 		# 		current_sol_size += len(sp_sources)
 		# print(f"{len(self.cutted_trees) = }")
+
+	def minimum_value(value):
+		all_divisors = [get_divisors(t) for t in self.target_values]
+		return sum(1 if value == targets[i] or ((all_divisors[i].get(0, None) == value or True) and all_divisors[i][0] >= self.gcd) else 0 for i in range(self.target_counts))
 
 	def solve(self):
 		queue = []

@@ -17,8 +17,11 @@ class Tree:
 		self.source_values = tuple(root.value for root in roots)
 		self.n_sources = len(roots)
 		self.size = len(roots)
-		for root in roots: root.level = self.current_level
-
+		self.total_seen = {}
+		for root in roots:
+			root.level = self.current_level
+			self.total_seen[root.value] = self.total_seen.get(root.value, 0) + 1
+  
 		# graveyard
 
 		# self.init()
@@ -69,6 +72,8 @@ class Tree:
 		# update past
 		self.past.append(self.source_values)
 		self.source_values = get_node_values(self.sources)
+		for value in self.source_values:
+			self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
 	def level_optimal(self, i):
 		return len(self.levels[i - 1]) - len(self.levels[i]) == 2

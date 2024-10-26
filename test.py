@@ -11,6 +11,27 @@ import cProfile, random, time, math
 from bisect import insort
 from fastList import FastList
 from config import config
+from utils import get_divisors, maximum_value
+
+sources = [475, 85, 100]
+targets = [45, 55, 100, 460, 11]
+# for t in targets:
+# 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
+# gcd = math.gcd(*targets)
+
+
+
+h = lambda value: f"{value}: {maximum_value(value, targets)}"
+print(h(5))
+print(h(2))
+print(h(11))
+print(h(20))
+print(h(50))
+print(h(100))
+print(h(25))
+print(h(55))
+
+exit(0)
 
 def compute(x, n, m, l):
 	d = 2**n*3**m
