@@ -40,6 +40,7 @@ def find_n_m_l(X):
 	min_splits = float('inf')
 	best_n = best_m = 0
 	best_l = 0
+	splits = None
 	for n in range(max_n + 1):
 		for m in range(max_m + 1):
 			product = 2 ** n * 3 ** m
@@ -51,16 +52,16 @@ def find_n_m_l(X):
 					best_n = n
 					best_m = m
 					best_l = l
-	return best_n, best_m, best_l
+	return best_n, best_m, best_l, min_splits
 
 def test(x, t):
 	t_count = int(x/t)
-	n, m, l = find_n_m_l(t_count)
-	print(n, m, l, count_splits(n, m))
-	print(f"splitting {x} {n} times in 2, then {m} times in 3, will result in {t_count} {t}'s, looping back {l} branches to {x}")
+	n, m, l, splits = find_n_m_l(t_count)
+	print(f"\nsplitting {x} {n} times in 2, then {m} times in 3\nresults in {t_count}x {t}\nloops back {l} branches to {x}\nuses {splits} splitters")
 
 test(780, 156)
 test(28, 4)
+test(1200, 1)
 
 # from tests.test_distance import test_distance
 
