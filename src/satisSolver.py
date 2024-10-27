@@ -1,13 +1,13 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors, compute_minimum_possible_fraction
+from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors, compute_minimum_possible_fraction, format_fractions
 from bisect import insort
 from config import config
 from node import Node
 from tree import Tree
-# from simsManager import SimsManager
 from fastList import FastList
 from distance import find_best_merges
+from fractions import Fraction
 
 class SatisSolver:
 	def __init__(self):
@@ -48,6 +48,7 @@ class SatisSolver:
 
 		print()
 
+		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
 		source_values_length = len(source_values)
 		self.target_values_length = len(self.target_values)
 		target_counts = {
@@ -56,8 +57,6 @@ class SatisSolver:
 		self.compute_cant_use = get_compute_cant_use(target_counts)
 		self.conveyor_speed_limit = config.conveyor_speeds[-1]
 		self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
-
-		print(f"{self.minimum_possible_fraction = }")
 
 		print()
 
@@ -95,16 +94,15 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
-			if value in cant_use or value <= conveyor_speed: continue
+			if value in cant_use or value in seen_values or value <= conveyor_speed or (conveyor_speed not in config.conveyor_speeds and not divides(conveyor_speed, value)): continue
 			
-			if value in seen_values: continue
 			seen_values.add(value)
 			
 			overflow_value = value - conveyor_speed
 			
 			# specific to the problem
 
-			values_to_add = [conveyor_speed, overflow_value]
+			values_to_add = [Fraction(conveyor_speed, 1), overflow_value]
 			if any(src.past.contains(value) for value in values_to_add): continue
 
 			sim = get_sim_without(value, source_values)
@@ -137,7 +135,7 @@ class SatisSolver:
 			conveyor_speed = next((c for c in config.conveyor_speeds if c > value), None)
 			if not conveyor_speed: continue
 			
-			new_value = conveyor_speed / 3
+			new_value = Fraction(conveyor_speed, 3)
 			tmp = new_value * 2
 			if value < tmp: continue
 			overflow_value = value - tmp
@@ -172,11 +170,11 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
-			if value in cant_use or value in seen_values: continue
+			if value in cant_use or value in seen_values or not divides(divisor, value): continue
 			seen_values.add(value)
 
-			divided_value = value / divisor
-			if divided_value.denominator != 1 and (all(divided_value.denominator != value.denominator for value in self.target_values) or divided_value < self.minimum_possible_fraction): continue
+			divided_value = Fraction(value, divisor)
+			if divided_value < self.minimum_possible_fraction: continue
 
 			# specific to the problem
 			
@@ -241,8 +239,8 @@ class SatisSolver:
 			(value, speed, overflow)
 			for speed in config.conveyor_speeds_r
 			for value in sources_set
-			if (overflow := value - speed) \
-				and value > speed \
+			if (overflow := Fraction(value - speed, 1)) \
+				and value > speed and value.denominator == 1 and value.numerator % speed == 0 \
 				and (speed in targets or overflow in targets)
 		]
 
@@ -279,9 +277,9 @@ class SatisSolver:
 			(value, divisor, divided_value, min(divisor, sum(1 for v in targets if v == divided_value)))
 			for divisor in config.allowed_divisors
 			for value in sources_set
-			if (divided_value := value / divisor) \
-				and value % divisor == 0 \
-				and divided_value in targets
+			if (divided_value := Fraction(value, divisor)) \
+				and divided_value in targets \
+				and divided_value.denominator == 1 or (any(divided_value.denominator == value.denominator for value in self.target_values) and divided_value >= self.minimum_possible_fraction)
 		], key=lambda x: x[3]-x[1])
 
 		# remove perfect divisions
@@ -489,9 +487,10 @@ class SatisSolver:
 			return
 		clear_solution_files()
 		print()
+		# print(f"Saving solutions... 0/{self.solutions_count}")
 		for i, tree in enumerate(self.solutions):
 			if not self.concluding: break
-			tree.visualize(config.solutions_filename(i))
+			tree.save(config.solutions_filename(i))
 
 	# simple state machine
 	def stop(self):

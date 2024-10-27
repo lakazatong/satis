@@ -92,17 +92,7 @@ class Tree:
 		for value in self.source_values:
 			self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
-	def level_optimal(self, i):
-		return len(self.levels[i - 1]) - len(self.levels[i]) == 2
-
-	def deepest_optimal_level(self):
-		i = 1
-		while i <= self.current_level:
-			if not self.level_optimal(i): break
-			i += 1
-		return i - 1
-
-	def visualize(self, filename):
+	def save(self, filename):
 		try:
 			G = nx.DiGraph()
 			seen_ids = set()
@@ -132,7 +122,6 @@ class Tree:
 			for edge in A.edges():
 				edge.attr["color"] = "white"
 
-			print(f"\nGenerating {filename}...", end="")
 			A.layout(prog="dot")
 			img_stream = io.BytesIO()
 			A.draw(img_stream, format=config.solutions_filename_extension)
@@ -140,7 +129,6 @@ class Tree:
 			filepath = f"{filename}.{config.solutions_filename_extension}"
 			with open(filepath, "wb") as f:
 				f.write(img_stream.getvalue())
-			print(f"done, solution saved at '{filepath}'")
 		except Exception as e:
 			print(traceback.format_exc(), end="")
 			return

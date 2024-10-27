@@ -10,24 +10,37 @@ if sys.platform == "win32":
 from bisect import insort
 from fastList import FastList
 from config import config
-from utils import get_divisors
+from utils import get_divisors, decimal_representation_info, divides
+from fractions import Fraction
 
-sources = [475, 85, 100]
-targets = [45, 55, 100, 460, 11]
-# for t in targets:
-# 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
+# print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
+# print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
+# print(decimal_representation_info(Fraction(144_573, 2_401))) # non terminating and never repeating
 
-h = lambda value: f"{value}: {maximum_value(value, targets)}"
-print(h(5))
-print(h(2))
-print(h(11))
-print(h(20))
-print(h(50))
-print(h(100))
-print(h(25))
-print(h(55))
+# exit(0)
 
-exit(0)
+# sources = [475, 85, 100]
+# targets = [45, 55, 100, 460, 11]
+# # for t in targets:
+# # 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
+
+# h = lambda value: f"{value}: {maximum_value(value, targets)}"
+# print(h(5))
+# print(h(2))
+# print(h(11))
+# print(h(20))
+# print(h(50))
+# print(h(100))
+# print(h(25))
+# print(h(55))
+
+# exit(0)
+
+# print(divides(Fraction(11, 4), 11))
+# print(divides(25, 457))
+# print(divides(Fraction(1, 2), Fraction(11, 2)))
+
+# exit(0)
 
 def compute(x, n, m, l):
 	d = 2**n*3**m
@@ -71,26 +84,37 @@ def find_n_m_l(X):
 					best_l = l
 	return best_n, best_m, best_l, min_splits
 
-def count_merges(n):
-	if n < 0: raise ValueError("cannot merge negative amount of nodes")
-	if n <= 1: return n
+def count_merges(n, m, l):
+	if l < 0: raise ValueError("cannot merge negative amount of nodes")
+	if l <= 1: return l
 	r = 0
-	while n > 1:
+	while l > 1:
 		r += 1
-		n -= 2
+		l -= 2
 	return r
 
 def test(x, t):
+	if not divides(t, x):
+		print("no?")
+		return
 	t_count = int(x/t)
 	n, m, l, splits = find_n_m_l(t_count)
 	print("\n" + "\n".join([
 		f"splitting {x} {n} times in 2, then {m} times in 3",
 		f"results in {t_count}x {t}",
 		f"loops back {l} branches to {x}",
-		f"uses {splits} splitters + {count_merges(l)} mergers"
+		f"uses {splits} splitters + {count_merges(n, m, l)} mergers"
 	]))
 
 test(780, 156)
 test(28, 4)
 test(1200, 1)
 test(5, 0.5)
+test(5.5, 0.5)
+test(60, 1)
+test(2285, 125)
+test(457, 25)
+test(115, 5)
+test(11, Fraction(11, 4))
+test(45, 5)
+# print(count_merges(60))
