@@ -75,7 +75,7 @@ def divide_cost(d, x, force_l=None):
 	if d == 1: return 0
 	if d == 2 or d == 3: return 1
 	n, m, l, min_splits = find_n_m_l(d)
-	print(f"{n = }, {m = }, {l = }, {min_splits = }")
+	# print(f"{n = }, {m = }, {l = }, {min_splits = }")
 	if force_l: l = force_l
 	if l == x: return 0
 	if l == 0 or (l < 3 and m > 0) or (l < 2 and n > 0 and m == 0):
@@ -83,8 +83,8 @@ def divide_cost(d, x, force_l=None):
 		# + 1 merger if we loop at least one branch
 		return min_splits + (1 if l > 0 else 0)
 	saved_spitters, levels_count = compute_tree_info(n, m)
-	print(f"{saved_spitters = }")
-	print(f"{levels_count = }")
+	# print(f"{saved_spitters = }")
+	# print(f"{levels_count = }")
 	r = min_splits + 1
 	n_looping_branches, n_saved_splitters = compute_n_looping_branches(l, saved_spitters, levels_count)
 	return r - n_saved_splitters + merge_cost(n_looping_branches, t = 2)

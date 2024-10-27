@@ -21,7 +21,7 @@ from distance import Distance
 # exit(0)
 
 sources = [3, 3, 3, 1, 1, 1]
-targets = [4] * 7
+targets = [4] * 3
 
 distance = Distance(targets)
 r = distance.compute(sources)

@@ -1,6 +1,6 @@
 import itertools
 
-from utils import remove_pairs, divides
+from utils import divides, extract_cost, divide_cost, merge_cost
 from bisect import insort
 from config import config
 from fractions import Fraction
@@ -9,7 +9,7 @@ class Distance:
 	def __init__(self, targets):
 		self.targets = targets
 		self.n_targets = len(targets)
-		self.cache = {}
+		self.cache = [self.compute_individual(i) for i in range(config.conveyor_speed_limit + 1)]
 
 	def score_extract(self, src):
 		score = 0
@@ -32,27 +32,28 @@ class Distance:
 
 	def score_split(self, src):
 		c = next((c for c in config.conveyor_speeds if c > src), None)
+		if not c: return 0
 		value = Fraction(c, 3)
 		tmp = 2 * value
-		if not c or src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
+		if src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
 		overflow = src - tmp
 		if value == overflow: return 0 # equivalent to dividing in three
 		return (self.targets.count(value) + (1 if overflow in self.targets else 0)) / 3 # the cost is always 3 (2 splitters + 1 merger)
 
+	def score_merge(self, comb):
+		return merge_cost(len(comb), 1)
+
 	def compute_individual(self, src):
 		return max(self.score_extract(src), self.score_divide(src), self.score_split(src))
 
-	def reduce(self, scores):
-		scores.append(scores.pop() + scores.pop())
-
 	def compute(self, sources):
-		self.n_sources = len(sources)
-		for src in set(sources):
-			if not self.cache.get(src, None): self.cache[src] = self.compute_individual(src)
-		scores = [self.cache[src] for src in sources]
-		print(scores)
-		for _ in range(self.n_sources-1): self.reduce(scores)
-		return scores[0]
+		n = len(sources)
+		return max(
+			self.cache[comb[0]] if len(comb) == 1 else self.score_merge(comb)
+			for to_sum_count in range(1, n+1)
+			for comb in set(itertools.combinations(sources, to_sum_count))
+			if len(comb) == 1 or sum(comb) in self.targets
+		)
 
 # def find_best_merges(all_merges, sources, targets):
 # 	best_sources_left, best_targets_left = None, None
