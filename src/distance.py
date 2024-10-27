@@ -3,6 +3,7 @@ import itertools
 from utils import remove_pairs, divides
 from bisect import insort
 from config import config
+from fractions import Fraction
 
 class Distance:
 	def __init__(self, targets):
@@ -10,47 +11,48 @@ class Distance:
 		self.n_targets = len(targets)
 		self.cache = {}
 
-	def distance_extract(self, src):
-		score = None
+	def score_extract(self, src):
+		score = 0
 		for c in config.allowed_divisors:
 			if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
 			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(c, src)
-			if score is None or new_score > score: score = new_score
+			if new_score > score: score = new_score
 		return score
 
-	def scoreance_divide(self, src):
-		score = None
+	def score_divide(self, src):
+		score = 0
 		for d in config.allowed_divisors:
 			if not divides(d, src): continue
 			divided_value = Fraction(src, d)
 			new_score = self.targets.count(divided_value) / divide_cost(d, src)
-			if score is None or new_score > score: score = new_score
+			if new_score > score: score = new_score
 		return score
 
-	def distance_split(self, src):
+	def score_split(self, src):
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		value = Fraction(c, 3)
 		tmp = 2 * value
 		if not c or src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
 		overflow = src - tmp
 		if value == overflow: return 0 # equivalent to dividing in three
-		return (self.targets.count(value) + 1 if overflow in self.targets else 0) / 3 # the cost is always 3 (2 splitters + 1 merger)
+		return (self.targets.count(value) + (1 if overflow in self.targets else 0)) / 3 # the cost is always 3 (2 splitters + 1 merger)
 
 	def compute_individual(self, src):
-		return max(self.distance_extract(src), self.distance_divide(src), self.distance_split(src))
+		return max(self.score_extract(src), self.score_divide(src), self.score_split(src))
 
-	def reduce(self, distances):
-		distances.append(distances.pop() + distances.pop())
+	def reduce(self, scores):
+		scores.append(scores.pop() + scores.pop())
 
 	def compute(self, sources):
 		self.n_sources = len(sources)
 		for src in set(sources):
 			if not self.cache.get(src, None): self.cache[src] = self.compute_individual(src)
-		distances = [self.cache[src] for src in sources]
-		for _ in range(self.n_sources-1): self.reduce(distances)
-		return distances[0]
+		scores = [self.cache[src] for src in sources]
+		print(scores)
+		for _ in range(self.n_sources-1): self.reduce(scores)
+		return scores[0]
 
 # def find_best_merges(all_merges, sources, targets):
 # 	best_sources_left, best_targets_left = None, None

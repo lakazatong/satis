@@ -1,7 +1,7 @@
 import os, json, random, networkx as nx, matplotlib.pyplot as plt, re, math
 
 from collections import Counter
-# from config import config
+from config import config
 from functools import partial
 from fractions import Fraction
 
@@ -44,11 +44,31 @@ def find_n_m_l(X):
 			l = product - X
 	return best_n, best_m, l, min_splits
 
-def split_cost(c, x):
-	# how many splitters + mergers at minimum to split c from x
-	return 0
+def compute_tree_info(n, m):
+	saved_spitters = [0] # starting from the bottom
+	levels_count = [2**n*3**m] # starting from the top
+	for _ in range(m): saved_spitters.append(saved_spitters[-1] * 3 + 1)
+	for _ in range(n): saved_spitters.append(saved_spitters[-1] * 2 + 1)
+	
+	for _ in range(n): levels_count.append(levels_count[-1] // 2)
+	for _ in range(m): levels_count.append(levels_count[-1] // 3)
+	
+	saved_spitters = [n for n in reversed(saved_spitters)]
+	# n_levels = len(levels_count) # == 1 + n + m
+	return saved_spitters, levels_count
 
-def divide_cost(d, x, force_l = None):
+def compute_n_looping_branches(l, saved_spitters, levels_count):
+	n_looping_branches = n_saved_splitters = 0
+	while l:
+		i = 0
+		while levels_count[i] > l: i += 1
+		n_saved_splitters += saved_spitters[i]
+		l -= levels_count[i]
+		# print(f"{l = }, {n_saved_splitters = }, {i = }")
+		n_looping_branches += 1
+	return n_looping_branches, n_saved_splitters
+
+def divide_cost(d, x, force_l=None):
 	# how many splitters + mergers at minimum to divide x into d
 	# d is such that divides(d, x) is True
 	if d == 0: raise ValueError("d == 0")
@@ -62,35 +82,24 @@ def divide_cost(d, x, force_l = None):
 		# no optimization to be done about looping l branches back to x
 		# + 1 merger if we loop at least one branch
 		return min_splits + (1 if l > 0 else 0)
-	saved_spitters = [0] # starting from the bottom
-	levels_count = [2**n*3**m] # starting from the top
-	for _ in range(m): saved_spitters.append(saved_spitters[-1] * 3 + 1)
-	for _ in range(n): saved_spitters.append(saved_spitters[-1] * 2 + 1)
-	
-	for _ in range(n): levels_count.append(levels_count[-1] // 2)
-	for _ in range(m): levels_count.append(levels_count[-1] // 3)
-	
-	saved_spitters = [n for n in reversed(saved_spitters)]
+	saved_spitters, levels_count = compute_tree_info(n, m)
 	print(f"{saved_spitters = }")
 	print(f"{levels_count = }")
-	# n_levels = len(levels_count) # == 1 + n + m
 	r = min_splits + 1
-	n_looping_branches = 0
-	while l:
-		i = 0
-		while levels_count[i] > l: i += 1
-		r -= saved_spitters[i]
-		l -= levels_count[i]
-		print(f"{l = }, {r = }, {i = }")
-		n_looping_branches += 1
-	return r + merge_cost(n_looping_branches, t = 2)
-
+	n_looping_branches, n_saved_splitters = compute_n_looping_branches(l, saved_spitters, levels_count)
+	return r - n_saved_splitters + merge_cost(n_looping_branches, t = 2)
+	
 def extract_cost(c, x):
 	# how many splitters + mergers at minimum to extract c from x
-	cost = divide_cost(x, x, force_l = x - c)
-	
+	if c == 0: raise ValueError("c == 0")
+	if c in config.conveyor_speeds: return 1
+	n, m, _, min_splits = find_n_m_l(x)
+	saved_spitters, levels_count = compute_tree_info(n, m)
+	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, saved_spitters, levels_count)
+	n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(x - c, saved_spitters, levels_count)
+	return min_splits - n_saved_splitters_extracted - n_saved_splitters_overflow + merge_cost(n_looping_branches_extracted, 1) + merge_cost(n_looping_branches_overflow, 1)
 
-def merge_cost(n, t = 1):
+def merge_cost(n, t):
 	# how many mergers at minimum to merge n values into t
 	if n <= t: return 0
 	r = 0
@@ -98,36 +107,6 @@ def merge_cost(n, t = 1):
 		r += 1
 		n -= 2
 	return r
-
-x = 12
-# for d in range(1, x+1):
-# 	print(d)
-# 	print(find_n_m_l(d))
-# 	print(divide_cost(d, x))
-# 	print()
-
-#      0  1  2  3  4  5  6  7  8  9 10 11 12
-# res = [7, 8, 8, 7, 7, 8, 5, 5, 6, 4, 5, 5, 0]
-# for i in range(x+1):
-# 	print()
-# 	cost = divide_cost(x, x, force_l = i)
-# 	print(f"{cost = }")
-# 	if cost != res[i]:
-# 		print(f"failed for {i}")
-# 		break
-
-#      1  2  3  4  6
-res = [0, 0, 0, 0, 0]
-for i in range(1, x+1):
-	if not divides(i, x): continue
-	print()
-	cost = extract_cost(i, x)
-	print(f"{cost = }")
-	# if cost != res[i]:
-	# 	print(f"failed for {i}")
-	# 	break
-
-exit(0)
 
 def print_standing_text(text, length=100):
 	print("\r" + " " * length + "\r" + text, end="")

@@ -10,7 +10,7 @@ if sys.platform == "win32":
 from bisect import insort
 from fastList import FastList
 from config import config
-from utils import get_divisors, decimal_representation_info, divides
+from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost
 from fractions import Fraction
 from distance import Distance
 
@@ -28,6 +28,36 @@ r = distance.compute(sources)
 print(r)
 
 exit(0)
+
+x = 12
+# for d in range(1, x+1):
+# 	print(d)
+# 	print(find_n_m_l(d))
+# 	print(divide_cost(d, x))
+# 	print()
+
+#      0  1  2  3  4  5  6  7  8  9 10 11 12
+# res = [7, 8, 8, 7, 7, 8, 5, 5, 6, 4, 5, 5, 0]
+# for i in range(x+1):
+# 	print()
+# 	cost = divide_cost(x, x, force_l = i)
+# 	print(f"{cost = }")
+# 	if cost != res[i]:
+# 		print(f"failed for {i}")
+# 		break
+
+#      1  2  3  4  5  6  7  8  9 10 11 12
+# res = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+# for i in range(1, x+1):
+# 	print()
+# 	cost = extract_cost(i, x)
+# 	print(f"{i = }")
+# 	print(f"{cost = }")
+# 	# if cost != res[i]:
+# 	# 	print(f"failed for {i}")
+# 	# 	break
+
+# exit(0)
 
 # # for t in targets:
 # # 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
