@@ -12,7 +12,7 @@ from fastList import FastList
 from config import config
 from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost
 from fractions import Fraction
-from distance import Distance
+from score import ScoreCalculator
 
 # print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
@@ -23,8 +23,8 @@ from distance import Distance
 sources = [3, 3, 3, 1, 1, 1]
 targets = [4] * 3
 
-distance = Distance(targets)
-r = distance.compute(sources)
+scoreCalculator = ScoreCalculator(targets)
+r = scoreCalculator.compute(sources)
 print(r)
 
 exit(0)

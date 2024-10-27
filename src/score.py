@@ -1,11 +1,11 @@
 import itertools
 
-from utils import divides, extract_cost, divide_cost, merge_cost
+from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost
 from bisect import insort
 from config import config
 from fractions import Fraction
 
-class Distance:
+class ScoreCalculator:
 	def __init__(self, targets):
 		self.targets = targets
 		self.n_targets = len(targets)
@@ -46,14 +46,16 @@ class Distance:
 	def compute_individual(self, src):
 		return max(self.score_extract(src), self.score_divide(src), self.score_split(src))
 
-	def compute(self, sources):
-		n = len(sources)
-		return max(
-			self.cache[comb[0]] if len(comb) == 1 else self.score_merge(comb)
-			for to_sum_count in range(1, n+1)
-			for comb in set(itertools.combinations(sources, to_sum_count))
-			if len(comb) == 1 or sum(comb) in self.targets
-		)
+	def compute(self, given_sources):
+		sources, targets = remove_pairs(given_sources, self.targets)
+		score = len(targets) - len(self.n_targets) + sum(self.cache[src] for src in set(sources))
+		for to_sum_count in range(2, n+1):
+			for comb in itertools.combinations(sources, to_sum_count):
+				
+
+		print(scores)
+		return sum(scores)
+			
 
 # def find_best_merges(all_merges, sources, targets):
 # 	best_sources_left, best_targets_left = None, None
