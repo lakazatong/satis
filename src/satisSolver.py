@@ -1,6 +1,16 @@
 import math, time, random, itertools, json, os
 
-from utils import get_node_values, get_node_ids, clear_solution_files, parse_user_input, get_compute_cant_use, get_sim_without, remove_pairs, get_divisors, compute_minimum_possible_fraction, format_fractions
+from utils import \
+	get_node_values, \
+	parse_user_input, \
+	get_compute_cant_use, \
+	get_sim_without, \
+	remove_pairs, \
+	get_divisors, \
+	compute_minimum_possible_fraction, \
+	format_fractions, \
+	divides, \
+	print_standing_text
 from bisect import insort
 from config import config
 from node import Node
@@ -57,8 +67,6 @@ class SatisSolver:
 		self.compute_cant_use = get_compute_cant_use(target_counts)
 		self.conveyor_speed_limit = config.conveyor_speeds[-1]
 		self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
-
-		print()
 
 		self.tree_source = Tree([Node(value) for value in source_values])
 
@@ -170,7 +178,10 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
+			print(value, divisor, divides(divisor, value))
 			if value in cant_use or value in seen_values or not divides(divisor, value): continue
+			print("yes")
+			print()
 			seen_values.add(value)
 
 			divided_value = Fraction(value, divisor)
@@ -227,22 +238,25 @@ class SatisSolver:
 			yield (sim, (to_sum_indices,))
 
 	def compute_distance(self, sources):
+		print(f"computing distance of {sources}")
 		sources = list(sources)
 		targets = self.target_values[:]
 		distance = 0
 		
 		# remove common elements
 		sources, targets = remove_pairs(sources, targets)
+		print(f"computing distance of {sources}")
 
 		sources_set = set(sources)
 		possible_extractions = [
 			(value, speed, overflow)
-			for speed in config.conveyor_speeds_r
+			for speed in config.allowed_extractors_r
 			for value in sources_set
 			if (overflow := Fraction(value - speed, 1)) \
 				and value > speed and value.denominator == 1 and value.numerator % speed == 0 \
 				and (speed in targets or overflow in targets)
 		]
+		print(f"computing distance of {sources}")
 
 		# remove perfect extractions
 		for i in range(len(possible_extractions)-1, -1, -1):
@@ -257,6 +271,7 @@ class SatisSolver:
 			targets.remove(overflow)
 			distance += 1
 			possible_extractions.pop(i)
+		print(f"computing distance of {sources}")
 
 		# remove unperfect extractions
 		for value, speed, overflow in possible_extractions:
@@ -271,6 +286,7 @@ class SatisSolver:
 				targets.remove(overflow)
 				sources.append(speed)
 				distance += 2
+		print(f"computing distance of {sources}")
 
 		sources_set = set(sources)
 		possible_divisions = sorted([
@@ -281,6 +297,7 @@ class SatisSolver:
 				and divided_value in targets \
 				and divided_value.denominator == 1 or (any(divided_value.denominator == value.denominator for value in self.target_values) and divided_value >= self.minimum_possible_fraction)
 		], key=lambda x: x[3]-x[1])
+		print(f"computing distance of {sources}")
 
 		# remove perfect divisions
 		for i in range(len(possible_divisions)-1, -1, -1):
@@ -291,6 +308,7 @@ class SatisSolver:
 			for _ in range(divided_values_count): targets.remove(divided_value)
 			possible_divisions.pop(i)
 			distance += 1
+		print(f"computing distance of {sources}")
 		
 		# remove unperfect divisions
 		for i in range(len(possible_divisions)-1, -1, -1):
@@ -300,6 +318,7 @@ class SatisSolver:
 			for _ in range(divided_values_count): targets.remove(divided_value)
 			for _ in range(divisor - divided_values_count): sources.append(divided_value)
 			distance += 2
+		print(f"computing distance of {sources}")
 
 		# remove all possible merges that yield a target, prioritizing the ones that merge the most amount of values in sources
 		for to_sum_count in range(config.max_sum_count, config.min_sum_count-1, -1):
@@ -316,24 +335,9 @@ class SatisSolver:
 				sources = sources_left
 				targets = targets_left
 				distance += 1
+		print(f"computed distance of {sources}")
 
 		return distance + len(sources) + len(targets)
-
-	# computes how close the sources are from the target_values
-	# the lower the better
-	def compute_tree_score(self, tree):
-		# return distance(get_node_values(tree.sources), self.target_values)
-		return self.compute_distance(get_node_values(tree.sources))
-		# sources = tree.sources
-		# simulations = []
-		# cant_use = self.compute_cant_use(sources)
-		# simulations.extend(self.extract_sims(tree, cant_use))
-		# simulations.extend(self.divide_sims(tree, cant_use))
-		# simulations.extend(self.merge_sims(tree, cant_use))
-		# score = -1
-		# # it required at least one operation to get there, hence the 1 +
-		# if simulations: score = 1 + min(self.simsManager.compute_distance(sim, self.target_values) for sim, _ in simulations)
-		# return score
 
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
@@ -377,7 +381,7 @@ class SatisSolver:
 				self.best_size = tree.size
 				self.solutions_count = 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
 				# print()
 				# print(tree)
 				return True
@@ -386,7 +390,7 @@ class SatisSolver:
 				self.solutions.append(tree)
 				self.solutions_count += 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print("\r" + " " * 100 + f"\rFound {self.solutions_count} solution{optional_s_txt} of size {self.best_size}", end="")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
 				# print()
 				# print(tree)
 				return False
@@ -398,9 +402,9 @@ class SatisSolver:
 			if self.is_solution(tree.sources):
 				if solution_found(tree): purge_queue()
 				return
-			score = self.compute_tree_score(tree)
-			if score < 0: return
-			insort(queue, (tree, score), key=lambda x: (-x[1], -x[0].size))
+			dist = self.compute_distance(get_node_values(tree.sources))
+			if dist < 0: return
+			insort(queue, (tree, dist), key=lambda x: (-x[1], -x[0].size))
 		
 		def dequeue():
 			nonlocal queue
@@ -409,7 +413,7 @@ class SatisSolver:
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
 			# maximum exploration is reached at (70 - 30) / 5 = 8 solutions found
 			# 30% exploration when no solution is found
-			# by exploration I mean trees with lower scores
+			# by exploration I mean trees with higher distances to targets
 			exploration_prob = max(0.3, 0.70 - (5 * self.solutions_count / 100))
 			return queue.pop(-1 if random.random() < exploration_prob else random.randrange(n-1))
 
@@ -459,38 +463,52 @@ class SatisSolver:
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
-			for conveyor_speed in config.conveyor_speeds:
+			print("extracting")
+			for conveyor_speed in config.allowed_extractors_r:
 				try_op(self.extract_sims, extract, (conveyor_speed,))
 				if not self.solving: break
 			
 			if not self.solving: break
 			
+			print("dividing")
 			for divisor in config.allowed_divisors:
 				try_op(self.divide_sims, divide, (divisor,))
 				if not self.solving: break
 			
 			if not self.solving: break
 			
+			print("dividing loop")
 			try_op(self.divide_loop_sims, divide_loop)
 			
 			if not self.solving: break
 
+			print("merging")
 			for to_sum_count in range(config.min_sum_count, config.max_sum_count + 1):
 				try_op(self.merge_sims, merge, (to_sum_count,))
 				if not self.solving: break
 
 		# self.build_optimal_solutions()
 
+	def clear_solution_files(self):
+		for filename in os.listdir(self.problem_str):
+			if config.solution_regex.match(filename):
+				os.remove(os.path.join(self.problem_str, filename))
+
 	def conclude(self):
+		print()
+		print()
 		if not self.solutions:
 			print("No bitches?")
 			return
-		clear_solution_files()
-		print()
-		# print(f"Saving solutions... 0/{self.solutions_count}")
+		if os.path.isdir(self.problem_str):
+			self.clear_solution_files()
+		else:
+			os.makedirs(self.problem_str)
 		for i, tree in enumerate(self.solutions):
 			if not self.concluding: break
-			tree.save(config.solutions_filename(i))
+			print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
+			tree.save(os.path.join(self.problem_str, config.solutions_filename(i)))
+		print()
 
 	# simple state machine
 	def stop(self):
@@ -557,7 +575,7 @@ class SatisSolver:
 # 	extracted_nodes = []
 # 	for node in nodes:
 # 		extracted_flag = False
-# 		for speed in config.conveyor_speeds:
+# 		for speed in config.allowed_extractors_r:
 # 			if node.value == speed: break
 # 			if node.value > speed:
 # 				extracted_node, overflow_node = node.extract_up(speed)

@@ -1,13 +1,136 @@
-import os, json, random, networkx as nx, matplotlib.pyplot as plt, re
+import os, json, random, networkx as nx, matplotlib.pyplot as plt, re, math
 
 from collections import Counter
-from config import config
+# from config import config
 from functools import partial
 from fractions import Fraction
 
 def divides(a, b):
+	if a == 0: raise ValueError("a == 0")
 	q, remainder = divmod(b, a)
-	return q if remainder == 0 else None
+	return q if remainder == 0 and q != 1 else None
+
+def count_splits(n, m):
+	result = 0
+	nodes = 1
+	for _ in range(n):
+		nodes *= 2
+		result += nodes // 2
+	for _ in range(m):
+		nodes *= 3
+		result += nodes // 3
+	return result
+
+def find_n_m_l(X):
+	# solves 2^n*3^m - l = X
+	# by first solving 2^n*3^m > X and deducing l
+	# finds such n, m that minimizes count_splits(n, m)
+	if X == 0: raise ValueError("X == 0")
+	max_n = 0
+	max_m = 0
+	while 2 ** max_n <= X: max_n += 1
+	while 3 ** max_m <= X: max_m += 1
+	min_splits = float('inf')
+	best_n = best_m = l = 0
+	for m in range(max_m + 1):
+		for n in range(max_n + 1):
+			product = 2 ** n * 3 ** m
+			if product < X: continue
+			splits = count_splits(n, m)
+			if splits >= min_splits: continue
+			min_splits = splits
+			best_n = n
+			best_m = m
+			l = product - X
+	return best_n, best_m, l, min_splits
+
+def split_cost(c, x):
+	# how many splitters + mergers at minimum to split c from x
+	return 0
+
+def divide_cost(d, x, force_l = None):
+	# how many splitters + mergers at minimum to divide x into d
+	# d is such that divides(d, x) is True
+	if d == 0: raise ValueError("d == 0")
+	if d == 1: return 0
+	if d == 2 or d == 3: return 1
+	n, m, l, min_splits = find_n_m_l(d)
+	print(f"{n = }, {m = }, {l = }, {min_splits = }")
+	if force_l: l = force_l
+	if l == x: return 0
+	if l == 0 or (l < 3 and m > 0) or (l < 2 and n > 0 and m == 0):
+		# no optimization to be done about looping l branches back to x
+		# + 1 merger if we loop at least one branch
+		return min_splits + (1 if l > 0 else 0)
+	saved_spitters = [0] # starting from the bottom
+	levels_count = [2**n*3**m] # starting from the top
+	for _ in range(m): saved_spitters.append(saved_spitters[-1] * 3 + 1)
+	for _ in range(n): saved_spitters.append(saved_spitters[-1] * 2 + 1)
+	
+	for _ in range(n): levels_count.append(levels_count[-1] // 2)
+	for _ in range(m): levels_count.append(levels_count[-1] // 3)
+	
+	saved_spitters = [n for n in reversed(saved_spitters)]
+	print(f"{saved_spitters = }")
+	print(f"{levels_count = }")
+	# n_levels = len(levels_count) # == 1 + n + m
+	r = min_splits + 1
+	n_looping_branches = 0
+	while l:
+		i = 0
+		while levels_count[i] > l: i += 1
+		r -= saved_spitters[i]
+		l -= levels_count[i]
+		print(f"{l = }, {r = }, {i = }")
+		n_looping_branches += 1
+	return r + merge_cost(n_looping_branches, t = 2)
+
+def extract_cost(c, x):
+	# how many splitters + mergers at minimum to extract c from x
+	cost = divide_cost(x, x, force_l = x - c)
+	
+
+def merge_cost(n, t = 1):
+	# how many mergers at minimum to merge n values into t
+	if n <= t: return 0
+	r = 0
+	while n > t:
+		r += 1
+		n -= 2
+	return r
+
+x = 12
+# for d in range(1, x+1):
+# 	print(d)
+# 	print(find_n_m_l(d))
+# 	print(divide_cost(d, x))
+# 	print()
+
+#      0  1  2  3  4  5  6  7  8  9 10 11 12
+# res = [7, 8, 8, 7, 7, 8, 5, 5, 6, 4, 5, 5, 0]
+# for i in range(x+1):
+# 	print()
+# 	cost = divide_cost(x, x, force_l = i)
+# 	print(f"{cost = }")
+# 	if cost != res[i]:
+# 		print(f"failed for {i}")
+# 		break
+
+#      1  2  3  4  6
+res = [0, 0, 0, 0, 0]
+for i in range(1, x+1):
+	if not divides(i, x): continue
+	print()
+	cost = extract_cost(i, x)
+	print(f"{cost = }")
+	# if cost != res[i]:
+	# 	print(f"failed for {i}")
+	# 	break
+
+exit(0)
+
+def print_standing_text(text, length=100):
+	print("\r" + " " * length + "\r" + text, end="")
 
 def decimal_representation_info(fraction):
 	denominator = fraction.denominator
@@ -178,11 +301,6 @@ def get_sim_without(value, values):
 	sim = [v for v in values]
 	sim.remove(value)
 	return sim
-
-def clear_solution_files():
-	for filename in os.listdir('.'):
-		if config.solution_regex.match(filename):
-			os.remove(filename)
 
 def parse_fraction(value):
 	if '/' in value:

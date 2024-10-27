@@ -1,44 +1,92 @@
 import itertools
 
-from utils import remove_pairs
+from utils import remove_pairs, divides
 from bisect import insort
 from config import config
 
-def find_best_merges(all_merges, sources, targets):
-	best_sources_left, best_targets_left = None, None
-	best_n_targets_left = None
-	n_targets = len(targets)
+class Distance:
+	def __init__(self, targets):
+		self.targets = targets
+		self.n_targets = len(targets)
+		self.cache = {}
 
-	def _find_best_merges(cur_target_idx, sources_left, targets_left):
-		nonlocal best_sources_left, best_targets_left, best_n_targets_left
-		if cur_target_idx >= n_targets:
-			n_targets_left = len(targets_left)
-			if not best_n_targets_left or n_targets_left < best_n_targets_left:
-				best_n_targets_left = n_targets_left
-				best_sources_left = sources_left[:]
-				best_targets_left = targets_left[:]
-			return
+	def distance_extract(self, src):
+		score = None
+		for c in config.allowed_divisors:
+			if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
+			overflow = src - c
+			if c == overflow: continue # equivalent to splitting in two
+			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(c, src)
+			if score is None or new_score > score: score = new_score
+		return score
+
+	def scoreance_divide(self, src):
+		score = None
+		for d in config.allowed_divisors:
+			if not divides(d, src): continue
+			divided_value = Fraction(src, d)
+			new_score = self.targets.count(divided_value) / divide_cost(d, src)
+			if score is None or new_score > score: score = new_score
+		return score
+
+	def distance_split(self, src):
+		c = next((c for c in config.conveyor_speeds if c > src), None)
+		value = Fraction(c, 3)
+		tmp = 2 * value
+		if not c or src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
+		overflow = src - tmp
+		if value == overflow: return 0 # equivalent to dividing in three
+		return (self.targets.count(value) + 1 if overflow in self.targets else 0) / 3 # the cost is always 3 (2 splitters + 1 merger)
+
+	def compute_individual(self, src):
+		return max(self.distance_extract(src), self.distance_divide(src), self.distance_split(src))
+
+	def reduce(self, distances):
+		distances.append(distances.pop() + distances.pop())
+
+	def compute(self, sources):
+		self.n_sources = len(sources)
+		for src in set(sources):
+			if not self.cache.get(src, None): self.cache[src] = self.compute_individual(src)
+		distances = [self.cache[src] for src in sources]
+		for _ in range(self.n_sources-1): self.reduce(distances)
+		return distances[0]
+
+# def find_best_merges(all_merges, sources, targets):
+# 	best_sources_left, best_targets_left = None, None
+# 	best_n_targets_left = None
+# 	n_targets = len(targets)
+
+# 	def _find_best_merges(cur_target_idx, sources_left, targets_left):
+# 		nonlocal best_sources_left, best_targets_left, best_n_targets_left
+# 		if cur_target_idx >= n_targets:
+# 			n_targets_left = len(targets_left)
+# 			if not best_n_targets_left or n_targets_left < best_n_targets_left:
+# 				best_n_targets_left = n_targets_left
+# 				best_sources_left = sources_left[:]
+# 				best_targets_left = targets_left[:]
+# 			return
 		
-		target = targets[cur_target_idx]
-		merges = all_merges[cur_target_idx]
+# 		target = targets[cur_target_idx]
+# 		merges = all_merges[cur_target_idx]
 		
-		if not merges or target not in targets_left:
-			_find_best_merges(cur_target_idx + 1, sources_left, targets_left)
-			return
+# 		if not merges or target not in targets_left:
+# 			_find_best_merges(cur_target_idx + 1, sources_left, targets_left)
+# 			return
 		
-		for i, merge in enumerate(merges):
-			if any(sources_left.count(v) < merge.count(v) for v in merge):
-				_find_best_merges(cur_target_idx + 1, sources_left, targets_left)
-				continue
+# 		for i, merge in enumerate(merges):
+# 			if any(sources_left.count(v) < merge.count(v) for v in merge):
+# 				_find_best_merges(cur_target_idx + 1, sources_left, targets_left)
+# 				continue
 			
-			new_sources_left = sources_left[:]
-			for v in merge: new_sources_left.remove(v)
-			new_targets_left = targets_left[:]
-			new_targets_left.remove(target)
-			_find_best_merges(cur_target_idx + 1, new_sources_left, new_targets_left)
+# 			new_sources_left = sources_left[:]
+# 			for v in merge: new_sources_left.remove(v)
+# 			new_targets_left = targets_left[:]
+# 			new_targets_left.remove(target)
+# 			_find_best_merges(cur_target_idx + 1, new_sources_left, new_targets_left)
 
-	_find_best_merges(0, sources, targets)
-	return best_sources_left, best_targets_left, best_n_targets_left
+# 	_find_best_merges(0, sources, targets)
+# 	return best_sources_left, best_targets_left, best_n_targets_left
 
 # graveyard
 

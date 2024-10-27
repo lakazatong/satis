@@ -3,10 +3,12 @@ import uuid
 from utils import get_node_values, get_short_node_ids
 from fastList import FastList
 from config import config
+from fractions import Fraction
 
 class Node:
 	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
+		if not isinstance(value, (Fraction, int)): raise ValueError(f"not Fraction / int ({type(value)})")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.level = None
@@ -91,7 +93,7 @@ class Node:
 		return new_nodes
 	
 	def divide_loop(self, conveyor_speed):
-		new_value = conveyor_speed / 3
+		new_value = Fraction(conveyor_speed, 3)
 		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:

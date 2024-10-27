@@ -12,6 +12,7 @@ from fastList import FastList
 from config import config
 from utils import get_divisors, decimal_representation_info, divides
 from fractions import Fraction
+from distance import Distance
 
 # print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
@@ -19,8 +20,15 @@ from fractions import Fraction
 
 # exit(0)
 
-# sources = [475, 85, 100]
-# targets = [45, 55, 100, 460, 11]
+sources = [3, 3, 3, 1, 1, 1]
+targets = [4] * 7
+
+distance = Distance(targets)
+r = distance.compute(sources)
+print(r)
+
+exit(0)
+
 # # for t in targets:
 # # 	print(f"minimum divisor for {t}: {min(get_divisors(t))}")
 
@@ -51,38 +59,6 @@ def compute(x, n, m, l):
 # print(compute(780, 1, 1, 1))
 # print(compute(28, 0, 2, 2))
 
-def count_splits(n, m):
-	result = 0
-	nodes = 1
-	for _ in range(n):
-		nodes *= 2
-		result += nodes // 2
-	for _ in range(m):
-		nodes *= 3
-		result += nodes // 3
-	return result
-
-def find_n_m_l(X):
-	max_n = 0
-	max_m = 0
-	while 2 ** max_n <= X: max_n += 1
-	while 3 ** max_m <= X: max_m += 1
-	min_splits = float('inf')
-	best_n = best_m = 0
-	best_l = 0
-	splits = None
-	for n in range(max_n + 1):
-		for m in range(max_m + 1):
-			product = 2 ** n * 3 ** m
-			if product > X:
-				l = product - X
-				splits = count_splits(n, m)
-				if splits < min_splits:
-					min_splits = splits
-					best_n = n
-					best_m = m
-					best_l = l
-	return best_n, best_m, best_l, min_splits
 
 def count_merges(n, m, l):
 	if l < 0: raise ValueError("cannot merge negative amount of nodes")
