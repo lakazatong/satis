@@ -7,29 +7,42 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
+import itertools, time
 from bisect import insort
 from fastList import FastList
 from config import config
-from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost
+from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost, find_n_m_l, all_sums
 from fractions import Fraction
 from score import ScoreCalculator
+import matplotlib.pyplot as plt
 
 # print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
 # print(decimal_representation_info(Fraction(144_573, 2_401))) # non terminating and never repeating
 
-# exit(0)
-
-sources = [3, 3, 3, 1, 1, 1]
-targets = [4] * 3
-
-scoreCalculator = ScoreCalculator(targets)
-r = scoreCalculator.compute(sources)
-print(r)
+values = [extract_cost(i, 840) for i in range(1, 841)]
+plt.plot(range(1, 841), values, 'o')
+plt.xlabel('i')
+plt.ylabel('Extract Cost')
+plt.title('Extract Cost vs. i (Dot Plot)')
+plt.grid()
+plt.show()
 
 exit(0)
 
-x = 12
+targets = [4] * 7
+
+scoreCalculator = ScoreCalculator(targets)
+print_score = lambda sources: print(f"{sources} -> {scoreCalculator.compute(sources)}")
+# print_score([7] * 4)
+# print_score([7, 1, 6, 7, 7])
+# print_score([7, 1, 6, 14])
+print_score([7, 1, 20])
+# print_score([28])
+
+exit(0)
+
+# x = 12
 # for d in range(1, x+1):
 # 	print(d)
 # 	print(find_n_m_l(d))
@@ -112,15 +125,16 @@ def test(x, t):
 		f"uses {splits} splitters + {count_merges(n, m, l)} mergers"
 	]))
 
-test(780, 156)
-test(28, 4)
-test(1200, 1)
-test(5, 0.5)
-test(5.5, 0.5)
-test(60, 1)
-test(2285, 125)
-test(457, 25)
-test(115, 5)
-test(11, Fraction(11, 4))
-test(45, 5)
+test(7, 1)
+# test(780, 156)
+# test(28, 4)
+# test(1200, 1)
+# test(5, 0.5)
+# test(5.5, 0.5)
+# test(60, 1)
+# test(2285, 125)
+# test(457, 25)
+# test(115, 5)
+# test(11, Fraction(11, 4))
+# test(45, 5)
 # print(count_merges(60))

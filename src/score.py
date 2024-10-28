@@ -1,19 +1,21 @@
 import itertools
 
-from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost
+from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost, all_sums
 from bisect import insort
 from config import config
 from fractions import Fraction
 
 class ScoreCalculator:
-	def __init__(self, targets):
+	def __init__(self, targets, solver):
+		self.solver = solver
 		self.targets = targets
 		self.n_targets = len(targets)
-		self.cache = [self.compute_individual(i) for i in range(config.conveyor_speed_limit + 1)]
+		self.individual_cache = {}
 
 	def score_extract(self, src):
 		score = 0
 		for c in config.allowed_divisors:
+			if not self.solver.solving: return 0
 			if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
@@ -24,6 +26,7 @@ class ScoreCalculator:
 	def score_divide(self, src):
 		score = 0
 		for d in config.allowed_divisors:
+			if not self.solver.solving: return 0
 			if not divides(d, src): continue
 			divided_value = Fraction(src, d)
 			new_score = self.targets.count(divided_value) / divide_cost(d, src)
@@ -31,6 +34,7 @@ class ScoreCalculator:
 		return score
 
 	def score_split(self, src):
+		if not self.solver.solving: return 0
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		if not c: return 0
 		value = Fraction(c, 3)
@@ -41,21 +45,30 @@ class ScoreCalculator:
 		return (self.targets.count(value) + (1 if overflow in self.targets else 0)) / 3 # the cost is always 3 (2 splitters + 1 merger)
 
 	def score_merge(self, comb):
+		if not self.solver.solving: return 0
 		return merge_cost(len(comb), 1)
 
 	def compute_individual(self, src):
-		return max(self.score_extract(src), self.score_divide(src), self.score_split(src))
+		if not self.solver.solving: return 0
+		score = 1 if src in self.targets else max(self.score_extract(src), self.score_divide(src), self.score_split(src))
+		self.individual_cache[src] = score
+		return score
 
 	def compute(self, given_sources):
+		if not self.solver.solving: return 0
 		sources, targets = remove_pairs(given_sources, self.targets)
-		score = len(targets) - len(self.n_targets) + sum(self.cache[src] for src in set(sources))
-		for to_sum_count in range(2, n+1):
-			for comb in itertools.combinations(sources, to_sum_count):
-				
-
-		print(scores)
-		return sum(scores)
-			
+		n = len(sources)
+		n_matching_sources = self.n_targets - len(targets)
+		# print(f"computing score for {given_sources}")
+		score = n_matching_sources * n_matching_sources + (sum(
+			(self.individual_cache.get(summed_value, None) or self.compute_individual(summed_value)) / (merge_cost(n_summed_values, 1) or 1)
+			# for to_sum_count in range(1, n+1)
+			# for comb in itertools.combinations(sources, to_sum_count)
+			for summed_value, n_summed_values in all_sums(sources).items()
+			# if (summed_value := sum(comb))
+		) / ((1 << n) - 1) if n > 0 else 0)
+		self.solver.score_cache[given_sources] = score
+		return score
 
 # def find_best_merges(all_merges, sources, targets):
 # 	best_sources_left, best_targets_left = None, None

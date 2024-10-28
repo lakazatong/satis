@@ -41,6 +41,27 @@ class Tree:
 	def __repr__(self):
 		return "\n".join(str(root) for root in self.roots)
 
+	def simplify(self):
+		# doesn't restore this tree's past to reflect the changes
+		seen_ids = set()
+		queue = [root for root in self.roots]
+		while queue:
+			node = queue.pop()
+			deepest_node = node.simplify_info()
+			if not deepest_node: continue
+			for child in node.children:
+				for grandchild in child.children:
+					grandchild.parents.remove(child)
+					grandchild.value -= child.value
+			deepest_node.parents.append(node)
+			self.size -= len(node.children)
+			children_ids = set(child.node_id for child in node.children)
+			for level in self.levels:
+				for i in range(len(level)-1, -1, -1):
+					if level[i].node_id in children_ids:
+						level.pop(i)
+			node.children = [deepest_node]
+
 	def to_nx_graph(self):
 		g = nx.Graph()
 		

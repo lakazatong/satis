@@ -10,6 +10,21 @@ def divides(a, b):
 	q, remainder = divmod(b, a)
 	return q if remainder == 0 and q != 1 else None
 
+# def all_sums(numbers):
+# 	sums = {Fraction(0)}
+# 	for num in numbers:
+# 		sums.update({s + num for s in sums})
+# 	sums.remove(Fraction(0))
+# 	return sums
+
+def all_sums(numbers):
+	sums = {Fraction(0): 0}
+	for num in numbers:
+		new_sums = {s + num: count + 1 for s, count in sums.items()}
+		sums.update(new_sums)
+	sums.pop(Fraction(0))
+	return sums
+
 def count_splits(n, m):
 	result = 0
 	nodes = 1
@@ -93,6 +108,12 @@ def extract_cost(c, x):
 	# how many splitters + mergers at minimum to extract c from x
 	if c == 0: raise ValueError("c == 0")
 	if c in config.conveyor_speeds: return 1
+	if divides(c, x):
+		n_splits = x // c
+		n, m, _, min_splits = find_n_m_l(n_splits)
+		# print(n, m, min_splits)
+		n_looping_branches, n_saved_splitters = compute_n_looping_branches(n_splits - 1, *compute_tree_info(n, m))
+		return min_splits - n_saved_splitters + merge_cost(n_looping_branches, 1)
 	n, m, _, min_splits = find_n_m_l(x)
 	saved_spitters, levels_count = compute_tree_info(n, m)
 	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, saved_spitters, levels_count)

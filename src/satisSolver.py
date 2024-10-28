@@ -16,8 +16,8 @@ from config import config
 from node import Node
 from tree import Tree
 from fastList import FastList
-from distance import find_best_merges
 from fractions import Fraction
+from score import ScoreCalculator
 
 class SatisSolver:
 	def __init__(self):
@@ -56,6 +56,8 @@ class SatisSolver:
 			insort(source_values, value)
 			print(f"\nSources were lacking, generated a {value} node as source")
 
+		self.scoreCalculator = ScoreCalculator(self.target_values, self)
+
 		print()
 
 		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
@@ -82,6 +84,8 @@ class SatisSolver:
 		self.solutions_count = 0
 		self.best_size = None
 
+		self.score_cache = {}
+
 	def maximum_value(self, value):
 		# all_divisors = [[i for i in get_divisors(t)] for t in self.target_values]
 		# r = 0
@@ -99,6 +103,7 @@ class SatisSolver:
 		seen_values = set()
 		
 		for i, src in enumerate(tree.sources):
+			if not self.solving: return
 			# common to all sims
 			
 			value = src.value
@@ -133,6 +138,7 @@ class SatisSolver:
 		seen_values = set()
 
 		for i, src in enumerate(tree.sources):
+			if not self.solving: return
 			# common to all sims
 
 			value = src.value
@@ -175,13 +181,11 @@ class SatisSolver:
 		seen_values = set()
 		
 		for i, src in enumerate(tree.sources):
+			if not self.solving: return
 			# common to all sims
 			
 			value = src.value
-			print(value, divisor, divides(divisor, value))
 			if value in cant_use or value in seen_values or not divides(divisor, value): continue
-			print("yes")
-			print()
 			seen_values.add(value)
 
 			divided_value = Fraction(value, divisor)
@@ -209,6 +213,7 @@ class SatisSolver:
 		seen_sums = set()
 
 		for to_sum_indices in itertools.combinations(range(tree.n_sources), to_sum_count):
+			if not self.solving: return
 			# common to all sims
 			
 			to_sum_indices = list(to_sum_indices)
@@ -236,108 +241,6 @@ class SatisSolver:
 			if tree.past.contains(sim): continue
 
 			yield (sim, (to_sum_indices,))
-
-	def compute_distance(self, sources):
-		print(f"computing distance of {sources}")
-		sources = list(sources)
-		targets = self.target_values[:]
-		distance = 0
-		
-		# remove common elements
-		sources, targets = remove_pairs(sources, targets)
-		print(f"computing distance of {sources}")
-
-		sources_set = set(sources)
-		possible_extractions = [
-			(value, speed, overflow)
-			for speed in config.allowed_extractors_r
-			for value in sources_set
-			if (overflow := Fraction(value - speed, 1)) \
-				and value > speed and value.denominator == 1 and value.numerator % speed == 0 \
-				and (speed in targets or overflow in targets)
-		]
-		print(f"computing distance of {sources}")
-
-		# remove perfect extractions
-		for i in range(len(possible_extractions)-1, -1, -1):
-			value, speed, overflow = possible_extractions[i]
-			if value not in sources: continue
-			if speed == overflow:
-				if len([v for v in targets if v == speed]) < 2: continue
-			else:
-				if speed not in targets or overflow not in targets: continue
-			sources.remove(value)
-			targets.remove(speed)
-			targets.remove(overflow)
-			distance += 1
-			possible_extractions.pop(i)
-		print(f"computing distance of {sources}")
-
-		# remove unperfect extractions
-		for value, speed, overflow in possible_extractions:
-			if value not in sources: continue
-			if speed in targets:
-				sources.remove(value)
-				targets.remove(speed)
-				sources.append(overflow)
-				distance += 2
-			elif overflow in targets:
-				sources.remove(value)
-				targets.remove(overflow)
-				sources.append(speed)
-				distance += 2
-		print(f"computing distance of {sources}")
-
-		sources_set = set(sources)
-		possible_divisions = sorted([
-			(value, divisor, divided_value, min(divisor, sum(1 for v in targets if v == divided_value)))
-			for divisor in config.allowed_divisors
-			for value in sources_set
-			if (divided_value := Fraction(value, divisor)) \
-				and divided_value in targets \
-				and divided_value.denominator == 1 or (any(divided_value.denominator == value.denominator for value in self.target_values) and divided_value >= self.minimum_possible_fraction)
-		], key=lambda x: x[3]-x[1])
-		print(f"computing distance of {sources}")
-
-		# remove perfect divisions
-		for i in range(len(possible_divisions)-1, -1, -1):
-			value, divisor, divided_value, divided_values_count = possible_divisions[i]
-			if divided_values_count != divisor: break
-			if value not in sources or len([v for v in targets if v == divided_value]) < divisor: continue
-			sources.remove(value)
-			for _ in range(divided_values_count): targets.remove(divided_value)
-			possible_divisions.pop(i)
-			distance += 1
-		print(f"computing distance of {sources}")
-		
-		# remove unperfect divisions
-		for i in range(len(possible_divisions)-1, -1, -1):
-			value, divisor, divided_value, divided_values_count = possible_divisions[i]
-			if value not in sources or len([v for v in targets if v == divided_value]) < divided_values_count: continue
-			sources.remove(value)
-			for _ in range(divided_values_count): targets.remove(divided_value)
-			for _ in range(divisor - divided_values_count): sources.append(divided_value)
-			distance += 2
-		print(f"computing distance of {sources}")
-
-		# remove all possible merges that yield a target, prioritizing the ones that merge the most amount of values in sources
-		for to_sum_count in range(config.max_sum_count, config.min_sum_count-1, -1):
-			all_combinations = list(itertools.combinations(sources, to_sum_count))
-			combinations_count = len(all_combinations)
-			all_combinations_sum = [sum(combination) for combination in all_combinations]
-			all_merges = [[
-				all_combinations[i]
-				for i in range(combinations_count)
-				if all_combinations_sum[i] == target
-			] for target in reversed(sorted(targets))]
-			sources_left, targets_left, n_targets_left = find_best_merges(all_merges, sources, targets)
-			if sources_left: # and targets_left and n_targets_left
-				sources = sources_left
-				targets = targets_left
-				distance += 1
-		print(f"computed distance of {sources}")
-
-		return distance + len(sources) + len(targets)
 
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
@@ -370,7 +273,7 @@ class SatisSolver:
 		def purge_queue():
 			nonlocal queue
 			for i in range(len(queue) - 1, -1, -1):
-				if not self.solving: break
+				if not self.solving: return
 				tree, _ = queue[i]
 				if tree.size >= self.best_size: queue.pop(i)
 
@@ -382,8 +285,6 @@ class SatisSolver:
 				self.solutions_count = 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
 				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
-				# print()
-				# print(tree)
 				return True
 			elif tree.size == self.best_size:
 				if any(t == tree for t in self.solutions): return False
@@ -391,25 +292,28 @@ class SatisSolver:
 				self.solutions_count += 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
 				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
-				# print()
-				# print(tree)
 				return False
 			print("impossible case reached, should have been checked already")
-			self.solving = False
+			self.stop()
 
 		def enqueue(tree):
 			nonlocal queue
+			if not self.solving: return
 			if self.is_solution(tree.sources):
 				if solution_found(tree): purge_queue()
 				return
-			dist = self.compute_distance(get_node_values(tree.sources))
-			if dist < 0: return
-			insort(queue, (tree, dist), key=lambda x: (-x[1], -x[0].size))
+			source_values_tuple = tree.source_values
+			score = 0
+			if not self.solutions:
+				score = self.score_cache.get(source_values_tuple, None) or \
+					self.scoreCalculator.compute(tree.source_values)
+			insort(queue, (tree, score), key=lambda x: (x[1], -x[0].size))
 		
 		def dequeue():
 			nonlocal queue
+			if not self.solving: return
 			n = len(queue)
-			if n < 3: return queue.pop()
+			if n < 3 or self.solutions: return queue.pop()
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
 			# maximum exploration is reached at (70 - 30) / 5 = 8 solutions found
 			# 30% exploration when no solution is found
@@ -431,7 +335,7 @@ class SatisSolver:
 
 			def try_op(get_sims, op, get_sims_args=tuple([])):
 				for _, sim_metadata in get_sims(tree, cant_use, *get_sims_args):
-					if not self.solving: break
+					if not self.solving: return
 					# if sim in self.processed_sources:
 					# 	insort(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
 					# 	continue
@@ -444,48 +348,48 @@ class SatisSolver:
 					enqueue(tree_copy)
 
 			def extract(sources_copy, sim_metadata, conveyor_speed):
+				if not self.solving: return
 				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} - {conveyor_speed}" if config.logging else None, src_copy.extract(conveyor_speed)
 
 			def divide(sources_copy, sim_metadata, divisor):
+				if not self.solving: return
 				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} / {divisor}" if config.logging else None, src_copy.divide(divisor)
 			
 			def divide_loop(sources_copy, sim_metadata):
+				if not self.solving: return
 				i, conveyor_speed = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} /loop {conveyor_speed}" if config.logging else None, src_copy.divide_loop(conveyor_speed)
 
 			def merge(sources_copy, sim_metadata, to_sum_count):
+				if not self.solving: return
 				to_sum_indices, *_ = sim_metadata
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
-			print("extracting")
 			for conveyor_speed in config.allowed_extractors_r:
 				try_op(self.extract_sims, extract, (conveyor_speed,))
-				if not self.solving: break
+				if not self.solving: return
 			
-			if not self.solving: break
+			if not self.solving: return
 			
-			print("dividing")
 			for divisor in config.allowed_divisors:
 				try_op(self.divide_sims, divide, (divisor,))
-				if not self.solving: break
+				if not self.solving: return
 			
-			if not self.solving: break
+			if not self.solving: return
 			
-			print("dividing loop")
 			try_op(self.divide_loop_sims, divide_loop)
 			
-			if not self.solving: break
+			if not self.solving: return
 
-			print("merging")
-			for to_sum_count in range(config.min_sum_count, config.max_sum_count + 1):
+			for to_sum_count in range(2, tree.n_sources+1):
 				try_op(self.merge_sims, merge, (to_sum_count,))
-				if not self.solving: break
+				if not self.solving: return
 
 		# self.build_optimal_solutions()
 
@@ -535,6 +439,99 @@ class SatisSolver:
 		if config.logging: self.log_file_handle.close()
 
 # graveyard
+
+# def compute_distance(self, sources):
+# 	sources = list(sources)
+# 	targets = self.target_values[:]
+# 	distance = 0
+
+# 	# remove common elements
+# 	sources, targets = remove_pairs(sources, targets)
+
+# 	sources_set = set(sources)
+# 	possible_extractions = [
+# 		(value, speed, overflow)
+# 		for speed in config.allowed_extractors_r
+# 		for value in sources_set
+# 		if (overflow := Fraction(value - speed, 1)) \
+# 			and value > speed and value.denominator == 1 and value.numerator % speed == 0 \
+# 			and (speed in targets or overflow in targets)
+# 	]
+
+# 	# remove perfect extractions
+# 	for i in range(len(possible_extractions)-1, -1, -1):
+# 		value, speed, overflow = possible_extractions[i]
+# 		if value not in sources: continue
+# 		if speed == overflow:
+# 			if len([v for v in targets if v == speed]) < 2: continue
+# 		else:
+# 			if speed not in targets or overflow not in targets: continue
+# 		sources.remove(value)
+# 		targets.remove(speed)
+# 		targets.remove(overflow)
+# 		distance += 1
+# 		possible_extractions.pop(i)
+
+# 	# remove unperfect extractions
+# 	for value, speed, overflow in possible_extractions:
+# 		if value not in sources: continue
+# 		if speed in targets:
+# 			sources.remove(value)
+# 			targets.remove(speed)
+# 			sources.append(overflow)
+# 			distance += 2
+# 		elif overflow in targets:
+# 			sources.remove(value)
+# 			targets.remove(overflow)
+# 			sources.append(speed)
+# 			distance += 2
+
+# 	sources_set = set(sources)
+# 	possible_divisions = sorted([
+# 		(value, divisor, divided_value, min(divisor, sum(1 for v in targets if v == divided_value)))
+# 		for divisor in config.allowed_divisors
+# 		for value in sources_set
+# 		if (divided_value := Fraction(value, divisor)) \
+# 			and divided_value in targets \
+# 			and divided_value.denominator == 1 or (any(divided_value.denominator == value.denominator for value in self.target_values) and divided_value >= self.minimum_possible_fraction)
+# 	], key=lambda x: x[3]-x[1])
+
+# 	# remove perfect divisions
+# 	for i in range(len(possible_divisions)-1, -1, -1):
+# 		value, divisor, divided_value, divided_values_count = possible_divisions[i]
+# 		if divided_values_count != divisor: break
+# 		if value not in sources or len([v for v in targets if v == divided_value]) < divisor: continue
+# 		sources.remove(value)
+# 		for _ in range(divided_values_count): targets.remove(divided_value)
+# 		possible_divisions.pop(i)
+# 		distance += 1
+
+# 	# remove unperfect divisions
+# 	for i in range(len(possible_divisions)-1, -1, -1):
+# 		value, divisor, divided_value, divided_values_count = possible_divisions[i]
+# 		if value not in sources or len([v for v in targets if v == divided_value]) < divided_values_count: continue
+# 		sources.remove(value)
+# 		for _ in range(divided_values_count): targets.remove(divided_value)
+# 		for _ in range(divisor - divided_values_count): sources.append(divided_value)
+# 		distance += 2
+
+# 	# remove all possible merges that yield a target, prioritizing the ones that merge the most amount of values in sources
+# 	for to_sum_count in range(config.max_sum_count, config.min_sum_count-1, -1):
+# 		all_combinations = list(itertools.combinations(sources, to_sum_count))
+# 		combinations_count = len(all_combinations)
+# 		all_combinations_sum = [sum(combination) for combination in all_combinations]
+# 		all_merges = [[
+# 			all_combinations[i]
+# 			for i in range(combinations_count)
+# 			if all_combinations_sum[i] == target
+# 		] for target in reversed(sorted(targets))]
+# 		sources_left, targets_left, n_targets_left = find_best_merges(all_merges, sources, targets)
+# 		if sources_left: # and targets_left and n_targets_left
+# 			sources = sources_left
+# 			targets = targets_left
+# 			distance += 1
+
+# 	return distance + len(sources) + len(targets)
 
 # def _simplify_merge(nodes):
 # 	# Step 1: Merge nodes with the same value until all are different

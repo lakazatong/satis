@@ -85,7 +85,7 @@ class Node:
 		return new_nodes
 
 	def divide(self, divisor):
-		divided_value = self.value / divisor
+		divided_value = Fraction(self.value, divisor)
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
 			self.children.append(node)
@@ -110,6 +110,18 @@ class Node:
 			new_node.parents.append(node)
 			new_node.past.extend(node.past)
 		return new_node
+
+	def simplify_info(self):
+		original_children_ids = {child.node_id for child in self.children}
+		stack, deepest_node, max_depth = [(grandchild, 0) for child in self.children for grandchild in child.children], None, -1
+		while stack:
+			node, depth = stack.pop()
+			if original_children_ids.issubset(node.reachable_from):
+				if depth > max_depth:
+					deepest_node, max_depth = node, depth
+			for child in node.children:
+				stack.append((child, depth + 1))
+		return deepest_node
 
 	# graveyard
 
