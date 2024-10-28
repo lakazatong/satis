@@ -125,7 +125,7 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
-			if value in cant_use or value in seen_values or value <= conveyor_speed or (conveyor_speed not in config.conveyor_speeds and not divides(conveyor_speed, value)): continue
+			if value in cant_use or value in seen_values or value <= conveyor_speed: continue
 			
 			seen_values.add(value)
 			
