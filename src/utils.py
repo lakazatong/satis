@@ -79,7 +79,7 @@ def compute_n_looping_branches(l, saved_spitters, levels_count):
 		while levels_count[i] > l: i += 1
 		n_saved_splitters += saved_spitters[i]
 		l -= levels_count[i]
-		print(f"{l = }, {n_saved_splitters = }, {i = }")
+		# print(f"{l = }, {n_saved_splitters = }, {i = }")
 		n_looping_branches += 1
 	return n_looping_branches, n_saved_splitters
 
