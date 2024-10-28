@@ -1,4 +1,4 @@
-import os, json, random, networkx as nx, matplotlib.pyplot as plt, re, math
+import os, json, random, networkx as nx, matplotlib.pyplot as plt, re, math, functools
 
 from collections import Counter
 from config import config
@@ -79,7 +79,7 @@ def compute_n_looping_branches(l, saved_spitters, levels_count):
 		while levels_count[i] > l: i += 1
 		n_saved_splitters += saved_spitters[i]
 		l -= levels_count[i]
-		# print(f"{l = }, {n_saved_splitters = }, {i = }")
+		print(f"{l = }, {n_saved_splitters = }, {i = }")
 		n_looping_branches += 1
 	return n_looping_branches, n_saved_splitters
 
@@ -116,8 +116,11 @@ def extract_cost(c, x):
 		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(2**n*3**m - n_splits, *compute_tree_info(n, m))
 		return min_splits - n_saved_splitters_extracted - n_saved_splitters_overflow + merge_cost(n_looping_branches_extracted, 1) + merge_cost(n_looping_branches_overflow, 1)
 	n, m, _, min_splits = find_n_m_l(x)
+	print(n, m, min_splits)
 	saved_spitters, levels_count = compute_tree_info(n, m)
+	print(saved_spitters, levels_count)
 	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, saved_spitters, levels_count)
+	print()
 	n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(x - c, saved_spitters, levels_count)
 	return min_splits - n_saved_splitters_extracted - n_saved_splitters_overflow + merge_cost(n_looping_branches_extracted, 1) + merge_cost(n_looping_branches_overflow, 1)
 
@@ -227,6 +230,13 @@ def compute_minimum_possible_fraction(values):
 			min_fraction = fraction
 
 	return min_fraction
+
+def compute_gcd(*fractions):
+	numerators = [f.numerator for f in fractions]
+	denominators = [f.denominator for f in fractions]
+	gcd_numerator = functools.reduce(math.gcd, numerators)
+	lcm_denominator = functools.reduce(lambda x, y: x * y // math.gcd(x, y), denominators)
+	return Fraction(gcd_numerator, lcm_denominator)
 
 def get_divisors(n):
 	return (x for x in range(2, n+1) if n % x == 0)

@@ -33,7 +33,7 @@ class SatisSolverConfig:
 
 config = SatisSolverConfig(
 	conveyor_speeds = [60, 120, 270, 480, 780, 1200],
-	logging = False,
+	logging = True,
 	log_filepath = "logs.txt",
 	# cache_filepath = "sims_caches",
 	short_repr = True,

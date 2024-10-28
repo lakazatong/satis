@@ -10,7 +10,11 @@ from utils import \
 	compute_minimum_possible_fraction, \
 	format_fractions, \
 	divides, \
-	print_standing_text
+	print_standing_text, \
+	extract_cost, \
+	merge_cost, \
+	compute_gcd, \
+	get_gcd_incompatible
 from bisect import insort
 from config import config
 from node import Node
@@ -22,9 +26,7 @@ from score import ScoreCalculator
 class SatisSolver:
 	def __init__(self):
 		self.reset()
-		if config.logging:
-			open(config.log_filepath, "w").close()
-			self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
+		if config.logging: self.log_file_handle = open(config.log_filepath, "a", encoding="utf-8")
 
 	def log(self, txt):
 		self.log_file_handle.write(txt)
@@ -40,7 +42,7 @@ class SatisSolver:
 		if not source_values or not target_values: return False
 		
 		self.reset()
-		
+
 		source_values = sorted(source_values)
 		self.target_values = sorted(target_values)
 		sources_total = sum(source_values)
@@ -58,11 +60,9 @@ class SatisSolver:
 
 		self.scoreCalculator = ScoreCalculator(self.target_values, self)
 
-		print()
-
 		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
 		source_values_length = len(source_values)
-		self.target_values_length = len(self.target_values)
+		self.n_targets = len(self.target_values)
 		target_counts = {
 			value: self.target_values.count(value) for value in set(self.target_values)
 		}
@@ -72,7 +72,23 @@ class SatisSolver:
 
 		self.tree_source = Tree([Node(value) for value in source_values])
 
+		self.best_size = self.best_size_upper_bond()
+		gcd = compute_gcd(*source_values, *self.target_values)
+		self.gcd_incompatible = get_gcd_incompatible(gcd)
+		print(f"\nSolutions' size upper bound: {self.best_size}, {gcd = }\n")
+
 		return True
+
+	def best_size_upper_bond(self):
+		filtered_sources, filtered_targets = remove_pairs(self.tree_source.source_values, self.target_values)
+		return len(filtered_sources) + (len(filtered_targets) << 1) - 1
+		# r = merge_cost(self.tree_source.n_sources, 1)
+		# summed_value = sum(self.tree_source.source_values)
+		# for i in range(self.n_targets):
+		# 	target = self.target_values[i]
+		# 	r += extract_cost(target, summed_value)
+		# 	summed_value -= target
+		# return r
 
 	def reset(self):
 		self.solving = False
@@ -82,22 +98,24 @@ class SatisSolver:
 		
 		self.solutions = []
 		self.solutions_count = 0
-		self.best_size = None
 
 		self.score_cache = {}
+
+		if config.logging:
+			open(config.log_filepath, "w").close()
 
 	def maximum_value(self, value):
 		# all_divisors = [[i for i in get_divisors(t)] for t in self.target_values]
 		# r = 0
-		# for i in range(self.target_values_length):
+		# for i in range(self.n_targets):
 		# 	t = self.target_values[i]
 		# 	if value <= t:
 		# 		r += 1
 		# 		continue
-		return self.target_values_length
+		return self.n_targets
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
-		if self.solutions and tree.size + 2 > self.best_size: return
+		if tree.size + 2 > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
@@ -115,6 +133,7 @@ class SatisSolver:
 			
 			# specific to the problem
 
+			if self.gcd_incompatible(overflow_value): continue
 			values_to_add = [Fraction(conveyor_speed, 1), overflow_value]
 			if any(src.past.contains(value) for value in values_to_add): continue
 
@@ -132,7 +151,7 @@ class SatisSolver:
 			yield (sim, (i,))
 
 	def divide_loop_sims(self, tree, cant_use):
-		if self.solutions and tree.size + 3 > self.best_size: return
+		if tree.size + 3 > self.best_size: return
 
 		source_values = tree.source_values
 		seen_values = set()
@@ -156,6 +175,7 @@ class SatisSolver:
 
 			# specific to the problem
 			
+			if self.gcd_incompatible(new_value) or self.gcd_incompatible(overflow_value): continue
 			if src.past.contains(new_value) or src.past.contains(overflow_value): continue
 
 			sim = get_sim_without(value, source_values)
@@ -175,7 +195,7 @@ class SatisSolver:
 			yield (sim, (i, conveyor_speed))
 
 	def divide_sims(self, tree, cant_use, divisor):
-		if self.solutions and tree.size + divisor > self.best_size: return
+		if tree.size + divisor > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
@@ -193,7 +213,7 @@ class SatisSolver:
 
 			# specific to the problem
 			
-			if src.past.contains(divided_value): continue
+			if src.past.contains(divided_value) or self.gcd_incompatible(divided_value): continue
 
 			sim = get_sim_without(value, source_values)
 			for _ in range(divisor): insort(sim, divided_value)
@@ -206,7 +226,7 @@ class SatisSolver:
 			yield (sim, (i,))
 
 	def merge_sims(self, tree, cant_use, to_sum_count):
-		if self.solutions and tree.size + 1 > self.best_size: return
+		if tree.size + 1 > self.best_size: return
 		
 		sources = tree.sources
 		source_values = tree.source_values
@@ -225,10 +245,11 @@ class SatisSolver:
 			seen_sums.add(to_sum_values)
 
 			summed_value = sum(to_sum_values)
-			to_sum_nodes = [sources[i] for i in to_sum_indices]
 
 			# specific to the problem			
 			
+			if self.gcd_incompatible(summed_value): continue
+			to_sum_nodes = [sources[i] for i in to_sum_indices]
 			if summed_value > self.conveyor_speed_limit or any(src.past.contains(summed_value) for src in to_sum_nodes): continue
 
 			sim = [value for value in source_values]
@@ -245,7 +266,7 @@ class SatisSolver:
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
 		n = len(sources)
-		if n != self.target_values_length: return False
+		if n != self.n_targets: return False
 		for i in range(n):
 			if sources[i].value != self.target_values[i]:
 				return False
@@ -254,7 +275,7 @@ class SatisSolver:
 	# def build_optimal_solutions(self):
 		# for i in range(self.solutions_count-1, -1, -1):
 		# 	sol_tree = self.solutions[i]
-		# 	current_sol_size = self.target_values_length
+		# 	current_sol_size = self.n_targets
 		# 	for j in range(len(sol_past)-1, -1, -1):
 		# 		sp_sources = sol_past[j]
 		# 		sp_source_values = get_node_values(sp_sources)
@@ -371,7 +392,8 @@ class SatisSolver:
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
-			for conveyor_speed in config.allowed_extractors_r:
+			for conveyor_speed in config.allowed_extractors:
+				if self.gcd_incompatible(conveyor_speed): continue
 				try_op(self.extract_sims, extract, (conveyor_speed,))
 				if not self.solving: return
 			

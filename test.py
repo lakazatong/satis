@@ -16,15 +16,18 @@ from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 
+# print(extract_cost(465, 660))
+# print(extract_cost(195, 660))
+
+# exit(0)
+
 # print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
 # print(decimal_representation_info(Fraction(144_573, 2_401))) # non terminating and never repeating
 
-# print(extract_cost(84, 840))
-# exit(0)
-
-values = [extract_cost(i, 840) for i in range(1, 841)]
-plt.plot(range(1, 841), values, 'o')
+x = 60
+values = [extract_cost(i, x) for i in range(1, x+1)]
+plt.plot(range(1, x+1), values, 'o')
 plt.xlabel('i')
 plt.ylabel('Extract Cost')
 plt.title('Extract Cost vs. i (Dot Plot)')
@@ -33,17 +36,17 @@ plt.show()
 
 exit(0)
 
-targets = [4] * 7
+# targets = [4] * 7
 
-scoreCalculator = ScoreCalculator(targets)
-print_score = lambda sources: print(f"{sources} -> {scoreCalculator.compute(sources)}")
-# print_score([7] * 4)
-# print_score([7, 1, 6, 7, 7])
-# print_score([7, 1, 6, 14])
-print_score([7, 1, 20])
-# print_score([28])
+# scoreCalculator = ScoreCalculator(targets)
+# print_score = lambda sources: print(f"{sources} -> {scoreCalculator.compute(sources)}")
+# # print_score([7] * 4)
+# # print_score([7, 1, 6, 7, 7])
+# # print_score([7, 1, 6, 14])
+# print_score([7, 1, 20])
+# # print_score([28])
 
-exit(0)
+# exit(0)
 
 # x = 12
 # for d in range(1, x+1):

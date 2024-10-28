@@ -61,11 +61,12 @@ class ScoreCalculator:
 		n_matching_sources = self.n_targets - len(targets)
 		# print(f"computing score for {given_sources}")
 		score = n_matching_sources * n_matching_sources + (sum(
-			(self.individual_cache.get(summed_value, None) or self.compute_individual(summed_value)) / (merge_cost(n_summed_values, 1) or 1)
+			# (self.individual_cache.get(summed_value, None) or self.compute_individual(summed_value)) / (merge_cost(len(comb), 1) or 1)
 			# for to_sum_count in range(1, n+1)
 			# for comb in itertools.combinations(sources, to_sum_count)
-			for summed_value, n_summed_values in all_sums(sources).items()
 			# if (summed_value := sum(comb))
+			(self.individual_cache.get(summed_value, None) or self.compute_individual(summed_value)) / (merge_cost(n_summed_values, 1) or 1)
+			for summed_value, n_summed_values in all_sums(sources).items()
 		) / ((1 << n) - 1) if n > 0 else 0)
 		self.solver.score_cache[given_sources] = score
 		return score
