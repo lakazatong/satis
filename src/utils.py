@@ -112,8 +112,9 @@ def extract_cost(c, x):
 		n_splits = x // c
 		n, m, _, min_splits = find_n_m_l(n_splits)
 		# print(n, m, min_splits)
-		n_looping_branches, n_saved_splitters = compute_n_looping_branches(n_splits - 1, *compute_tree_info(n, m))
-		return min_splits - n_saved_splitters + merge_cost(n_looping_branches, 1)
+		n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(n_splits - 1, *compute_tree_info(n, m))
+		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(2**n*3**m - n_splits, *compute_tree_info(n, m))
+		return min_splits - n_saved_splitters_extracted - n_saved_splitters_overflow + merge_cost(n_looping_branches_extracted, 1) + merge_cost(n_looping_branches_overflow, 1)
 	n, m, _, min_splits = find_n_m_l(x)
 	saved_spitters, levels_count = compute_tree_info(n, m)
 	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, saved_spitters, levels_count)

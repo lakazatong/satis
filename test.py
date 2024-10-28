@@ -20,6 +20,9 @@ import matplotlib.pyplot as plt
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits
 # print(decimal_representation_info(Fraction(144_573, 2_401))) # non terminating and never repeating
 
+# print(extract_cost(84, 840))
+# exit(0)
+
 values = [extract_cost(i, 840) for i in range(1, 841)]
 plt.plot(range(1, 841), values, 'o')
 plt.xlabel('i')
