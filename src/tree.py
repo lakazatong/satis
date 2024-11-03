@@ -39,7 +39,7 @@ class Tree:
 		# 	# self.dummy_root.tree_height = sources[0].tree_height # must init for future updates
 
 	def __repr__(self):
-		return "\n".join(str(root) for root in self.roots)
+		return "\n".join(root.pretty() for root in self.roots)
 
 	def simplify(self):
 		# doesn't restore this tree's past to reflect the changes
