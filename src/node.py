@@ -36,11 +36,6 @@ class Node(TreeLike):
 			return NotImplemented
 		return self.node_id == other.node_id
 
-	def __ne__(self, other):
-		if not isinstance(other, Node):
-			return NotImplemented
-		return self.node_id != other.node_id
-
 	def _deepcopy(self, copied_nodes):
 		stack = [(self, None)]
 		while stack:
