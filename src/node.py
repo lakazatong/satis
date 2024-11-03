@@ -1,11 +1,12 @@
 import uuid
 
+from treelike import TreeLike
 from utils import get_node_values, get_short_node_ids
 from fastList import FastList
 from config import config
 from fractions import Fraction
 
-class Node:
+class Node(TreeLike):
 	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
 		if not isinstance(value, (Fraction, int)): raise ValueError(f"not Fraction / int ({type(value)})")
@@ -15,37 +16,30 @@ class Node:
 		self.past = FastList(value)
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
-		self.children = []
+		self._children = []
 
-	def to_string(self, short_repr=config.short_repr):
-		if short_repr: return f"{self.value}({self.node_id[-3:]})"
-		r = "Node("
-		r += f"value={self.value}, "
-		r += f"short_node_id={self.node_id[-3:]}, "
+	@property
+	def children(self):
+		return self._children
+
+	def __repr__(self):
+		if config.short_repr:
+			return f"{self.value}({self.node_id[-3:]})"
+		r = f"Node(value={self.value}, short_node_id={self.node_id[-3:]}, "
 		if config.include_level_in_logs:
 			r += f"level={self.level}, "
 		r += f"parents={get_short_node_ids(self.parents)})"
 		return r
 
-	def str(self, stack):
-		depth = len(stack)
-		stack.append(self)
-		r = ""
-		for i in range(depth):
-			if stack[i + 1].node_id != self.node_id:
-				r += (" " if stack[i].children and stack[i].children[-1].node_id == stack[i + 1].node_id else "│") + "  "
-			else:
-				r += ("└" if stack[i].children[-1].node_id == self.node_id else "├") + "─►"
-		r += self.to_string() + "\n"
-		for child in self.children: r += child.str(stack)
-		stack.pop()
-		return r
+	def __eq__(self, other):
+		if not isinstance(other, Node):
+			return NotImplemented
+		return self.node_id == other.node_id
 
-	def __repr__(self):
-		stack = [self]
-		r = self.to_string() + "\n"
-		for child in self.children: r += child.str(stack)
-		return r[:-1] # ignore last \n
+	def __ne__(self, other):
+		if not isinstance(other, Node):
+			return NotImplemented
+		return self.node_id != other.node_id
 
 	def _deepcopy(self, copied_nodes):
 		stack = [(self, None)]
@@ -72,7 +66,7 @@ class Node:
 	def populate(self, G, seen_ids):
 		seen_ids.add(self.node_id)
 		G.add_node(self.node_id, label=str(self.value), level=self.level)
-		for child in self.children:
+		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
 			if child.node_id not in seen_ids: child.populate(G, seen_ids)
 
@@ -80,7 +74,7 @@ class Node:
 		overflow_value = self.value - value
 		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
 		for node in new_nodes:
-			self.children.append(node)
+			self._children.append(node)
 			node.parents.append(self)
 		return new_nodes
 
@@ -88,7 +82,7 @@ class Node:
 		divided_value = Fraction(self.value, divisor)
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
-			self.children.append(node)
+			self._children.append(node)
 			node.parents.append(self)
 		return new_nodes
 	
@@ -97,7 +91,7 @@ class Node:
 		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
-			self.children.append(node)
+			self._children.append(node)
 			node.parents.append(self)
 		return new_nodes
 
@@ -112,8 +106,8 @@ class Node:
 		return new_node
 
 	def simplify_info(self):
-		original_children_ids = {child.node_id for child in self.children}
-		stack, deepest_node, max_depth = [(grandchild, 0) for child in self.children for grandchild in child.children], None, -1
+		original_children_ids = {child.node_id for child in self._children}
+		stack, deepest_node, max_depth = [(grandchild, 0) for child in self._children for grandchild in child.children], None, -1
 		while stack:
 			node, depth = stack.pop()
 			if original_children_ids.issubset(node.reachable_from):
@@ -132,16 +126,16 @@ class Node:
 	# 	return cur
 
 	# def get_leaves(self):
-	# 	if not self.children:
+	# 	if not self._children:
 	# 		return [self]
 	# 	leaves = []
-	# 	for child in self.children:
+	# 	for child in self._children:
 	# 		leaves.extend(child.get_leaves())
 	# 	return leaves
 
 	# def find(self, node_id):
 	# 	if self.node_id == node_id: return self
-	# 	for child in self.children:
+	# 	for child in self._children:
 	# 		result = child.find(node_id)
 	# 		if result: return result
 	# 	return None
@@ -156,12 +150,12 @@ class Node:
 	# 	while queue:
 	# 		cur, depth = queue.pop(0)
 	# 		cur.depth = depth
-	# 		for child in self.children: queue.append((child, depth + 1))
+	# 		for child in self._children: queue.append((child, depth + 1))
 
 	# def _compute_depth_and_tree_height(self):
 	# 	self.depth = 1 + (max(parent.depth for parent in self.parents) if self.parents else 0)
 	# 	max_child_tree_height = 0
-	# 	for child in self.children:
+	# 	for child in self._children:
 	# 		_, child_tree_height = child._compute_depth_and_tree_height()
 	# 		if child_tree_height > max_child_tree_height:
 	# 			max_child_tree_height = child_tree_height
