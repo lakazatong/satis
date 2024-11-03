@@ -1,4 +1,6 @@
-import threading, signal, time, traceback
+import os, threading, signal, time, traceback
+from prompt_toolkit import prompt
+from prompt_toolkit.history import InMemoryHistory
 
 class CLI:
 	def __init__(self, name, backend_class):
@@ -7,7 +9,15 @@ class CLI:
 		self.backend.running = False
 		self.user_input = None
 		self.running = threading.Event()
+		self.input_history = InMemoryHistory()
+		for cmd in self.load_recent_directories():
+			self.input_history.append_string(cmd)
 		signal.signal(signal.SIGINT, self.exit)
+
+	def load_recent_directories(self):
+		directories = [d for d in os.listdir('.') if os.path.isdir(d) and 'to' in d]
+		directories.sort(key=lambda x: os.path.getmtime(x))
+		return directories
 
 	def main(self):
 		def catching_run():
@@ -40,13 +50,16 @@ class CLI:
 		self.running.set()
 		while self.running.is_set():
 			try:
-				self.user_input = input(f"\n{self.name}> ")
-			except EOFError:
+				# self.user_input = input(f"\n{self.name}> ")
+				self.user_input = prompt(f"\n{self.name}> ", history=self.input_history)
+			except KeyboardInterrupt:
 				# SIGINT received while in input
+				break
+			except EOFError:
+				# idk
 				break
 			if self.user_input in ["exit", "quit", "q"]:
 				break
-
 			self.main()
 			self.user_input = None
 	
