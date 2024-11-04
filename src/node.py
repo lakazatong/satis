@@ -26,15 +26,26 @@ class Node(TreeLike):
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
 		self._children = []
-
-	def __repr__(self):
+		
 		if config.short_repr:
-			return f"{self.value}({self.node_id[-3:]})"
-		r = f"Node(value={self.value}, short_node_id={self.node_id[-3:]}, "
-		if config.include_level_in_logs:
-			r += f"level={self.level}, "
-		r += f"parents={get_short_node_ids(self.parents)})"
-		return r
+			self.repr_keys = False
+			self.repr_whitelist.add('node_id')
+		else:
+			self.repr_keys = True
+			self.repr_whitelist.update(('value', 'node_id', 'parents'))
+			if config.include_level_in_logs:
+				self.repr_whitelist.add('level')
+		self.repr_by_default = False
+		self.repr_falsy = False
+
+	def repr_self(self):
+		return str(self.value) if config.short_repr else 'Node'
+
+	def repr_node_id(self):
+		return 'node_id', self.node_id[-3:]
+
+	def repr_parents(self):
+		return 'parents', get_short_node_ids(self.parents)
 
 	def __eq__(self, other):
 		if not isinstance(other, Node):

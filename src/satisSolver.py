@@ -369,28 +369,24 @@ class SatisSolver:
 					enqueue(tree_copy)
 
 			def extract(sources_copy, sim_metadata, conveyor_speed):
-				if not self.solving: return
 				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} - {conveyor_speed}" if config.logging else None, src_copy.extract(conveyor_speed)
 
 			def divide(sources_copy, sim_metadata, divisor):
-				if not self.solving: return
 				i, *_ = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} / {divisor}" if config.logging else None, src_copy.divide(divisor)
 			
 			def divide_loop(sources_copy, sim_metadata):
-				if not self.solving: return
 				i, conveyor_speed = sim_metadata
 				src_copy = sources_copy[i]
 				return f"{src_copy} /loop {conveyor_speed}" if config.logging else None, src_copy.divide_loop(conveyor_speed)
 
 			def merge(sources_copy, sim_metadata, to_sum_count):
-				if not self.solving: return
 				to_sum_indices, *_ = sim_metadata
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
-				return "\n+\n".join(str(ts) for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
+				return "\n+\n".join(ts.pretty() for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
 			for conveyor_speed in config.allowed_extractors:
 				if self.gcd_incompatible(conveyor_speed): continue
