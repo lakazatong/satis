@@ -7,8 +7,17 @@ from config import config
 from fractions import Fraction
 
 class Node(TreeLike):
+	@property
+	def children(self):
+		return self._children
+
+	@children.setter
+	def children(self, value: list['TreeLike']):
+		self._children = value
+	
 	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
+		super().__init__()
 		if not isinstance(value, (Fraction, int)): raise ValueError(f"not Fraction / int ({type(value)})")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
@@ -17,10 +26,6 @@ class Node(TreeLike):
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
 		self._children = []
-
-	@property
-	def children(self):
-		return self._children
 
 	def __repr__(self):
 		if config.short_repr:
