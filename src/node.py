@@ -35,8 +35,6 @@ class Node(TreeLike):
 			self.repr_whitelist.update(('value', 'node_id', 'parents'))
 			if config.include_level_in_logs:
 				self.repr_whitelist.add('level')
-		self.repr_by_default = False
-		self.repr_falsy = False
 
 	def repr_self(self):
 		return str(self.value) if config.short_repr else 'Node'
