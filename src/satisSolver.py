@@ -432,10 +432,14 @@ class SatisSolver:
 			self.clear_solution_files()
 		else:
 			os.makedirs(self.problem_str)
-		for i, tree in enumerate(self.solutions):
-			if not self.concluding: break
-			print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
-			tree.save(os.path.join(self.problem_str, config.solutions_filename(i)))
+		if self.solutions_count > 1:
+			for i, tree in enumerate(self.solutions):
+				if not self.concluding: break
+				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
+				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)))
+		else:
+			print("Saving solution...")
+			self.solutions[0].save(os.path.join(self.problem_str, config.solutions_filename(0)))
 		print()
 
 	# simple state machine
