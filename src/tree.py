@@ -17,7 +17,7 @@ class Tree:
 		self.current_level = 0
 		self.source_values = tuple(root.value for root in roots)
 		self.n_sources = len(roots)
-		self.size = len(roots)
+		self.size = 0
 		self.total_seen = {}
 		for root in roots:
 			root.level = self.current_level
@@ -54,7 +54,7 @@ class Tree:
 					grandchild.parents.remove(child)
 					grandchild.value -= child.value
 			deepest_node.parents.append(node)
-			self.size -= len(node.children)
+			self.size -= len(node.children) # outdated
 			children_ids = set(child.node_id for child in node.children)
 			for level in self.levels:
 				for i in range(len(level)-1, -1, -1):
@@ -92,7 +92,7 @@ class Tree:
 		new_tree.size = self.size
 		return new_tree
 
-	def add(self, nodes):
+	def add(self, nodes, cost):
 		self.current_level += 1
 		# init new nodes
 		# for node in nodes: node.size = 1
@@ -105,7 +105,7 @@ class Tree:
 		# update levels and size
 		for src in self.sources: src.level = self.current_level
 		self.levels.append(self.sources)
-		self.size += len(nodes)
+		self.size += cost
 
 		# update past
 		self.past.append(self.source_values)

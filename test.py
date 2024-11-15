@@ -16,10 +16,11 @@ from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 
-# print(extract_cost(465, 660))
+print(extract_cost(4, 5))
+print(extract_cost(1, 5))
 # print(extract_cost(195, 660))
 
-# exit(0)
+exit(0)
 
 # print(decimal_representation_info(Fraction(14_000_107, 7_812_500))) # terminate, 9 digits
 # print(decimal_representation_info(Fraction(144_573, 96_040))) # non terminating repeating after m digits

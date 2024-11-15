@@ -12,6 +12,8 @@ from utils import \
 	divides, \
 	print_standing_text, \
 	extract_cost, \
+	divide_cost, \
+	split_cost, \
 	merge_cost, \
 	compute_gcd, \
 	get_gcd_incompatible
@@ -80,15 +82,15 @@ class SatisSolver:
 		return True
 
 	def best_size_upper_bond(self):
-		filtered_sources, filtered_targets = remove_pairs(self.tree_source.source_values, self.target_values)
-		return len(filtered_sources) + (len(filtered_targets) << 1) - 1
-		# r = merge_cost(self.tree_source.n_sources, 1)
-		# summed_value = sum(self.tree_source.source_values)
-		# for i in range(self.n_targets):
-		# 	target = self.target_values[i]
-		# 	r += extract_cost(target, summed_value)
-		# 	summed_value -= target
-		# return r
+		sources, targets = remove_pairs(self.tree_source.source_values, self.target_values)
+		r = 0
+		r = merge_cost(len(sources), 1)
+		summed_value = sum(sources)
+		for i in range(self.n_targets):
+			target = self.target_values[i]
+			r += extract_cost(target, summed_value)
+			summed_value -= target
+		return r
 
 	def reset(self):
 		self.solving = False
@@ -115,7 +117,6 @@ class SatisSolver:
 		return self.n_targets
 
 	def extract_sims(self, tree, cant_use, conveyor_speed):
-		if tree.size + 2 > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
@@ -125,7 +126,11 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
+			
 			if value in cant_use or value in seen_values or value <= conveyor_speed: continue
+			
+			cost = extract_cost(conveyor_speed, value)
+			if tree.size + cost > self.best_size: continue
 			
 			seen_values.add(value)
 			
@@ -148,10 +153,11 @@ class SatisSolver:
 
 			if tree.past.contains(sim): continue
 
-			yield (sim, (i,))
+			yield (sim, (i,), cost)
 
-	def divide_loop_sims(self, tree, cant_use):
-		if tree.size + 3 > self.best_size: return
+	def split_sims(self, tree, cant_use):
+		cost = split_cost()
+		if tree.size + cost > self.best_size: return
 
 		source_values = tree.source_values
 		seen_values = set()
@@ -192,10 +198,9 @@ class SatisSolver:
 
 			if tree.past.contains(sim): continue
 
-			yield (sim, (i, conveyor_speed))
+			yield (sim, (i, conveyor_speed), cost)
 
 	def divide_sims(self, tree, cant_use, divisor):
-		if tree.size + divisor > self.best_size: return
 		
 		source_values = tree.source_values
 		seen_values = set()
@@ -205,6 +210,10 @@ class SatisSolver:
 			# common to all sims
 			
 			value = src.value
+
+			cost = divide_cost(divisor, value)
+			if tree.size + cost > self.best_size: continue
+			
 			if value in cant_use or value in seen_values or not divides(divisor, value): continue
 			seen_values.add(value)
 
@@ -223,10 +232,11 @@ class SatisSolver:
 			
 			if tree.past.contains(sim): continue
 
-			yield (sim, (i,))
+			yield (sim, (i,), cost)
 
 	def merge_sims(self, tree, cant_use, to_sum_count):
-		if tree.size + 1 > self.best_size: return
+		cost = merge_cost(to_sum_count, 1)
+		if tree.size + cost > self.best_size: return
 		
 		sources = tree.sources
 		source_values = tree.source_values
@@ -261,7 +271,7 @@ class SatisSolver:
 
 			if tree.past.contains(sim): continue
 
-			yield (sim, (to_sum_indices,))
+			yield (sim, (to_sum_indices,), cost)
 
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
@@ -355,7 +365,7 @@ class SatisSolver:
 			cant_use = self.compute_cant_use(tree.sources)
 
 			def try_op(get_sims, op, get_sims_args=tuple([])):
-				for _, sim_metadata in get_sims(tree, cant_use, *get_sims_args):
+				for _, sim_metadata, cost in get_sims(tree, cant_use, *get_sims_args):
 					if not self.solving: return
 					# if sim in self.processed_sources:
 					# 	insort(self.cutted_trees, tree, lambda cutted_tree: cutted_tree.size)
@@ -363,28 +373,24 @@ class SatisSolver:
 					# self.processed_sources.add(sim)
 					# tree_copy = copy.deepcopy(tree)
 					tree_copy = tree.deepcopy()
-					log_msg, result_nodes = op(tree_copy.sources, sim_metadata, *get_sims_args)
-					tree_copy.add(result_nodes)
+					log_msg, result_nodes = op(tree_copy.sources, *sim_metadata, *get_sims_args)
+					tree_copy.add(result_nodes, cost)
 					if config.logging: self.log(f"\n\nFROM\n{tree}\nDID\n{log_msg}")
 					enqueue(tree_copy)
 
-			def extract(sources_copy, sim_metadata, conveyor_speed):
-				i, *_ = sim_metadata
+			def extract(sources_copy, i, conveyor_speed):
 				src_copy = sources_copy[i]
 				return f"{src_copy} - {conveyor_speed}" if config.logging else None, src_copy.extract(conveyor_speed)
 
-			def divide(sources_copy, sim_metadata, divisor):
-				i, *_ = sim_metadata
+			def divide(sources_copy, i, divisor):
 				src_copy = sources_copy[i]
 				return f"{src_copy} / {divisor}" if config.logging else None, src_copy.divide(divisor)
 			
-			def divide_loop(sources_copy, sim_metadata):
-				i, conveyor_speed = sim_metadata
+			def split(sources_copy, i, conveyor_speed):
 				src_copy = sources_copy[i]
-				return f"{src_copy} /loop {conveyor_speed}" if config.logging else None, src_copy.divide_loop(conveyor_speed)
+				return f"{src_copy} // {conveyor_speed}" if config.logging else None, src_copy.split(conveyor_speed)
 
-			def merge(sources_copy, sim_metadata, to_sum_count):
-				to_sum_indices, *_ = sim_metadata
+			def merge(sources_copy, to_sum_indices, to_sum_count):
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(ts.pretty() for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
@@ -401,7 +407,7 @@ class SatisSolver:
 			
 			if not self.solving: return
 			
-			try_op(self.divide_loop_sims, divide_loop)
+			try_op(self.split_sims, split)
 			
 			if not self.solving: return
 

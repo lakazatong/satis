@@ -1,6 +1,6 @@
 import itertools
 
-from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost, all_sums
+from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost, split_cost, all_sums
 from bisect import insort
 from config import config
 from fractions import Fraction
@@ -42,7 +42,7 @@ class ScoreCalculator:
 		if src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
 		overflow = src - tmp
 		if value == overflow: return 0 # equivalent to dividing in three
-		return (self.targets.count(value) + (1 if overflow in self.targets else 0)) / 3 # the cost is always 3 (2 splitters + 1 merger)
+		return (self.targets.count(value) + (1 if overflow in self.targets else 0)) / split_cost()
 
 	def score_merge(self, comb):
 		if not self.solver.solving: return 0

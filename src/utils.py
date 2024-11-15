@@ -133,6 +133,9 @@ def merge_cost(n, t):
 		n -= 2
 	return r
 
+def split_cost():
+	return 3
+
 def print_standing_text(text, length=100):
 	print("\r" + " " * length + "\r" + text, end="")
 

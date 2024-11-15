@@ -95,7 +95,7 @@ class Node(TreeLike):
 			node.parents.append(self)
 		return new_nodes
 	
-	def divide_loop(self, conveyor_speed):
+	def split(self, conveyor_speed):
 		new_value = Fraction(conveyor_speed, 3)
 		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
