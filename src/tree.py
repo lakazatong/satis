@@ -23,21 +23,6 @@ class Tree:
 		for root in roots:
 			root.level = self.current_level
 			# self.total_seen[root.value] = self.total_seen.get(root.value, 0) + 1
-  
-		# graveyard
-
-		# self.init()
-		# add it after the init of the roots so that they have no parents when initializing
-		# if len(sources) == 1:
-		# 	self.dummy_root = sources[0]
-		# else:
-		# 	self.dummy_root = Node(0)
-		# 	self.dummy_root.children = sources
-		# 	for src in sources:
-		# 		src.parents.append(self.dummy_root)
-		# 	# the dummy root is just there to accumulate the tree size
-		# 	self.dummy_root.size = len(sources)
-		# 	# self.dummy_root.tree_height = sources[0].tree_height # must init for future updates
 
 	def __str__(self):
 		attrs = ",\n\t".join(f"{key}={str(value)}" for key, value in self.__dict__.items())
@@ -47,27 +32,6 @@ class Tree:
 		dummy_root = Node(0)
 		dummy_root.children = self.roots
 		return dummy_root.pretty()
-
-	def simplify(self):
-		# doesn't restore this tree's past to reflect the changes
-		seen_ids = set()
-		queue = [root for root in self.roots]
-		while queue:
-			node = queue.pop()
-			deepest_node = node.simplify_info()
-			if not deepest_node: continue
-			for child in node.children:
-				for grandchild in child.children:
-					grandchild.parents.remove(child)
-					grandchild.value -= child.value
-			deepest_node.parents.append(node)
-			self.size -= len(node.children) # outdated
-			children_ids = set(child.node_id for child in node.children)
-			for level in self.levels:
-				for i in range(len(level)-1, -1, -1):
-					if level[i].node_id in children_ids:
-						level.pop(i)
-			node.children = [deepest_node]
 
 	def to_nx_graph(self):
 		g = nx.Graph()
@@ -160,3 +124,26 @@ class Tree:
 		except Exception as e:
 			print(traceback.format_exc(), end="")
 			return
+
+	# graveyard
+
+	# def simplify(self):
+	# 	# doesn't restore this tree's past to reflect the changes
+	# 	seen_ids = set()
+	# 	queue = [root for root in self.roots]
+	# 	while queue:
+	# 		node = queue.pop()
+	# 		deepest_node = node.simplify_info()
+	# 		if not deepest_node: continue
+	# 		for child in node.children:
+	# 			for grandchild in child.children:
+	# 				grandchild.parents.remove(child)
+	# 				grandchild.value -= child.value
+	# 		deepest_node.parents.append(node)
+	# 		self.size -= len(node.children) # outdated
+	# 		children_ids = set(child.node_id for child in node.children)
+	# 		for level in self.levels:
+	# 			for i in range(len(level)-1, -1, -1):
+	# 				if level[i].node_id in children_ids:
+	# 					level.pop(i)
+	# 		node.children = [deepest_node]

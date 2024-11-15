@@ -26,7 +26,7 @@ class Node(TreeLike):
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
 		self._children = []
-		
+		self.expand = None
 		if config.short_repr:
 			self.repr_keys = False
 			self.repr_whitelist.add('node_id')
@@ -80,6 +80,7 @@ class Node(TreeLike):
 			if child.node_id not in seen_ids: child.populate(G, seen_ids)
 
 	def extract(self, value):
+		if value not in config.conveyor_speeds: self.expand = Node.expand_extract
 		overflow_value = self.value - value
 		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
 		for node in new_nodes:
@@ -88,6 +89,7 @@ class Node(TreeLike):
 		return new_nodes
 
 	def divide(self, divisor):
+		if divisor != 2 and divisor != 3: self.expand = Node.expand_divide
 		divided_value = Fraction(self.value, divisor)
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
@@ -96,6 +98,9 @@ class Node(TreeLike):
 		return new_nodes
 	
 	def split(self, conveyor_speed):
+		if conveyor_speed not in config.conveyor_speeds:
+			print("impossible case reached, splitting a non conveyor speed")
+			exit(1)
 		new_value = Fraction(conveyor_speed, 3)
 		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
@@ -108,25 +113,49 @@ class Node(TreeLike):
 	def merge(nodes):
 		summed_value = sum(node.value for node in nodes)
 		new_node = Node(summed_value)
+		n = len(nodes)
+		if n <= 1:
+			print("impossible case reached, merging 0 or 1 node")
+			exit(1)
+		if n > 3: new_node.expand = Node.expand_merge
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
 			new_node.past.extend(node.past)
 		return new_node
 
-	def simplify_info(self):
-		original_children_ids = {child.node_id for child in self._children}
-		stack, deepest_node, max_depth = [(grandchild, 0) for child in self._children for grandchild in child.children], None, -1
-		while stack:
-			node, depth = stack.pop()
-			if original_children_ids.issubset(node.reachable_from):
-				if depth > max_depth:
-					deepest_node, max_depth = node, depth
-			for child in node.children:
-				stack.append((child, depth + 1))
-		return deepest_node
+	@staticmethod
+	def expand_extract(node):
+		pass
+
+	@staticmethod
+	def expand_divide(node):
+		pass
+
+	@staticmethod
+	def expand_merge(node):
+		nodes_to_merge = node.parents
+		for n in nodes_to_merge:
+			n.children = []
+		while len(nodes_to_merge) > 3:
+			nodes_to_merge.append(Node.merge(nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()))
+		for n in nodes_to_merge:
+			n.children = [node]
+		node.parents = nodes_to_merge
 
 	# graveyard
+
+	# def simplify_info(self):
+	# 	original_children_ids = {child.node_id for child in self._children}
+	# 	stack, deepest_node, max_depth = [(grandchild, 0) for child in self._children for grandchild in child.children], None, -1
+	# 	while stack:
+	# 		node, depth = stack.pop()
+	# 		if original_children_ids.issubset(node.reachable_from):
+	# 			if depth > max_depth:
+	# 				deepest_node, max_depth = node, depth
+	# 		for child in node.children:
+	# 			stack.append((child, depth + 1))
+	# 	return deepest_node
 
 	# def get_root(self):
 	# 	cur = self
