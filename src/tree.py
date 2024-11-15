@@ -18,10 +18,10 @@ class Tree:
 		self.source_values = tuple(root.value for root in roots)
 		self.n_sources = len(roots)
 		self.size = 0
-		self.total_seen = {}
+		# self.total_seen = {}
 		for root in roots:
 			root.level = self.current_level
-			self.total_seen[root.value] = self.total_seen.get(root.value, 0) + 1
+			# self.total_seen[root.value] = self.total_seen.get(root.value, 0) + 1
   
 		# graveyard
 
@@ -110,8 +110,8 @@ class Tree:
 		# update past
 		self.past.append(self.source_values)
 		self.source_values = get_node_values(self.sources)
-		for value in self.source_values:
-			self.total_seen[value] = self.total_seen.get(value, 0) + 1
+		# for value in self.source_values:
+		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
 	def save(self, filename):
 		try:
