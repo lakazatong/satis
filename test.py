@@ -11,13 +11,13 @@ import itertools, time
 from bisect import insort
 from fastList import FastList
 from config import config
-from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost, find_n_m_l, all_sums
+from utils import get_divisors, decimal_representation_info, divides, divide_cost, extract_cost, merge_cost, find_n_m_l, all_sums
 from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 
-print(extract_cost(4, 5))
-print(extract_cost(1, 5))
+print(merge_cost(5, 2))
+# print(extract_cost(1, 5))
 # print(extract_cost(195, 660))
 
 exit(0)
