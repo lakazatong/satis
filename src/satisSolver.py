@@ -65,6 +65,7 @@ class SatisSolver:
 		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
 		source_values_length = len(source_values)
 		self.n_targets = len(self.target_values)
+		self.min_target = min(self.target_values)
 		target_counts = {
 			value: self.target_values.count(value) for value in set(self.target_values)
 		}
@@ -343,7 +344,7 @@ class SatisSolver:
 			nonlocal queue
 			if not self.solving: return
 			n = len(queue)
-			if n < 3 or self.solutions: return queue.pop()
+			if n < 3 or self.solutions_count > 0: return queue.pop()
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
 			# maximum exploration is reached at (70 - 30) / 5 = 8 solutions found
 			# 30% exploration when no solution is found
@@ -393,25 +394,21 @@ class SatisSolver:
 				to_sum_nodes = [sources_copy[i] for i in to_sum_indices]
 				return "\n+\n".join(ts.pretty() for ts in to_sum_nodes) if config.logging else None, [Node.merge(to_sum_nodes)]
 
-			for conveyor_speed in config.allowed_extractors:
-				if self.gcd_incompatible(conveyor_speed): continue
-				try_op(self.extract_sims, extract, (conveyor_speed,))
-				if not self.solving: return
-			
-			if not self.solving: return
-			
-			for divisor in config.allowed_divisors:
-				try_op(self.divide_sims, divide, (divisor,))
-				if not self.solving: return
-			
-			if not self.solving: return
-			
-			try_op(self.split_sims, split)
-			
-			if not self.solving: return
-
-			for to_sum_count in range(2, tree.n_sources+1):
-				try_op(self.merge_sims, merge, (to_sum_count,))
+			if max(tree.source_values) <= self.min_target:
+				for to_sum_count in range(2, tree.n_sources+1):
+					try_op(self.merge_sims, merge, (to_sum_count,))
+					if not self.solving: return
+			else:
+				for conveyor_speed in config.allowed_extractors:
+					if self.gcd_incompatible(conveyor_speed): continue
+					try_op(self.extract_sims, extract, (conveyor_speed,))
+					if not self.solving: return
+				
+				for divisor in config.allowed_divisors:
+					try_op(self.divide_sims, divide, (divisor,))
+					if not self.solving: return
+				
+				try_op(self.split_sims, split)
 				if not self.solving: return
 
 		# self.build_optimal_solutions()
