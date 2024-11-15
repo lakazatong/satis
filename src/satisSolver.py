@@ -151,7 +151,7 @@ class SatisSolver:
 			# 	tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
 			# 	continue
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
 
 			yield (sim, (i,), cost)
 
@@ -196,7 +196,7 @@ class SatisSolver:
 			# 	tree.total_seen.get(overflow_value, 0) + 1 > self.maximum_value(overflow_value):
 			# 	continue
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
 
 			yield (sim, (i, conveyor_speed), cost)
 
@@ -230,7 +230,7 @@ class SatisSolver:
 
 			# if tree.past.contains(sim) or tree.total_seen.get(divided_value, 0) + divisor > self.maximum_value(divided_value): continue
 			
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
 
 			yield (sim, (i,), cost)
 
@@ -269,7 +269,7 @@ class SatisSolver:
 
 			# if tree.past.contains(sim) or tree.total_seen.get(summed_value, 0) + 1 > self.maximum_value(summed_value): continue
 
-			if tree.past.contains(sim): continue
+			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
 
 			yield (sim, (to_sum_indices,), cost)
 
@@ -333,10 +333,9 @@ class SatisSolver:
 			if self.is_solution(tree.sources):
 				if solution_found(tree): purge_queue()
 				return
-			source_values_tuple = tree.source_values
 			score = 0
-			if not self.solutions:
-				score = self.score_cache.get(source_values_tuple, None) or \
+			if self.solutions_count == 0:
+				score = self.score_cache.get(tree.source_values, None) or \
 					self.scoreCalculator.compute(tree.source_values)
 			insort(queue, (tree, score), key=lambda x: (x[1], -x[0].size))
 		
