@@ -2,6 +2,13 @@ import os, threading, signal, time, traceback
 from prompt_toolkit import prompt
 from prompt_toolkit.history import InMemoryHistory
 
+class UniqueInMemoryHistory(InMemoryHistory):
+	def append_string(self, string: str) -> None:
+		if string in self._storage: self._storage.remove(string)
+		if string in self._loaded_strings: self._loaded_strings.remove(string)
+		self.store_string(string)
+		self._loaded_strings.insert(0, string)
+
 class CLI:
 	def __init__(self, name, backend_class):
 		self.name = name
@@ -9,7 +16,7 @@ class CLI:
 		self.backend.running = False
 		self.user_input = None
 		self.running = threading.Event()
-		self.input_history = InMemoryHistory()
+		self.input_history = UniqueInMemoryHistory()
 		for cmd in self.load_recent_directories():
 			self.input_history.append_string(cmd)
 		signal.signal(signal.SIGINT, self.exit)
