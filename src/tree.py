@@ -6,6 +6,7 @@ from config import config
 from fastList import FastList
 from utils import get_node_values, get_node_ids
 from networkx import is_isomorphic
+from node import Node
 
 # responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:
@@ -38,8 +39,14 @@ class Tree:
 		# 	self.dummy_root.size = len(sources)
 		# 	# self.dummy_root.tree_height = sources[0].tree_height # must init for future updates
 
+	def __str__(self):
+		attrs = ",\n\t".join(f"{key}={str(value)}" for key, value in self.__dict__.items())
+		return f"{self.__class__.__name__}(\n\t{attrs}\n)"
+
 	def __repr__(self):
-		return "\n".join(root.pretty() for root in self.roots)
+		dummy_root = Node(0)
+		dummy_root.children = self.roots
+		return dummy_root.pretty()
 
 	def simplify(self):
 		# doesn't restore this tree's past to reflect the changes
