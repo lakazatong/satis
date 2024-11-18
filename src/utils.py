@@ -68,9 +68,8 @@ def compute_tree_info(n, m):
 	for _ in range(n): levels_count.append(levels_count[-1] // 2)
 	for _ in range(m): levels_count.append(levels_count[-1] // 3)
 	
-	saved_spitters = [n for n in reversed(saved_spitters)]
 	# n_levels = len(levels_count) # == 1 + n + m
-	return saved_spitters, levels_count
+	return reversed(saved_spitters), levels_count
 
 def compute_n_looping_branches(l, saved_spitters, levels_count):
 	n_looping_branches = n_saved_splitters = 0
@@ -102,7 +101,7 @@ def divide_cost(d, x, force_l=None):
 	# print(f"{levels_count = }")
 	r = min_splits + 1
 	n_looping_branches, n_saved_splitters = compute_n_looping_branches(l, saved_spitters, levels_count)
-	return r - n_saved_splitters + merge_cost(n_looping_branches, t = 2)
+	return r - n_saved_splitters + merge_cost(n_looping_branches, 2)
 	
 def extract_cost(c, x):
 	# how many splitters + mergers at minimum to extract c from x

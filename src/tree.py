@@ -89,6 +89,9 @@ class Tree:
 			G = nx.DiGraph()
 			seen_ids = set()
 			for root in self.roots:
+				root.expand(seen_ids)
+			seen_ids = set()
+			for root in self.roots:
 				root.level = 0
 				root.populate(G, seen_ids)
 

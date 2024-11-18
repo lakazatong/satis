@@ -1,6 +1,7 @@
 import re
 from re import Pattern
 from collections.abc import Callable
+from fractions import Fraction
 
 class SatisSolverConfig:
 	def __init__(self,
@@ -24,7 +25,7 @@ class SatisSolverConfig:
 		
 		self.conveyor_speed_limit = self.conveyor_speeds[-1]
 		self.allowed_divisors = [d for d in range(2, self.conveyor_speed_limit + 1)]
-		self.allowed_extractors = [c for c in range(1, self.conveyor_speed_limit + 1)]
+		self.allowed_extractors = [Fraction(c) for c in range(1, self.conveyor_speed_limit + 1)]
 		self.conveyor_speeds_r = reversed(self.conveyor_speeds)
 		self.allowed_divisors_r = reversed(self.allowed_divisors)
 		self.allowed_extractors_r = reversed(self.allowed_extractors)

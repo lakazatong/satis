@@ -136,6 +136,8 @@ class SatisSolver:
 			seen_values.add(value)
 			
 			overflow_value = value - conveyor_speed
+
+			if overflow_value == conveyor_speed: continue
 			
 			# specific to the problem
 

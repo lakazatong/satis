@@ -18,7 +18,7 @@ class Node(TreeLike):
 	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
 		super().__init__()
-		if not isinstance(value, (Fraction, int)): raise ValueError(f"not Fraction / int ({type(value)})")
+		if not isinstance(value, Fraction): raise ValueError(f"not Fraction ({type(value)} {value})")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.level = None
@@ -26,7 +26,7 @@ class Node(TreeLike):
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
 		self._children = []
-		self.expand = None
+		self._expands = []
 		if config.short_repr:
 			self.repr_keys = False
 			self.repr_whitelist.add('node_id')
@@ -62,6 +62,7 @@ class Node(TreeLike):
 				new_node = Node(node.value, node_id=node.node_id)
 				new_node.level = node.level
 				new_node.past.extend(self.past)
+				new_node._expands = [_expand for _expand in node._expands]
 				copied_nodes[node.node_id] = new_node
 				new_node.parents = [parent] if parent else []
 				stack.extend((child, new_node) for child in node.children)
@@ -80,7 +81,8 @@ class Node(TreeLike):
 			if child.node_id not in seen_ids: child.populate(G, seen_ids)
 
 	def extract(self, value):
-		if value not in config.conveyor_speeds: self.expand = Node.expand_extract
+		if value not in config.conveyor_speeds:
+			self._expands.append(Node.expand_extract)
 		overflow_value = self.value - value
 		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
 		for node in new_nodes:
@@ -89,7 +91,8 @@ class Node(TreeLike):
 		return new_nodes
 
 	def divide(self, divisor):
-		if divisor != 2 and divisor != 3: self.expand = Node.expand_divide
+		if divisor != 2 and divisor != 3:
+			self._expands.append(Node.expand_divide)
 		divided_value = Fraction(self.value, divisor)
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
@@ -117,7 +120,8 @@ class Node(TreeLike):
 		if n <= 1:
 			print("impossible case reached, merging 0 or 1 node")
 			exit(1)
-		if n > 3: new_node.expand = Node.expand_merge
+		if n > 3:
+			new_node._expands.append(Node.expand_merge)
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
@@ -138,10 +142,17 @@ class Node(TreeLike):
 		for n in nodes_to_merge:
 			n.children = []
 		while len(nodes_to_merge) > 3:
-			nodes_to_merge.append(Node.merge(nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()))
+			nodes_to_merge.append(Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()]))
 		for n in nodes_to_merge:
 			n.children = [node]
 		node.parents = nodes_to_merge
+
+	def expand(self, seen_ids):
+		seen_ids.add(self.node_id)
+		for _expand in self._expands:
+			_expand(self)
+		for child in self.children:
+			if child.node_id not in seen_ids: child.expand(seen_ids)
 
 	# graveyard
 
