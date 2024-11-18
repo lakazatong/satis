@@ -14,13 +14,13 @@ class Node(TreeLike):
 	def children(self, value: list['TreeLike']):
 		self._children = value
 	
-	def __init__(self, value, parent_past=None, node_id=None):
+	def __init__(self, value, parent_past=None, node_id=None, level=None):
 		if value < 0: raise ValueError("negative value")
 		super().__init__()
 		if not isinstance(value, int): raise ValueError(f"not int ({type(value)} {value})")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
-		self.level = None
+		self.level = level
 		self.past = FastList(value)
 		if parent_past: self.past.extend(parent_past)
 		self.parents = []
@@ -129,6 +129,10 @@ class Node(TreeLike):
 		return new_node
 
 	@staticmethod
+	def expand_split(node):
+		pass
+
+	@staticmethod
 	def expand_extract(node):
 		pass
 
@@ -137,8 +141,86 @@ class Node(TreeLike):
 		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(d)
 		branches_count = compute_branches_count(n, m)
-		looping_branches = compute_looping_branches(n, l, branches_count)
-		print(looping_branches)
+		looping_branches = compute_looping_branches(n, m, l, branches_count)
+		values = [node.value // d]
+		for _ in range(m): values.append(values[-1] * 3)
+		for _ in range(n): values.append(values[-1] * 2)
+		values = [x for x in reversed(values)]
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
+		merged_node = Node(values[0])
+		merged_node.parents = [node]
+		original_children = node.children
+		node.children = [merged_node]
+		cur_level = node.level
+		cur_nodes = [merged_node]
+		new_nodes = []
+		
+		for i in range(1, n+1):
+			cur_level += 1
+			n_looping_branches, n_ignore_branches = looping_branches.get((i, 0), (0, 0))
+			total_to_ignore = n_looping_branches + n_ignore_branches
+			if i < n or m != 0:
+				for _ in range(2**i - total_to_ignore):
+					new_nodes.append(Node(values[i], level=cur_level))
+			else:
+				new_nodes = original_children
+
+			for j in range(len(cur_nodes)-1):
+				cur = cur_nodes[j]
+				for k in range(2*j, 2*(j+1)):
+					child = new_nodes[k]
+					cur.children.append(child)
+					child.parents = [cur]
+
+			last = cur_nodes[-1]
+			j = len(cur_nodes) - 1
+			for k in range(2*j, 2*(j+1) - n_looping_branches):
+				child = new_nodes[k]
+				last.children.append(child)
+				child.parents = [last]
+			
+			for _ in range(n_looping_branches):
+				last.children.append(merged_node)
+				merged_node.parents.append(last)
+			
+			cur_nodes, new_nodes = new_nodes, []
+		
+		for i in range(1, m+1):
+			cur_level += 1
+			n_looping_branches, n_ignore_branches = looping_branches.get((n, i), (0, 0))
+			total_to_ignore = n_looping_branches + n_ignore_branches
+			if i < m:
+				for _ in range(2**n*3**i - total_to_ignore):
+					new_nodes.append(Node(values[n + i], level=cur_level))
+			else:
+				new_nodes = original_children
+
+			print(f"\n{i = }\n{n_looping_branches = }\n{n_ignore_branches = }\n{total_to_ignore = }\n{cur_nodes = } {len(cur_nodes)}\n{new_nodes = } {len(new_nodes)}")
+
+			for j in range(len(cur_nodes)-1):
+				cur = cur_nodes[j]
+				for k in range(3*j, 3*(j+1)):
+					child = new_nodes[k]
+					cur.children.append(child)
+					child.parents = [cur]
+
+			last = cur_nodes[-1]
+			j = len(cur_nodes) - 1
+			for k in range(3*j, 3*(j+1) - n_looping_branches):
+				child = new_nodes[k]
+				last.children.append(child)
+				child.parents = [last]
+			
+			for _ in range(n_looping_branches):
+				last.children.append(merged_node)
+				merged_node.parents.append(last)
+
+			cur_nodes, new_nodes = new_nodes, []
+
+		# temporary
+		cur_level += 1
+		for cur in cur_nodes:
+			cur.level = cur_level
 
 	@staticmethod
 	def expand_merge(node):

@@ -80,7 +80,7 @@ def compute_n_looping_branches(l, splitters_count, branches_count):
 		n_looping_branches += 1
 	return n_looping_branches, n_saved_splitters
 
-def compute_looping_branches(n, l, branches_count):
+def compute_looping_branches(n, m, l, branches_count):
 	looping_branches = {}
 	while l:
 		i = 0
@@ -91,10 +91,19 @@ def compute_looping_branches(n, l, branches_count):
 			else:
 				cur_m += 1
 			i += 1
-		if (cur_n, cur_m) in looping_branches:
-			looping_branches[(cur_n, cur_m)] += 1
-		else:
-			looping_branches[(cur_n, cur_m)] = 1
+		old_val = looping_branches.get((cur_n, cur_m), (0, 0))
+		looping_branches[(cur_n, cur_m)] = (old_val[0] + 1, old_val[1])
+		to_add = 1
+		while cur_n < n:
+			cur_n += 1
+			to_add *= 2
+			old_val = looping_branches.get((cur_n, 0), (0, 0))
+			looping_branches[(cur_n, 0)] = (old_val[0], old_val[1] + to_add)
+		while cur_m < m:
+			cur_m += 1
+			to_add *= 3
+			old_val = looping_branches.get((n, cur_m), (0, 0))
+			looping_branches[(n, cur_m)] = (old_val[0], old_val[1] + to_add)
 		l -= branches_count[i]
 	return looping_branches
 
@@ -128,7 +137,7 @@ def extract_cost(x, c):
 	if x % c == 0:
 		n_splits = x // c
 		n, m, l, n_splitters = find_n_m_l(n_splits)
-		# print(f"{n = }, {m = }, {l = }, {n_splitters = }, {c = }, {x = }, {n_splits = }, {2**n*3**m - n_splits}")
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{c = }\n{x = }\n{n_splits = }\n{2**n*3**m - n_splits}")
 		splitters_count, branches_count = compute_tree_info(n, m)
 		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(n_splits - 1, splitters_count, branches_count)
 		n_looping_branches, n_saved_splitters = compute_n_looping_branches(2**n*3**m - n_splits, splitters_count, branches_count)
@@ -136,6 +145,7 @@ def extract_cost(x, c):
 	n, m, _, n_splitters = find_n_m_l(x)
 	# print(n, m, n_splitters)
 	splitters_count, branches_count = compute_tree_info(n, m)
+	print(f"{n = }\n{m = }\n{n_splitters = }\n{c = }\n{x = }\n{splitters_count = }\n{branches_count = }")
 	# print(splitters_count, branches_count)
 	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, splitters_count, branches_count)
 	# print()
@@ -239,7 +249,7 @@ def format_fractions(fractions):
 	return ' '.join(output)
 
 def compute_gcd(*integers):
-    return reduce(math.gcd, integers)
+	return reduce(math.gcd, integers)
 
 def get_divisors(n):
 	return (x for x in range(2, n+1) if n % x == 0)
