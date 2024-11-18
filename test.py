@@ -16,9 +16,9 @@ from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 
-print(merge_cost(5, 2))
-# print(extract_cost(1, 5))
-# print(extract_cost(195, 660))
+print(divide_cost(124, 44))
+# print(extract_cost(5, 1))
+# print(extract_cost(660, 195))
 
 exit(0)
 
@@ -27,7 +27,7 @@ exit(0)
 # print(decimal_representation_info(Fraction(144_573, 2_401))) # non terminating and never repeating
 
 x = 60
-values = [extract_cost(i, x) for i in range(1, x+1)]
+values = [extract_cost(x, i) for i in range(1, x+1)]
 plt.plot(range(1, x+1), values, 'o')
 plt.xlabel('i')
 plt.ylabel('Extract Cost')
@@ -53,7 +53,7 @@ exit(0)
 # for d in range(1, x+1):
 # 	print(d)
 # 	print(find_n_m_l(d))
-# 	print(divide_cost(d, x))
+# 	print(divide_cost(x, d))
 # 	print()
 
 #      0  1  2  3  4  5  6  7  8  9 10 11 12
@@ -70,7 +70,7 @@ exit(0)
 # res = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 # for i in range(1, x+1):
 # 	print()
-# 	cost = extract_cost(i, x)
+# 	cost = extract_cost(x, i)
 # 	print(f"{i = }")
 # 	print(f"{cost = }")
 # 	# if cost != res[i]:

@@ -89,7 +89,7 @@ class SatisSolver:
 		summed_value = sum(sources)
 		for i in range(self.n_targets):
 			target = self.target_values[i]
-			r += extract_cost(target, summed_value)
+			r += extract_cost(summed_value, target)
 			summed_value -= target
 		return r
 
@@ -130,7 +130,7 @@ class SatisSolver:
 			
 			if value in cant_use or value in seen_values or value <= conveyor_speed: continue
 			
-			cost = extract_cost(conveyor_speed, value)
+			cost = extract_cost(value, conveyor_speed)
 			if tree.size + cost > self.best_size: continue
 			
 			seen_values.add(value)
@@ -214,7 +214,7 @@ class SatisSolver:
 			
 			value = src.value
 
-			cost = divide_cost(divisor, value)
+			cost = divide_cost(value, divisor)
 			if tree.size + cost > self.best_size: continue
 			
 			if value in cant_use or value in seen_values or not divides(divisor, value): continue

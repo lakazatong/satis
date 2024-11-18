@@ -19,7 +19,7 @@ class ScoreCalculator:
 			if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
-			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(c, src)
+			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(src, c)
 			if new_score > score: score = new_score
 		return score
 
@@ -29,7 +29,7 @@ class ScoreCalculator:
 			if not self.solver.solving: return 0
 			if not divides(d, src): continue
 			divided_value = Fraction(src, d)
-			new_score = self.targets.count(divided_value) / divide_cost(d, src)
+			new_score = self.targets.count(divided_value) / divide_cost(src, d)
 			if new_score > score: score = new_score
 		return score
 
