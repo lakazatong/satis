@@ -128,14 +128,15 @@ def extract_cost(x, c):
 	# how many splitters + mergers at minimum to extract c from x
 	if c == 0: raise ValueError("c == 0")
 	if c in config.conveyor_speeds: return 1
+	# split in c's instead of 1's when possible
 	if divides(c, x):
 		n_splits = x // c
-		n, m, _, n_splitters = find_n_m_l(n_splits)
-		# print(n, m, n_splitters)
+		n, m, l, n_splitters = find_n_m_l(n_splits)
+		# print(f"{n = }, {m = }, {l = }, {n_splitters = }, {c = }, {x = }, {n_splits = }, {2**n*3**m - n_splits}")
 		splitters_count, branches_count = compute_tree_info(n, m)
-		n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(n_splits - 1, splitters_count, branches_count)
-		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(2**n*3**m - n_splits, splitters_count, branches_count)
-		return n_splitters - n_saved_splitters_extracted - n_saved_splitters_overflow + merge_cost(n_looping_branches_extracted, 1) + merge_cost(n_looping_branches_overflow, 1)
+		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(n_splits - 1, splitters_count, branches_count)
+		n_looping_branches, n_saved_splitters = compute_n_looping_branches(2**n*3**m - n_splits, splitters_count, branches_count)
+		return n_splitters - n_saved_splitters_overflow - n_saved_splitters + merge_cost(n_looping_branches_overflow, 1) + merge_cost(n_looping_branches, 2)
 	n, m, _, n_splitters = find_n_m_l(x)
 	# print(n, m, n_splitters)
 	splitters_count, branches_count = compute_tree_info(n, m)

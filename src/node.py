@@ -82,7 +82,7 @@ class Node(TreeLike):
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
-			self._expands.append(Node.expand_extract)
+			self._expands.append((Node.expand_extract, tuple()))
 		overflow_value = self.value - value
 		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
 		for node in new_nodes:
@@ -92,7 +92,7 @@ class Node(TreeLike):
 
 	def divide(self, divisor):
 		if divisor != 2 and divisor != 3:
-			self._expands.append(Node.expand_divide)
+			self._expands.append((Node.expand_divide, (divisor,)))
 		divided_value = Fraction(self.value, divisor)
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
@@ -121,7 +121,7 @@ class Node(TreeLike):
 			print("impossible case reached, merging 0 or 1 node")
 			exit(1)
 		if n > 3:
-			new_node._expands.append(Node.expand_merge)
+			new_node._expands.append((Node.expand_merge, tuple()))
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
@@ -133,8 +133,12 @@ class Node(TreeLike):
 		pass
 
 	@staticmethod
-	def expand_divide(node):
-		pass
+	def expand_divide(node, d):
+		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
+		n, m, l, n_splitters = find_n_m_l(d)
+		branches_count = compute_branches_count(n, m)
+		looping_branches = compute_looping_branches(n, l, branches_count)
+		print(looping_branches)
 
 	@staticmethod
 	def expand_merge(node):
@@ -149,8 +153,8 @@ class Node(TreeLike):
 
 	def expand(self, seen_ids):
 		seen_ids.add(self.node_id)
-		for _expand in self._expands:
-			_expand(self)
+		for _expand, args in self._expands:
+			_expand(self, *args)
 		for child in self.children:
 			if child.node_id not in seen_ids: child.expand(seen_ids)
 
