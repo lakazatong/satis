@@ -1,6 +1,6 @@
 import itertools
 
-from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost, split_cost, all_sums
+from utils import remove_pairs, extract_cost, divide_cost, merge_cost, split_cost, all_sums
 from bisect import insort
 from config import config
 
