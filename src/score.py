@@ -3,7 +3,6 @@ import itertools
 from utils import remove_pairs, divides, extract_cost, divide_cost, merge_cost, split_cost, all_sums
 from bisect import insort
 from config import config
-from fractions import Fraction
 
 class ScoreCalculator:
 	def __init__(self, targets, solver):
@@ -16,7 +15,8 @@ class ScoreCalculator:
 		score = 0
 		for c in config.allowed_divisors:
 			if not self.solver.solving: return 0
-			if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
+			# if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
+			if src <= c or (c not in config.conveyor_speeds and src % c != 0): continue
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
 			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(src, c)
@@ -27,8 +27,9 @@ class ScoreCalculator:
 		score = 0
 		for d in config.allowed_divisors:
 			if not self.solver.solving: return 0
-			if not divides(d, src): continue
-			divided_value = Fraction(src, d)
+			# if not divides(d, src): continue
+			if src % d != 0: continue
+			divided_value = src // d
 			new_score = self.targets.count(divided_value) / divide_cost(src, d)
 			if new_score > score: score = new_score
 		return score
@@ -37,7 +38,7 @@ class ScoreCalculator:
 		if not self.solver.solving: return 0
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		if not c: return 0
-		value = Fraction(c, 3)
+		value = c // 3
 		tmp = 2 * value
 		if src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
 		overflow = src - tmp

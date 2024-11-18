@@ -7,22 +7,20 @@ from utils import \
 	get_sim_without, \
 	remove_pairs, \
 	get_divisors, \
-	compute_minimum_possible_fraction, \
 	format_fractions, \
-	divides, \
 	print_standing_text, \
 	extract_cost, \
 	divide_cost, \
 	split_cost, \
 	merge_cost, \
 	compute_gcd, \
-	get_gcd_incompatible
+	get_gcd_incompatible, \
+	fractions_to_integers
 from bisect import insort
 from config import config
 from node import Node
 from tree import Tree
 from fastList import FastList
-from fractions import Fraction
 from score import ScoreCalculator
 
 class SatisSolver:
@@ -46,32 +44,38 @@ class SatisSolver:
 		self.reset()
 
 		source_values = sorted(source_values)
-		self.target_values = sorted(target_values)
+		target_values = sorted(target_values)
 		sources_total = sum(source_values)
 		targets_total = sum(target_values)
 		
-		if sources_total > targets_total:
-			value = sources_total - targets_total
-			insort(self.target_values, value)
-			print(f"\nTargets were lacking, generated a {value} node as target")
-		
-		elif sources_total < targets_total:
+		if sources_total < targets_total:
 			value = targets_total - sources_total
 			insort(source_values, value)
 			print(f"\nSources were lacking, generated a {value} node as source")
-
-		self.scoreCalculator = ScoreCalculator(self.target_values, self)
+		elif sources_total > targets_total:
+			value = sources_total - targets_total
+			insort(target_values, value)
+			print(f"\nTargets were lacking, generated a {value} node as target")
 
 		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
-		source_values_length = len(source_values)
+
+		r, self.unit_flow_ratio = fractions_to_integers(source_values + target_values)
+		
+		n_sources = len(source_values)
 		self.n_targets = len(self.target_values)
+
+		source_values = r[:n_sources]
+		self.target_values = r[n_sources:]
+
+		self.scoreCalculator = ScoreCalculator(self.target_values, self)
+		
 		self.min_target = min(self.target_values)
 		target_counts = {
 			value: self.target_values.count(value) for value in set(self.target_values)
 		}
 		self.compute_cant_use = get_compute_cant_use(target_counts)
 		self.conveyor_speed_limit = config.conveyor_speeds[-1]
-		self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
+		# self.minimum_possible_fraction = compute_minimum_possible_fraction(self.target_values)
 
 		self.tree_source = Tree([Node(value) for value in source_values])
 
@@ -142,7 +146,7 @@ class SatisSolver:
 			# specific to the problem
 
 			if self.gcd_incompatible(overflow_value): continue
-			values_to_add = [Fraction(conveyor_speed, 1), overflow_value]
+			values_to_add = [conveyor_speed, overflow_value]
 			if any(src.past.contains(value) for value in values_to_add): continue
 
 			sim = get_sim_without(value, source_values)
@@ -177,8 +181,9 @@ class SatisSolver:
 			conveyor_speed = next((c for c in config.conveyor_speeds if c > value), None)
 			if not conveyor_speed: continue
 			
-			new_value = Fraction(conveyor_speed, 3)
-			tmp = new_value * 2
+			# all are from the game and all are divisible by 3
+			new_value = conveyor_speed // 3
+			tmp = new_value << 1
 			if value < tmp: continue
 			overflow_value = value - tmp
 
@@ -214,14 +219,18 @@ class SatisSolver:
 			
 			value = src.value
 
+			if value % divisor != 0: continue
+
 			cost = divide_cost(value, divisor)
 			if tree.size + cost > self.best_size: continue
 			
-			if value in cant_use or value in seen_values or not divides(divisor, value): continue
+			# if value in cant_use or value in seen_values or not divides(divisor, value): continue
+			if value in cant_use or value in seen_values: continue
 			seen_values.add(value)
 
-			divided_value = Fraction(value, divisor)
-			if divided_value < self.minimum_possible_fraction: continue
+			# divided_value = Fraction(value, divisor)
+			divided_value = value // divisor
+			# if divided_value < self.minimum_possible_fraction: continue
 
 			# specific to the problem
 			

@@ -4,25 +4,20 @@ from collections import Counter
 from config import config
 from functools import partial
 from fractions import Fraction
+from functools import reduce
 
-def divides(a, b):
-	if a == 0: raise ValueError("a == 0")
-	q, remainder = divmod(b, a)
-	return q if remainder == 0 and q != 1 else None
-
-# def all_sums(numbers):
-# 	sums = {Fraction(0)}
-# 	for num in numbers:
-# 		sums.update({s + num for s in sums})
-# 	sums.remove(Fraction(0))
-# 	return sums
+def fractions_to_integers(fractions):
+	denominators = [frac.denominator for frac in fractions]
+	common_denominator = lcm(*denominators)
+	integers = [frac.numerator * (common_denominator // frac.denominator) for frac in fractions]
+	return integers, common_denominator
 
 def all_sums(numbers):
-	sums = {Fraction(0): 0}
+	sums = {0: 0}
 	for num in numbers:
 		new_sums = {s + num: count + 1 for s, count in sums.items()}
 		sums.update(new_sums)
-	sums.pop(Fraction(0))
+	sums.pop(0)
 	return sums
 
 def count_splits(n, m):
@@ -129,7 +124,8 @@ def extract_cost(x, c):
 	if c == 0: raise ValueError("c == 0")
 	if c in config.conveyor_speeds: return 1
 	# split in c's instead of 1's when possible
-	if divides(c, x):
+	# if divides(c, x):
+	if x % c == 0:
 		n_splits = x // c
 		n, m, l, n_splitters = find_n_m_l(n_splits)
 		# print(f"{n = }, {m = }, {l = }, {n_splitters = }, {c = }, {x = }, {n_splits = }, {2**n*3**m - n_splits}")
@@ -242,26 +238,8 @@ def format_fractions(fractions):
 
 	return ' '.join(output)
 
-def compute_minimum_possible_fraction(values):
-	min_fraction = None
-
-	for value in values:
-		if value.denominator == 1:
-			fraction = Fraction(1, 1)  # Treat integers as Fraction(1, 1)
-		else:
-			fraction = value - Fraction(value.numerator // value.denominator)  # Get the fractional part
-
-		if min_fraction is None or fraction < min_fraction:
-			min_fraction = fraction
-
-	return min_fraction
-
-def compute_gcd(*fractions):
-	numerators = [f.numerator for f in fractions]
-	denominators = [f.denominator for f in fractions]
-	gcd_numerator = functools.reduce(math.gcd, numerators)
-	lcm_denominator = functools.reduce(lambda x, y: x * y // math.gcd(x, y), denominators)
-	return Fraction(gcd_numerator, lcm_denominator)
+def compute_gcd(integers):
+    return reduce(math.gcd, integers)
 
 def get_divisors(n):
 	return (x for x in range(2, n+1) if n % x == 0)
@@ -322,16 +300,6 @@ def compute_cant_use(target_counts, sources):
 
 def get_compute_cant_use(target_counts):
 	return partial(compute_cant_use, target_counts)
-
-# def insert_into_sorted(sorted_list, item, key=lambda x: x):
-	# low, high = 0, len(sorted_list)
-	# while low < high:
-	# 	mid = low + (high - low) // 2
-	# 	if key(item) > key(sorted_list[mid]):
-	# 		low = mid + 1
-	# 	else:
-	# 		high = mid
-	# sorted_list.insert(low, item)
 
 def get_sim_without(value, values):
 	sim = [v for v in values]
@@ -440,6 +408,40 @@ def generate_test_cases(num_cases, max_size, elements_max_size=1200*2):
 	return test_cases
 
 # graveyard
+
+# def divides(a, b):
+# 	if a == 0: raise ValueError("a == 0")
+# 	q, remainder = divmod(b, a)
+# 	return q if remainder == 0 and q != 1 else None
+
+# def all_sums(numbers):
+# 	sums = {Fraction(0): 0}
+# 	for num in numbers:
+# 		new_sums = {s + num: count + 1 for s, count in sums.items()}
+# 		sums.update(new_sums)
+# 	sums.pop(Fraction(0))
+# 	return sums
+
+# def compute_minimum_possible_fraction(values):
+# 	min_fraction = None
+
+# 	for value in values:
+# 		if value.denominator == 1:
+# 			fraction = Fraction(1, 1)  # Treat integers as Fraction(1, 1)
+# 		else:
+# 			fraction = value - Fraction(value.numerator // value.denominator)  # Get the fractional part
+
+# 		if min_fraction is None or fraction < min_fraction:
+# 			min_fraction = fraction
+
+# 	return min_fraction
+
+# def compute_gcd(*fractions):
+# 	numerators = [f.numerator for f in fractions]
+# 	denominators = [f.denominator for f in fractions]
+# 	gcd_numerator = functools.reduce(math.gcd, numerators)
+# 	lcm_denominator = functools.reduce(lambda x, y: x * y // math.gcd(x, y), denominators)
+# 	return Fraction(gcd_numerator, lcm_denominator)
 
 # class Binary:
 # 	def __init__(self, n):
