@@ -84,7 +84,7 @@ class Tree:
 		# for value in self.source_values:
 		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
-	def save(self, filename):
+	def save(self, filename, unit_flow_ratio):
 		try:
 			G = nx.DiGraph()
 			seen_ids = set()
@@ -93,7 +93,7 @@ class Tree:
 			seen_ids = set()
 			for root in self.roots:
 				root.level = 0
-				root.populate(G, seen_ids)
+				root.populate(G, seen_ids, unit_flow_ratio)
 
 			A = to_agraph(G)
 			for node in A.nodes():

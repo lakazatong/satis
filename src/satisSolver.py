@@ -57,12 +57,12 @@ class SatisSolver:
 			insort(target_values, value)
 			print(f"\nTargets were lacking, generated a {value} node as target")
 
-		self.problem_str = format_fractions(source_values) + " to " + format_fractions(self.target_values)
+		self.problem_str = format_fractions(source_values) + " to " + format_fractions(target_values)
 
 		r, self.unit_flow_ratio = fractions_to_integers(source_values + target_values)
 		
 		n_sources = len(source_values)
-		self.n_targets = len(self.target_values)
+		self.n_targets = len(target_values)
 
 		source_values = r[:n_sources]
 		self.target_values = r[n_sources:]
@@ -443,10 +443,10 @@ class SatisSolver:
 			for i, tree in enumerate(self.solutions):
 				if not self.concluding: break
 				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
-				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)))
+				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)), self.unit_flow_ratio)
 		else:
 			print("Saving solution...")
-			self.solutions[0].save(os.path.join(self.problem_str, config.solutions_filename(0)))
+			self.solutions[0].save(os.path.join(self.problem_str, config.solutions_filename(0)), self.unit_flow_ratio)
 		print()
 
 	# simple state machine

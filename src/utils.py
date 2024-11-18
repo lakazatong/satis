@@ -8,7 +8,7 @@ from functools import reduce
 
 def fractions_to_integers(fractions):
 	denominators = [frac.denominator for frac in fractions]
-	common_denominator = lcm(*denominators)
+	common_denominator = math.lcm(*denominators)
 	integers = [frac.numerator * (common_denominator // frac.denominator) for frac in fractions]
 	return integers, common_denominator
 
@@ -189,7 +189,7 @@ def format_fractions(fractions):
 		terminating, m = decimal_representation_info(frac)
 
 		if not m:
-			output.append(with_count(count, str(frac)))
+			output.append(with_count(count, str(frac).replace('/', '⧸')))
 			continue
 
 		if terminating:
@@ -208,7 +208,7 @@ def format_fractions(fractions):
 			output.append(with_count(count, f"{integer_part}.{decimal_str}"))
 			continue
 
-		output.append(with_count(count, str(frac)))
+		output.append(with_count(count, str(frac).replace('/', '⧸')))
 
 		# graveyard
 
@@ -238,7 +238,7 @@ def format_fractions(fractions):
 
 	return ' '.join(output)
 
-def compute_gcd(integers):
+def compute_gcd(*integers):
     return reduce(math.gcd, integers)
 
 def get_divisors(n):

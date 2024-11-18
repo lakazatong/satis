@@ -4,6 +4,7 @@ from prompt_toolkit.history import InMemoryHistory
 
 class UniqueInMemoryHistory(InMemoryHistory):
 	def append_string(self, string: str) -> None:
+		string = string.replace('⧸', '/')
 		if string in self._storage: self._storage.remove(string)
 		if string in self._loaded_strings: self._loaded_strings.remove(string)
 		self.store_string(string)

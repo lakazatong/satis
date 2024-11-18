@@ -4,7 +4,6 @@ from treelike import TreeLike
 from utils import get_node_values, get_short_node_ids
 from fastList import FastList
 from config import config
-from fractions import Fraction
 
 class Node(TreeLike):
 	@property
@@ -18,7 +17,7 @@ class Node(TreeLike):
 	def __init__(self, value, parent_past=None, node_id=None):
 		if value < 0: raise ValueError("negative value")
 		super().__init__()
-		if not isinstance(value, Fraction): raise ValueError(f"not Fraction ({type(value)} {value})")
+		if not isinstance(value, int): raise ValueError(f"not int ({type(value)} {value})")
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.level = None
@@ -73,12 +72,13 @@ class Node(TreeLike):
 	def deepcopy(self):
 		return self._deepcopy({})
 
-	def populate(self, G, seen_ids):
+	def populate(self, G, seen_ids, unit_flow_ratio):
+		from fractions import Fraction
 		seen_ids.add(self.node_id)
-		G.add_node(self.node_id, label=str(self.value), level=self.level)
+		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
 		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
-			if child.node_id not in seen_ids: child.populate(G, seen_ids)
+			if child.node_id not in seen_ids: child.populate(G, seen_ids, unit_flow_ratio)
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
@@ -93,7 +93,7 @@ class Node(TreeLike):
 	def divide(self, divisor):
 		if divisor != 2 and divisor != 3:
 			self._expands.append((Node.expand_divide, (divisor,)))
-		divided_value = Fraction(self.value, divisor)
+		divided_value = self.value // divisor
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
 		for node in new_nodes:
 			self._children.append(node)
@@ -104,7 +104,7 @@ class Node(TreeLike):
 		if conveyor_speed not in config.conveyor_speeds:
 			print("impossible case reached, splitting a non conveyor speed")
 			exit(1)
-		new_value = Fraction(conveyor_speed, 3)
+		new_value = conveyor_speed // 3
 		overflow_value = self.value - new_value * 2
 		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
