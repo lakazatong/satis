@@ -107,7 +107,7 @@ class Tree:
 
 			seen_ids = set()
 			for root in self.roots:
-				# root.level = 0
+				root.level = 0
 				root.populate(G, seen_ids, unit_flow_ratio)
 
 			A = to_agraph(G)

@@ -271,6 +271,15 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
+		if len(merged_node.parents) > 3:
+			merged_node._expands.append((Node.expand_merge, tuple()))
+
+		if len(extract_node.parents) > 3:
+			extract_node._expands.append((Node.expand_merge, tuple()))
+
+		if len(overflow_node.parents) > 3:
+			overflow_node._expands.append((Node.expand_merge, tuple()))
+
 		return node.level + 1, n + m
 
 	@staticmethod
@@ -283,7 +292,7 @@ class Node(TreeLike):
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
 		cur_level = node.level + 1
 		merged_node = Node(values[0], level=cur_level)
 		merged_node.levels_to_add = -(n + m)
@@ -298,7 +307,7 @@ class Node(TreeLike):
 			n_looping_branches, n_ignore_branches = looping_branches.get((i, 0), (0, 0))
 			total_to_ignore = n_looping_branches + n_ignore_branches
 			if i < n or m != 0:
-				for _ in range(2**i - total_to_ignore):
+				for j in range(2**i - total_to_ignore):
 					new_node = Node(values[i], level=cur_level)
 					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 2]
@@ -320,7 +329,7 @@ class Node(TreeLike):
 			n_looping_branches, n_ignore_branches = looping_branches.get((n, i), (0, 0))
 			total_to_ignore = n_looping_branches + n_ignore_branches
 			if i < m:
-				for _ in range(2**n*3**i - total_to_ignore):
+				for j in range(2**n*3**i - total_to_ignore):
 					new_node = Node(values[n + i], level=cur_level)
 					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 3]
@@ -339,7 +348,10 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		return node.level.level, n + m
+		if len(merged_node.parents) > 3:
+			merged_node._expands.append((Node.expand_merge, tuple()))
+
+		return node.level, n + m
 
 	@staticmethod
 	def expand_merge(node):
