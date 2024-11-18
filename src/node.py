@@ -85,7 +85,7 @@ class Node(TreeLike):
 		if value not in config.conveyor_speeds:
 			self._expands.append((Node.expand_extract, (value,)))
 		overflow_value = self.value - value
-		new_nodes = [Node(value, self.past) for value in sorted([value, overflow_value])]
+		new_nodes = [Node(v, self.past) for v in sorted([value, overflow_value])]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
@@ -107,7 +107,7 @@ class Node(TreeLike):
 			exit(1)
 		new_value = conveyor_speed // 3
 		overflow_value = self.value - new_value * 2
-		new_nodes = [Node(value, self.past) for value in sorted([new_value, new_value, overflow_value])]
+		new_nodes = [Node(v, self.past) for v in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)

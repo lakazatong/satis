@@ -13,22 +13,22 @@ class ScoreCalculator:
 
 	def score_extract(self, src):
 		score = 0
-		for c in config.allowed_divisors:
-			if not self.solver.solving: return 0
-			# if src <= c or (c not in config.conveyor_speeds and not divides(c, src)): continue
-			if src <= c or (c not in config.conveyor_speeds and src % c != 0): continue
+		for c in range(1, (src - 1) // 2 + 1):
+			if not self.solver.solving: return score
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
-			new_score = (1 if c in self.targets else 0 + 1 if overflow in self.targets else 0) / extract_cost(src, c)
+			try:
+				new_score = ((1 if c in self.targets else 0) + (1 if overflow in self.targets else 0)) / extract_cost(src, c)
+			except:
+				print(src, c)
+				exit(1)
 			if new_score > score: score = new_score
 		return score
 
 	def score_divide(self, src):
 		score = 0
-		for d in config.allowed_divisors:
+		for d in (d for d in range(2, src + 1) if src % d == 0):
 			if not self.solver.solving: return 0
-			# if not divides(d, src): continue
-			if src % d != 0: continue
 			divided_value = src // d
 			new_score = self.targets.count(divided_value) / divide_cost(src, d)
 			if new_score > score: score = new_score
@@ -39,7 +39,7 @@ class ScoreCalculator:
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		if not c: return 0
 		value = c // 3
-		tmp = 2 * value
+		tmp = value << 1
 		if src <= tmp: return 0 # if src == tmp it's equivalent to dividing in two
 		overflow = src - tmp
 		if value == overflow: return 0 # equivalent to dividing in three
@@ -47,7 +47,7 @@ class ScoreCalculator:
 
 	def score_merge(self, comb):
 		if not self.solver.solving: return 0
-		return 1 / merge_cost(len(comb), 1)
+		return (1 if sum(comb) in self.targets else 0) / merge_cost(len(comb), 1)
 
 	def compute_individual(self, src):
 		if not self.solver.solving: return 0
