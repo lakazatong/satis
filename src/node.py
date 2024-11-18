@@ -130,40 +130,28 @@ class Node(TreeLike):
 			new_node.past.extend(node.past)
 		return new_node
 
-	def _min_level(self, seen_ids):
+	def min_level(self, seen_ids):
 		seen_ids.add(self.node_id)
 		r = self.level
 		for child in self.children:
 			if child.node_id in seen_ids: continue
-			r = min(r, child._min_level(seen_ids))
+			r = min(r, child.min_level(seen_ids))
 		return r
 
-	def min_level(self):
-		seen_ids = set
-		return self._min_level(seen_ids)
-
-	def _apply_levels_update(self, seen_ids):
+	def apply_levels_update(self, seen_ids):
 		seen_ids.add(self.node_id)
 		self.level += self.levels_to_add
 		for child in self.children:
 			if child.node_id in seen_ids: continue
-			child._apply_levels_update(seen_ids)
+			child.apply_levels_update(seen_ids)
 
-	def apply_levels_update(self):
-		seen_ids = set()
-		self._apply_levels_update(seen_ids)
-
-	def _tag_levels_update(self, threshold, amount, seen_ids):
+	def tag_levels_update(self, threshold, amount, seen_ids):
 		seen_ids.add(self.node_id)
 		if self.level >= threshold:
 			self.levels_to_add += amount
 		for child in self.children:
 			if child.node_id in seen_ids: continue
-			child._tag_levels_update(threshold, amount, seen_ids)
-
-	def tag_levels_update(self, threshold, amount):
-		seen_ids = set()
-		self._tag_levels_update(threshold, amount, seen_ids)
+			child.tag_levels_update(threshold, amount, seen_ids)
 
 	@staticmethod
 	def expand_split(node):
@@ -217,6 +205,11 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
+				for j, new_node in enumerate(new_nodes):
+					new_node.levels_to_add = -(n + m)
+					cur = cur_nodes[(n_reroute_branches + j) // 2]
+					cur.children.append(new_node)
+					new_node.parents = [cur]
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 2]
@@ -253,6 +246,15 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
+				try:
+					for j, new_node in enumerate(new_nodes):
+						new_node.levels_to_add = -(n + m)
+						cur = cur_nodes[(n_reroute_branches + j) // 3]
+						cur.children.append(new_node)
+						new_node.parents = [cur]
+				except:
+					print(f"{n = }\n{m = }\n{m = }\n{n_looping_branches = }\n{n_extract_branches = }\n{n_overflow_branches = }")
+					exit(1)
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 3]
@@ -316,6 +318,11 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
+				for j, new_node in enumerate(new_nodes):
+					new_node.levels_to_add = -(n + m)
+					cur = cur_nodes[(n_looping_branches + j) // 2]
+					cur.children.append(new_node)
+					new_node.parents = [cur]
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 2]
@@ -338,6 +345,11 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
+				for j, new_node in enumerate(new_nodes):
+					new_node.levels_to_add = -(n + m)
+					cur = cur_nodes[(n_looping_branches + j) // 3]
+					cur.children.append(new_node)
+					new_node.parents = [cur]
 
 			# print(f"\n{i = }\n{n_looping_branches = }\n{n_ignore_branches = }\n{total_to_ignore = }\n{cur_nodes = } {len(cur_nodes)}\n{new_nodes = } {len(new_nodes)}")
 

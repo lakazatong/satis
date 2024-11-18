@@ -92,18 +92,19 @@ class Tree:
 			seen_ids = set()
 			for root in self.roots:
 				for child in root.children:
-					min_level_after_zero = min(min_level_after_zero, child._min_level(seen_ids))
+					min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
 
+			seen_ids = set()
 			levels_updates = [(1, 1 - min_level_after_zero)]
 			for root in self.roots:
 				levels_updates.extend(root.expand(seen_ids))
 			for threshold, amount in levels_updates:
 				seen_ids = set()
 				for root in self.roots:
-					root._tag_levels_update(threshold, amount, seen_ids)
+					root.tag_levels_update(threshold, amount, seen_ids)
 			seen_ids = set()
 			for root in self.roots:
-				root._apply_levels_update(seen_ids)
+				root.apply_levels_update(seen_ids)
 
 			seen_ids = set()
 			for root in self.roots:
