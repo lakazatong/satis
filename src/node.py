@@ -99,7 +99,7 @@ class Node(TreeLike):
 			self._children.append(node)
 			node.parents.append(self)
 		return new_nodes
-	
+
 	def split(self, conveyor_speed):
 		if conveyor_speed not in config.conveyor_speeds:
 			print("impossible case reached, splitting a non conveyor speed")
