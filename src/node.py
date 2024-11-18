@@ -176,12 +176,15 @@ class Node(TreeLike):
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
 		extract_branches = compute_looping_branches(n, m, conveyor_speed, branches_count)
 		overflow_branches = compute_looping_branches(n, m, node.value - conveyor_speed, branches_count)
-		values = [node.value // d]
+		values = [1]
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
-		merged_node = Node(values[0])
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
+		cur_level = node.level + 1
+		merged_node = Node(values[0], level=cur_level)
+		merged_node.levels_to_add = -(n + m)
+		merged_node.parents = [node]
 		extract_node = overflow_node = None
 		if node.children[0].value == conveyor_speed:
 			extract_node = node.children[0]
@@ -189,10 +192,8 @@ class Node(TreeLike):
 		else:
 			extract_node = node.children[1]
 			overflow_node = node.children[0]
-		merged_node.parents = [node]
 		original_children = node.children
 		node.children = [merged_node]
-		cur_level = node.level
 		cur_nodes = [merged_node]
 		new_nodes = []
 		
@@ -201,12 +202,14 @@ class Node(TreeLike):
 			n_looping_branches, a = looping_branches.get((i, 0), (0, 0))
 			n_extract_branches, b = extract_branches.get((i, 0), (0, 0))
 			n_overflow_branches, c = overflow_branches.get((i, 0), (0, 0))
+			# print(f"{n_looping_branches = }\n{n_extract_branches = }\n{n_overflow_branches = }")
 			n_reroute_branches = n_looping_branches + n_extract_branches + n_overflow_branches
 			n_ignore_branches = a + b + c # their individual meaning are not important, only their sum is, hence the short namings
 			total_to_ignore = n_reroute_branches + n_ignore_branches
 			if i < n or m != 0:
 				for j in range(2**i - total_to_ignore):
 					new_node = Node(values[i], level=cur_level)
+					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_reroute_branches + j) // 2]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
@@ -221,13 +224,13 @@ class Node(TreeLike):
 
 			for j in range(n_extract_branches):
 				cur = cur_nodes[(n_looping_branches + j) // 2]
-				cur.children.append(merged_node)
-				extraxct_node.parents.append(cur)
+				cur.children.append(extract_node)
+				extract_node.parents.append(cur)
 
 			for j in range(n_overflow_branches):
 				cur = cur_nodes[(n_looping_branches + n_extract_branches + j) // 2]
-				cur.children.append(merged_node)
-				extraxct_node.parents.append(cur)
+				cur.children.append(overflow_node)
+				overflow_node.parents.append(cur)
 
 			cur_nodes, new_nodes = new_nodes, []
 		
@@ -242,6 +245,7 @@ class Node(TreeLike):
 			if i < m:
 				for j in range(2**n*3**i - total_to_ignore):
 					new_node = Node(values[n + i], level=cur_level)
+					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_reroute_branches + j) // 3]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
@@ -256,18 +260,17 @@ class Node(TreeLike):
 
 			for j in range(n_extract_branches):
 				cur = cur_nodes[(n_looping_branches + j) // 3]
-				cur.children.append(merged_node)
-				extraxct_node.parents.append(cur)
+				cur.children.append(extract_node)
+				extract_node.parents.append(cur)
 
 			for j in range(n_overflow_branches):
 				cur = cur_nodes[(n_looping_branches + n_extract_branches + j) // 3]
-				cur.children.append(merged_node)
-				extraxct_node.parents.append(cur)
+				cur.children.append(overflow_node)
+				overflow_node.parents.append(cur)
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		cur_level += 1
-		return cur_nodes[0].level, cur_level - node.level
+		return node.level + 1, n + m
 
 	@staticmethod
 	def expand_divide(node, d):
@@ -280,11 +283,12 @@ class Node(TreeLike):
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
 		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
-		merged_node = Node(values[0])
+		cur_level = node.level + 1
+		merged_node = Node(values[0], level=cur_level)
+		merged_node.levels_to_add = -(n + m)
 		merged_node.parents = [node]
 		original_children = node.children
 		node.children = [merged_node]
-		cur_level = node.level
 		cur_nodes = [merged_node]
 		new_nodes = []
 		
@@ -295,6 +299,7 @@ class Node(TreeLike):
 			if i < n or m != 0:
 				for _ in range(2**i - total_to_ignore):
 					new_node = Node(values[i], level=cur_level)
+					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 2]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
@@ -316,6 +321,7 @@ class Node(TreeLike):
 			if i < m:
 				for _ in range(2**n*3**i - total_to_ignore):
 					new_node = Node(values[n + i], level=cur_level)
+					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 3]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
@@ -332,8 +338,7 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		cur_level += 1
-		return cur_nodes[0].level, cur_level - node.level
+		return node.level.level, n + m
 
 	@staticmethod
 	def expand_merge(node):

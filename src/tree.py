@@ -88,22 +88,22 @@ class Tree:
 		try:
 			G = nx.DiGraph()
 			
-			# min_level_after_zero = 2**32
-			# seen_ids = set()
-			# for root in self.roots:
-			# 	for child in root.children:
-			# 		min_level_after_zero = min(min_level_after_zero, child._min_level(seen_ids))
+			min_level_after_zero = 2**32
+			seen_ids = set()
+			for root in self.roots:
+				for child in root.children:
+					min_level_after_zero = min(min_level_after_zero, child._min_level(seen_ids))
 
-			# levels_updates = [(1, 1 - min_level_after_zero)]
-			# # for root in self.roots:
-			# # 	levels_updates.extend(root.expand(seen_ids))
-			# for threshold, amount in levels_updates:
-			# 	seen_ids = set()
-			# 	for root in self.roots:
-			# 		root._tag_levels_update(threshold, amount, seen_ids)
-			# seen_ids = set()
-			# for root in self.roots:
-			# 	root._apply_levels_update(seen_ids)
+			levels_updates = [(1, 1 - min_level_after_zero)]
+			for root in self.roots:
+				levels_updates.extend(root.expand(seen_ids))
+			for threshold, amount in levels_updates:
+				seen_ids = set()
+				for root in self.roots:
+					root._tag_levels_update(threshold, amount, seen_ids)
+			seen_ids = set()
+			for root in self.roots:
+				root._apply_levels_update(seen_ids)
 
 			seen_ids = set()
 			for root in self.roots:

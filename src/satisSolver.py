@@ -122,11 +122,12 @@ class SatisSolver:
 				if value in seen_values: continue
 				seen_values.add(value)
 
-				if value in cant_use or value <= conveyor_speed: continue
+				if value in cant_use: continue
 				
 				if self.gcd_incompatible(conveyor_speed): continue
 
 				cost = extract_cost(value, conveyor_speed)
+
 				if tree.size + cost > self.best_size: continue
 				
 				overflow_value = value - conveyor_speed
@@ -347,16 +348,13 @@ class SatisSolver:
 				try_op(self.merge_sims, merge)
 				if not self.solving: return
 			else:
-				# if tree.source_values == (1, 4, 5):
-				# 	print(tree)
-				# 	print(cant_use)
 				try_op(self.extract_sims, extract)
 				if not self.solving: return
-				
 				try_op(self.divide_sims, divide)
 				if not self.solving: return
-				
 				try_op(self.split_sims, split)
+				if not self.solving: return
+				try_op(self.merge_sims, merge)
 				if not self.solving: return
 
 	def clear_solution_files(self):
