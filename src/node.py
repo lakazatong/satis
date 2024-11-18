@@ -76,7 +76,8 @@ class Node(TreeLike):
 	def populate(self, G, seen_ids, unit_flow_ratio):
 		from fractions import Fraction
 		seen_ids.add(self.node_id)
-		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + str(self.level), level=self.level)
+		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
+		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + str(self.level), level=self.level)
 		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
 			if child.node_id not in seen_ids: child.populate(G, seen_ids, unit_flow_ratio)
