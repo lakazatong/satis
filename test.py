@@ -16,12 +16,8 @@ from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 
-for i in range(1, 100):
-	if 100 % i == 0:
-		print(i, extract_cost(100, i))
-		print()
-# print(extract_cost(5, 1))
-# print(extract_cost(660, 195))
+print(merge_cost(4, 1))
+print(divide_cost(28, 7))
 
 exit(0)
 

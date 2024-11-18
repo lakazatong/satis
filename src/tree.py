@@ -28,7 +28,7 @@ class Tree:
 		attrs = ",\n\t".join(f"{key}={str(value)}" for key, value in self.__dict__.items())
 		return f"{self.__class__.__name__}(\n\t{attrs}\n)"
 
-	def __repr__(self):
+	def pretty(self):
 		dummy_root = Node(0)
 		dummy_root.children = self.roots
 		return dummy_root.pretty()
@@ -87,12 +87,27 @@ class Tree:
 	def save(self, filename, unit_flow_ratio):
 		try:
 			G = nx.DiGraph()
+			
+			# min_level_after_zero = 2**32
+			# seen_ids = set()
+			# for root in self.roots:
+			# 	for child in root.children:
+			# 		min_level_after_zero = min(min_level_after_zero, child._min_level(seen_ids))
+
+			# levels_updates = [(1, 1 - min_level_after_zero)]
+			# # for root in self.roots:
+			# # 	levels_updates.extend(root.expand(seen_ids))
+			# for threshold, amount in levels_updates:
+			# 	seen_ids = set()
+			# 	for root in self.roots:
+			# 		root._tag_levels_update(threshold, amount, seen_ids)
+			# seen_ids = set()
+			# for root in self.roots:
+			# 	root._apply_levels_update(seen_ids)
+
 			seen_ids = set()
 			for root in self.roots:
-				root.expand(seen_ids)
-			seen_ids = set()
-			for root in self.roots:
-				root.level = 0
+				# root.level = 0
 				root.populate(G, seen_ids, unit_flow_ratio)
 
 			A = to_agraph(G)

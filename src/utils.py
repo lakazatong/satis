@@ -137,7 +137,7 @@ def extract_cost(x, c):
 	if x % c == 0:
 		n_splits = x // c
 		n, m, l, n_splitters = find_n_m_l(n_splits)
-		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{c = }\n{x = }\n{n_splits = }")
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{c = }\n{x = }\n{n_splits = }")
 		splitters_count, branches_count = compute_tree_info(n, m)
 		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(n_splits - 1, splitters_count, branches_count)
 		n_looping_branches, n_saved_splitters = compute_n_looping_branches(2**n*3**m - n_splits, splitters_count, branches_count)
@@ -148,7 +148,7 @@ def extract_cost(x, c):
 	n, m, l, n_splitters = find_n_m_l(x)
 	# print(n, m, n_splitters)
 	splitters_count, branches_count = compute_tree_info(n, m)
-	print(f"{n = }\n{m = }\n{n_splitters = }\n{c = }\n{x = }\n{splitters_count = }\n{branches_count = }")
+	# print(f"{n = }\n{m = }\n{n_splitters = }\n{c = }\n{x = }\n{splitters_count = }\n{branches_count = }")
 	# print(splitters_count, branches_count)
 	n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, splitters_count, branches_count)
 	# print()

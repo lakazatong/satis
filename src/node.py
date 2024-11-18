@@ -26,6 +26,7 @@ class Node(TreeLike):
 		self.parents = []
 		self._children = []
 		self._expands = []
+		self.levels_to_add = 0
 		if config.short_repr:
 			self.repr_keys = False
 			self.repr_whitelist.add('node_id')
@@ -75,7 +76,7 @@ class Node(TreeLike):
 	def populate(self, G, seen_ids, unit_flow_ratio):
 		from fractions import Fraction
 		seen_ids.add(self.node_id)
-		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
+		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + str(self.level), level=self.level)
 		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
 			if child.node_id not in seen_ids: child.populate(G, seen_ids, unit_flow_ratio)
@@ -128,13 +129,48 @@ class Node(TreeLike):
 			new_node.past.extend(node.past)
 		return new_node
 
+	def _min_level(self, seen_ids):
+		seen_ids.add(self.node_id)
+		r = self.level
+		for child in self.children:
+			if child.node_id in seen_ids: continue
+			r = min(r, child._min_level(seen_ids))
+		return r
+
+	def min_level(self):
+		seen_ids = set
+		return self._min_level(seen_ids)
+
+	def _apply_levels_update(self, seen_ids):
+		seen_ids.add(self.node_id)
+		self.level += self.levels_to_add
+		for child in self.children:
+			if child.node_id in seen_ids: continue
+			child._apply_levels_update(seen_ids)
+
+	def apply_levels_update(self):
+		seen_ids = set()
+		self._apply_levels_update(seen_ids)
+
+	def _tag_levels_update(self, threshold, amount, seen_ids):
+		seen_ids.add(self.node_id)
+		if self.level >= threshold:
+			self.levels_to_add += amount
+		for child in self.children:
+			if child.node_id in seen_ids: continue
+			child._tag_levels_update(threshold, amount, seen_ids)
+
+	def tag_levels_update(self, threshold, amount):
+		seen_ids = set()
+		self._tag_levels_update(threshold, amount, seen_ids)
+
 	@staticmethod
 	def expand_split(node):
-		pass
+		return 0, 0
 
 	@staticmethod
 	def expand_extract(node):
-		pass
+		return 0, 0
 
 	@staticmethod
 	def expand_divide(node, d):
@@ -146,7 +182,7 @@ class Node(TreeLike):
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
+		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
 		merged_node = Node(values[0])
 		merged_node.parents = [node]
 		original_children = node.children
@@ -195,7 +231,7 @@ class Node(TreeLike):
 			else:
 				new_nodes = original_children
 
-			print(f"\n{i = }\n{n_looping_branches = }\n{n_ignore_branches = }\n{total_to_ignore = }\n{cur_nodes = } {len(cur_nodes)}\n{new_nodes = } {len(new_nodes)}")
+			# print(f"\n{i = }\n{n_looping_branches = }\n{n_ignore_branches = }\n{total_to_ignore = }\n{cur_nodes = } {len(cur_nodes)}\n{new_nodes = } {len(new_nodes)}")
 
 			for j in range(len(cur_nodes)-1):
 				cur = cur_nodes[j]
@@ -217,28 +253,35 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		# temporary
 		cur_level += 1
-		for cur in cur_nodes:
-			cur.level = cur_level
+		return cur_nodes[0].level, cur_level - node.level
 
 	@staticmethod
 	def expand_merge(node):
+		cur_level = node.level
 		nodes_to_merge = node.parents
 		for n in nodes_to_merge:
 			n.children = []
 		while len(nodes_to_merge) > 3:
-			nodes_to_merge.append(Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()]))
+			merged_node = Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()])
+			merged_node.level = cur_level
+			nodes_to_merge.append(merged_node)
+			cur_level += 1
 		for n in nodes_to_merge:
 			n.children = [node]
 		node.parents = nodes_to_merge
+		# all nodes with level >= node.level must have their levels increased by cur_level - node.level
+		return node.level, cur_level - node.level
 
 	def expand(self, seen_ids):
 		seen_ids.add(self.node_id)
+		levels_updates = []
 		for _expand, args in self._expands:
-			_expand(self, *args)
+			levels_updates.append(_expand(self, *args))
 		for child in self.children:
-			if child.node_id not in seen_ids: child.expand(seen_ids)
+			if child.node_id not in seen_ids:
+				levels_updates.extend(child.expand(seen_ids))
+		return levels_updates
 
 	# graveyard
 

@@ -47,7 +47,7 @@ class ScoreCalculator:
 
 	def score_merge(self, comb):
 		if not self.solver.solving: return 0
-		return merge_cost(len(comb), 1)
+		return 1 / merge_cost(len(comb), 1)
 
 	def compute_individual(self, src):
 		if not self.solver.solving: return 0
