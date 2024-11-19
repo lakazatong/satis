@@ -85,6 +85,8 @@ class Tree:
 
 	def save(self, filename, unit_flow_ratio):
 		Node.save(self.roots, filename, unit_flow_ratio=unit_flow_ratio)
+		Node.expand_roots(self.roots)
+		Node.save(self.roots, filename + "_expanded", unit_flow_ratio=unit_flow_ratio)
 
 	# graveyard
 

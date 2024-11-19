@@ -492,8 +492,6 @@ class Node(TreeLike):
 		try:
 			G = nx.MultiDiGraph()
 
-			# Node.expand_roots(roots)
-
 			seen_ids = set()
 			for root in roots:
 				root.level = 0
