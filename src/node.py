@@ -191,7 +191,7 @@ class Node(TreeLike):
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
-		new_node._expands.append((3, Node.expand_split, (conveyor_speed,)))
+		self._expands.append((3, Node.expand_split, (conveyor_speed,)))
 		return new_nodes
 
 	def min_level(self, seen_ids):
@@ -206,16 +206,6 @@ class Node(TreeLike):
 		
 		return r
 
-	def apply_levels_update(self, seen_ids):
-		
-		if self.node_id in seen_ids: return
-		seen_ids.add(self.node_id)
-
-		self.level += self.levels_to_add
-		for child in self.children:
-			if child.node_id in seen_ids: continue
-			child.apply_levels_update(seen_ids)
-
 	def tag_levels_update(self, threshold, amount, seen_ids):
 		
 		if self.node_id in seen_ids: return
@@ -227,9 +217,16 @@ class Node(TreeLike):
 			if child.node_id in seen_ids: continue
 			child.tag_levels_update(threshold, amount, seen_ids)
 
-	@staticmethod
-	def expand_split(node):
-		return 0, 0
+	def apply_levels_update(self, seen_ids):
+		
+		if self.node_id in seen_ids: return
+		seen_ids.add(self.node_id)
+
+		self.level += self.levels_to_add
+		self.levels_to_add = 0
+		for child in self.children:
+			if child.node_id in seen_ids: continue
+			child.apply_levels_update(seen_ids)
 
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
@@ -448,6 +445,23 @@ class Node(TreeLike):
 		node.parents = nodes_to_merge
 		# all nodes with level >= node.level must have their levels increased by cur_level - node.level
 		return node.level, cur_level - node.level
+
+	@staticmethod
+	def expand_split(node, conveyor_speed):
+		new_value = conveyor_speed // 3
+		new_node = Node(new_value << 1, level=node.level + 1)
+		new_node.levels_to_add = -1
+		new_node.children = [new_node]
+		new_node.parents = [node]
+		original_children = node.children
+		node.children = [new_node]
+		for child in original_children:
+			if child.value == new_value:
+				new_node.children.append(child)
+				child.parents = [new_node]
+			else:
+				node.children.append(child)
+		return node.level + 1, 1
 
 	def expand(self, seen_ids):
 
