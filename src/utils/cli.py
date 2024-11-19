@@ -1,5 +1,4 @@
-import os, threading, signal, time, traceback
-from prompt_toolkit import prompt
+import threading
 from prompt_toolkit.history import InMemoryHistory
 
 class UniqueInMemoryHistory(InMemoryHistory):
@@ -12,6 +11,7 @@ class UniqueInMemoryHistory(InMemoryHistory):
 
 class CLI:
 	def __init__(self, name, backend_class):
+		import signal
 		self.name = name
 		self.backend = backend_class()
 		self.backend.running = False
@@ -23,11 +23,13 @@ class CLI:
 		signal.signal(signal.SIGINT, self.exit)
 
 	def load_recent_directories(self):
+		import os
 		directories = [d for d in os.listdir('.') if os.path.isdir(d) and 'to' in d]
 		directories.sort(key=lambda x: os.path.getmtime(x))
 		return directories
 
 	def main(self):
+		import time, traceback
 		def catching_run():
 			try:
 				self.backend.run()
@@ -55,6 +57,7 @@ class CLI:
 			self.running.clear()
 
 	def run(self):
+		from prompt_toolkit import prompt
 		self.running.set()
 		while self.running.is_set():
 			try:

@@ -1,4 +1,3 @@
-
 # handles like a regular list, rejects duplicates, has a contains method for fast lookup
 class FastList(list):
 	def __init__(self, *args):

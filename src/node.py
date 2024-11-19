@@ -1,10 +1,6 @@
-import uuid, traceback, networkx as nx, io
-
-from networkx.drawing.nx_agraph import to_agraph
 from treelike import TreeLike
-from utils import get_node_values, get_short_node_ids
-from fastList import FastList
 from config import config
+from cost import find_n_m_l, compute_branches_count, compute_looping_branches
 
 class Node(TreeLike):
 	@property
@@ -19,6 +15,8 @@ class Node(TreeLike):
 		if value < 0: raise ValueError("negative value")
 		super().__init__()
 		if not isinstance(value, int): raise ValueError(f"not int ({type(value)} {value})")
+		import uuid
+		from utils.fastlist import FastList
 		self.value = value
 		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
 		self.level = level
@@ -45,7 +43,7 @@ class Node(TreeLike):
 		return 'node_id', self.node_id[-3:]
 
 	def repr_parents(self):
-		return 'parents', get_short_node_ids(self.parents)
+		return 'parents', Node.get_short_node_ids(self.parents)
 
 	@staticmethod
 	def wrap(root_node, path):
@@ -138,8 +136,8 @@ class Node(TreeLike):
 		if self.node_id in seen_ids: return
 		seen_ids.add(self.node_id)
 		
-		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
-		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + self.repr_node_id()[1], level=self.level)
+		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
+		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + self.repr_node_id()[1], level=self.level)
 		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
 			if child.node_id in seen_ids: continue
@@ -231,7 +229,6 @@ class Node(TreeLike):
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
 		# print(f"expand_extract {node}")
-		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(node.value)
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
@@ -348,7 +345,6 @@ class Node(TreeLike):
 	@staticmethod
 	def expand_divide(node, d):
 		# print(f"expand_divide {node}")
-		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(d)
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
@@ -484,7 +480,7 @@ class Node(TreeLike):
 				min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
 
 		seen_ids = set()
-		levels_updates = [(1, 1 - min_level_after_zero)]
+		levels_updates = [(1, 1 - min_level_after_zero)] # why not
 		for root in roots:
 			levels_updates.extend(root.expand(seen_ids))
 		
@@ -499,6 +495,8 @@ class Node(TreeLike):
 
 	@staticmethod
 	def save(roots, filename, unit_flow_ratio=1):
+		import io, networkx as nx, traceback
+		from networkx.drawing.nx_agraph import to_agraph
 		try:
 			G = nx.MultiDiGraph()
 
@@ -538,11 +536,33 @@ class Node(TreeLike):
 				f.write(img_stream.getvalue())
 
 			Node.wrap(roots[0], f"{filename}.data")
-		except Exception as e:
+		except:
 			print(traceback.format_exc(), end="")
-			return
+
+	@staticmethod
+	def get_node_values(nodes):
+		return tuple(map(lambda node: node.value, nodes))
+
+	@staticmethod
+	def get_node_ids(nodes):
+		return set(map(lambda node: node.node_id, nodes))
+
+	@staticmethod
+	def get_short_node_ids(nodes, short=3):
+		return set(map(lambda node: node.node_id[-short:], nodes))
+
+	@staticmethod
+	def pop_node(node, nodes):
+		for i, other in enumerate(nodes):
+			if other.node_id == node.node_id:
+				return nodes.pop(i)
+		return None
 
 	# graveyard
+
+	# @staticmethod
+	# def sort_nodes(nodes):
+	# 	return sorted(nodes, key=lambda node: node.value)
 
 	# def simplify_info(self):
 	# 	original_children_ids = {child.node_id for child in self._children}
@@ -654,7 +674,7 @@ class Node(TreeLike):
 	# 	return new_nodes
 
 	# def merge_up(self, other):
-	# 	new_value = self.value + sum(get_node_values(other))
+	# 	new_value = self.value + sum(Node.get_node_values(other))
 	# 	new_node = Node(new_value)
 	# 	self.parents.append(new_node)
 	# 	new_node.children.append(self)

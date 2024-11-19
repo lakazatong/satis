@@ -1,27 +1,12 @@
-import math, time, random, itertools, json, os
+import os
 
-from utils import \
-	get_node_values, \
-	parse_user_input, \
-	get_compute_cant_use, \
-	get_sim_without, \
-	remove_pairs, \
-	get_divisors, \
-	format_fractions, \
-	print_standing_text, \
-	extract_cost, \
-	divide_cost, \
-	split_cost, \
-	merge_cost, \
-	compute_gcd, \
-	get_gcd_incompatible, \
-	fractions_to_integers
+from utils.solver import get_sim_without
+from utils.text import print_standing_text
+
+from cost import extract_cost, divide_cost, merge_cost, split_cost
 from bisect import insort
 from config import config
 from node import Node
-from tree import Tree
-from fastList import FastList
-from score import ScoreCalculator
 
 class SatisSolver:
 	def __init__(self):
@@ -34,12 +19,21 @@ class SatisSolver:
 		os.fsync(self.log_file_handle.fileno())
 
 	def load(self, user_input):
+		from utils.solver import parse_user_input
+		import traceback
 		try:
 			source_values, target_values = parse_user_input(user_input)
 		except:
 			print("\nTu racontes quoi mon reuf")
+			print(traceback.format_exc(), end="")
 			return False
 		if not source_values or not target_values: return False
+
+		from score import ScoreCalculator
+		from tree import Tree
+		from utils.fractions import format_fractions, fractions_to_integers
+		from utils.solver import get_compute_cant_use, get_gcd_incompatible
+		from utils.math import compute_gcd
 		
 		self.reset()
 
@@ -86,6 +80,7 @@ class SatisSolver:
 		return True
 
 	def best_size_upper_bond(self):
+		from utils import remove_pairs
 		sources, targets = remove_pairs(self.tree_source.source_values, self.target_values)
 		r = 0
 		r = merge_cost(len(sources), 1)
@@ -176,6 +171,8 @@ class SatisSolver:
 				yield (sim, (i, divisor), cost)
 
 	def merge_sims(self, tree, cant_use):
+		import itertools
+
 		sources = tree.sources
 		source_values = tree.source_values
 
@@ -306,6 +303,7 @@ class SatisSolver:
 			if not self.solving: return
 			n = len(queue)
 			if n < 3 or self.solutions_count > 0: return queue.pop()
+			import random
 			# favor exploration as the number of solutions grows by 5% per solution, with a maximum of 70% exploration
 			# maximum exploration is reached at (70 - 30) / 5 = 8 solutions found
 			# 30% exploration when no solution is found
@@ -424,9 +422,9 @@ class SatisSolver:
 		# 	current_sol_size = self.n_targets
 		# 	for j in range(len(sol_past)-1, -1, -1):
 		# 		sp_sources = sol_past[j]
-		# 		sp_source_values = get_node_values(sp_sources)
+		# 		sp_source_values = Node.get_node_values(sp_sources)
 		# 		for ct_root, ct_sources, ct_past in cutted_trees:
-		# 			ct_source_values = get_node_values(ct_sources)
+		# 			ct_source_values = Node.get_node_values(ct_sources)
 		# 			if sp_source_values == ct_source_values and ct_root.size + current_sol_size < sol_root.size:
 		# 				# we found the smallest cutted tree that can shorten the current solution
 

@@ -1,8 +1,12 @@
-import itertools
+from cost import merge_cost
 
-from utils import remove_pairs, extract_cost, divide_cost, merge_cost, split_cost, all_sums
-from bisect import insort
-from config import config
+def all_sums(numbers):
+	sums = {0: 0}
+	for num in numbers:
+		new_sums = {s + num: count + 1 for s, count in sums.items()}
+		sums.update(new_sums)
+	sums.pop(0)
+	return sums
 
 class ScoreCalculator:
 	def __init__(self, targets, solver):
@@ -12,6 +16,7 @@ class ScoreCalculator:
 		self.individual_cache = {}
 
 	def score_extract(self, src):
+		from cost import extract_cost
 		score = 0
 		for c in range(1, (src - 1) // 2 + 1):
 			if not self.solver.solving: return score
@@ -26,6 +31,7 @@ class ScoreCalculator:
 		return score
 
 	def score_divide(self, src):
+		from cost import divide_cost
 		score = 0
 		for d in (d for d in range(2, src + 1) if src % d == 0):
 			if not self.solver.solving: return 0
@@ -36,6 +42,8 @@ class ScoreCalculator:
 
 	def score_split(self, src):
 		if not self.solver.solving: return 0
+		from cost import split_cost
+		from config import config
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		if not c: return 0
 		value = c // 3
@@ -57,6 +65,7 @@ class ScoreCalculator:
 
 	def compute(self, given_sources):
 		if not self.solver.solving: return 0
+		from utils import remove_pairs
 		sources, targets = remove_pairs(given_sources, self.targets)
 		n = len(sources)
 		n_matching_sources = self.n_targets - len(targets)

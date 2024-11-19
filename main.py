@@ -9,8 +9,8 @@ if sys.platform == "win32":
 
 import time, cProfile
 
-from src.satisSolver import SatisSolver
-from src.CLI import CLI
+from src.solver import SatisSolver
+from src.utils.cli import CLI
 
 # An example class that could be used as backend for the CLI class
 class Test:

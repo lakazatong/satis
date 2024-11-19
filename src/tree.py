@@ -1,10 +1,4 @@
-import networkx as nx
-
-from bisect import insort
-from config import config
-from fastList import FastList
-from utils import get_node_values, get_node_ids
-from networkx import is_isomorphic
+from utils.fastlist import FastList
 from node import Node
 
 # responsible for updating level of all nodes while providing a quick access to past sources
@@ -33,6 +27,7 @@ class Tree:
 		return dummy_root.pretty()
 
 	def to_nx_graph(self):
+		import networkx as nx
 		g = nx.Graph()
 		
 		def add_edges(node):
@@ -46,6 +41,7 @@ class Tree:
 		return g
 
 	def __eq__(self, t2):
+		from networkx import is_isomorphic
 		return is_isomorphic(self.to_nx_graph(), t2.to_nx_graph())
 
 	def deepcopy(self):
@@ -63,11 +59,12 @@ class Tree:
 		return new_tree
 
 	def add(self, nodes, cost):
+		from bisect import insort
 		self.current_level += 1
 		# init new nodes
 		# for node in nodes: node.size = 1
 		
-		parent_ids = get_node_ids(nodes[0].parents)
+		parent_ids = Node.get_node_ids(nodes[0].parents)
 		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids]
 		for node in nodes: insort(self.sources, node, key=lambda node: node.value)
 		self.n_sources = len(self.sources)
@@ -79,7 +76,7 @@ class Tree:
 
 		# update past
 		self.past.append(self.source_values)
-		self.source_values = get_node_values(self.sources)
+		self.source_values = Node.get_node_values(self.sources)
 		# for value in self.source_values:
 		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
