@@ -256,6 +256,8 @@ class Node(TreeLike):
 		else:
 			extract_node = node.children[1]
 			overflow_node = node.children[0]
+		extract_node.parents = []
+		overflow_node.parents = []
 		original_children = node.children
 		node.children = [merged_node]
 		cur_nodes = [merged_node]
@@ -335,8 +337,8 @@ class Node(TreeLike):
 			cur_nodes, new_nodes = new_nodes, []
 
 		# temporary
-		if len(merged_node.parents) > 3:
-			merged_node._expands.append((2, Node.expand_merge, tuple()))
+		# if len(merged_node.parents) > 3:
+		# 	merged_node._expands.append((2, Node.expand_merge, tuple()))
 
 		if len(extract_node.parents) > 3:
 			extract_node._expands.append((2, Node.expand_merge, tuple()))
@@ -424,8 +426,8 @@ class Node(TreeLike):
 			cur_nodes, new_nodes = new_nodes, []
 
 		# temporary
-		if len(merged_node.parents) > 3:
-			merged_node._expands.append((2, Node.expand_merge, tuple()))
+		# if len(merged_node.parents) > 3:
+		# 	merged_node._expands.append((2, Node.expand_merge, tuple()))
 
 		return node.level, n + m
 
