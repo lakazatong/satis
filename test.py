@@ -19,7 +19,7 @@ import ast
 from node import Node
 
 roots = Node.unwrap("4x 7 to 7x 4/solution0.data")
-print(roots[0].pretty())
+Node.expand_roots(roots)
 Node.save(roots, "4x 7 to 7x 4/test.png")
 
 exit(0)

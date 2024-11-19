@@ -452,27 +452,31 @@ class Node(TreeLike):
 		return levels_updates
 
 	@staticmethod
+	def expand_roots(roots):
+		min_level_after_zero = 2**32
+		seen_ids = set()
+		for root in roots:
+			for child in root.children:
+				min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
+
+		seen_ids = set()
+		levels_updates = [(1, 1 - min_level_after_zero)]
+		for root in roots:
+			levels_updates.extend(root.expand(seen_ids))
+		for threshold, amount in levels_updates:
+			seen_ids = set()
+			for root in roots:
+				root.tag_levels_update(threshold, amount, seen_ids)
+		seen_ids = set()
+		for root in roots:
+			root.apply_levels_update(seen_ids)
+
+	@staticmethod
 	def save(roots, filename, unit_flow_ratio=1):
 		try:
 			G = nx.DiGraph()
-			
-			# min_level_after_zero = 2**32
-			# seen_ids = set()
-			# for root in roots:
-			# 	for child in root.children:
-			# 		min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
 
-			# seen_ids = set()
-			# levels_updates = [(1, 1 - min_level_after_zero)]
-			# for root in roots:
-			# 	levels_updates.extend(root.expand(seen_ids))
-			# for threshold, amount in levels_updates:
-			# 	seen_ids = set()
-			# 	for root in roots:
-			# 		root.tag_levels_update(threshold, amount, seen_ids)
-			# seen_ids = set()
-			# for root in roots:
-			# 	root.apply_levels_update(seen_ids)
+			Node.expand_roots(roots)
 
 			seen_ids = set()
 			for root in roots:
