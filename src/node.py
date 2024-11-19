@@ -52,9 +52,10 @@ class Node(TreeLike):
 		seen_ids = set()
 
 		def traverse(node, output):
-			if node.node_id in seen_ids:
-				return
+			
+			if node.node_id in seen_ids: return
 			seen_ids.add(node.node_id)
+			
 			node_tuple = (
 				node.value,
 				node.node_id,
@@ -65,8 +66,10 @@ class Node(TreeLike):
 			)
 			output.append(node_tuple)
 			for child in node.children:
+				if child.node_id in seen_ids: continue
 				traverse(child, output)
 			for parent in node.parents:
+				if parent.node_id in seen_ids: continue
 				traverse(parent, output)
 
 		output = []
@@ -98,8 +101,6 @@ class Node(TreeLike):
 			node.parents = [node_map[parent_id] for parent_id in parents]
 			node.children = [node_map[child_id] for child_id in children]
 			node._expands = [(code, Node.expand_from_code(code), args) for code, args in expands]
-			if node._expands:
-				print(node)
 
 		return [node for node in node_map.values() if node.level == 0]
 
@@ -133,12 +134,16 @@ class Node(TreeLike):
 
 	def populate(self, G, seen_ids, unit_flow_ratio):
 		from fractions import Fraction
+
+		if self.node_id in seen_ids: return
 		seen_ids.add(self.node_id)
-		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
-		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + str(self.level), level=self.level)
+		
+		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
+		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + self.repr_node_id()[1], level=self.level)
 		for child in self._children:
 			G.add_edge(self.node_id, child.node_id)
-			if child.node_id not in seen_ids: child.populate(G, seen_ids, unit_flow_ratio)
+			if child.node_id in seen_ids: continue
+			child.populate(G, seen_ids, unit_flow_ratio)
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
@@ -190,22 +195,32 @@ class Node(TreeLike):
 		return new_nodes
 
 	def min_level(self, seen_ids):
-		seen_ids.add(self.node_id)
 		r = self.level
+		
+		if self.node_id in seen_ids: return r
+		seen_ids.add(self.node_id)
+
 		for child in self.children:
 			if child.node_id in seen_ids: continue
 			r = min(r, child.min_level(seen_ids))
+		
 		return r
 
 	def apply_levels_update(self, seen_ids):
+		
+		if self.node_id in seen_ids: return
 		seen_ids.add(self.node_id)
+
 		self.level += self.levels_to_add
 		for child in self.children:
 			if child.node_id in seen_ids: continue
 			child.apply_levels_update(seen_ids)
 
 	def tag_levels_update(self, threshold, amount, seen_ids):
+		
+		if self.node_id in seen_ids: return
 		seen_ids.add(self.node_id)
+
 		if self.level >= threshold:
 			self.levels_to_add += amount
 		for child in self.children:
@@ -218,6 +233,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
+		print(f"expand_extract {node}")
 		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(node.value)
 		branches_count = compute_branches_count(n, m)
@@ -228,7 +244,7 @@ class Node(TreeLike):
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
 		cur_level = node.level + 1
 		merged_node = Node(values[0], level=cur_level)
 		merged_node.levels_to_add = -(n + m)
@@ -264,11 +280,6 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
-				for j, new_node in enumerate(new_nodes):
-					new_node.levels_to_add = -(n + m)
-					cur = cur_nodes[(n_reroute_branches + j) // 2]
-					cur.children.append(new_node)
-					new_node.parents = [cur]
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 2]
@@ -305,15 +316,6 @@ class Node(TreeLike):
 					new_nodes.append(new_node)
 			else:
 				new_nodes = original_children
-				try:
-					for j, new_node in enumerate(new_nodes):
-						new_node.levels_to_add = -(n + m)
-						cur = cur_nodes[(n_reroute_branches + j) // 3]
-						cur.children.append(new_node)
-						new_node.parents = [cur]
-				except:
-					print(f"{n = }\n{m = }\n{m = }\n{n_looping_branches = }\n{n_extract_branches = }\n{n_overflow_branches = }")
-					exit(1)
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 3]
@@ -332,6 +334,7 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
+		# temporary
 		if len(merged_node.parents) > 3:
 			merged_node._expands.append((2, Node.expand_merge, tuple()))
 
@@ -345,6 +348,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_divide(node, d):
+		print(f"expand_divide {node}")
 		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(d)
 		branches_count = compute_branches_count(n, m)
@@ -419,6 +423,7 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
+		# temporary
 		if len(merged_node.parents) > 3:
 			merged_node._expands.append((2, Node.expand_merge, tuple()))
 
@@ -426,6 +431,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_merge(node):
+		print(f"expand_merge {node}")
 		cur_level = node.level
 		nodes_to_merge = node.parents
 		for n in nodes_to_merge:
@@ -442,13 +448,19 @@ class Node(TreeLike):
 		return node.level, cur_level - node.level
 
 	def expand(self, seen_ids):
+
+		if self.node_id in seen_ids: return []
 		seen_ids.add(self.node_id)
+
 		levels_updates = []
-		for _, _expand, args in self._expands:
+		while self._expands:
+			_, _expand, args = self._expands.pop(0)
 			levels_updates.append(_expand(self, *args))
+
 		for child in self.children:
-			if child.node_id not in seen_ids:
-				levels_updates.extend(child.expand(seen_ids))
+			if child.node_id in seen_ids: continue
+			levels_updates.extend(child.expand(seen_ids))
+		
 		return levels_updates
 
 	@staticmethod
@@ -463,10 +475,12 @@ class Node(TreeLike):
 		levels_updates = [(1, 1 - min_level_after_zero)]
 		for root in roots:
 			levels_updates.extend(root.expand(seen_ids))
+		
 		for threshold, amount in levels_updates:
 			seen_ids = set()
 			for root in roots:
 				root.tag_levels_update(threshold, amount, seen_ids)
+		
 		seen_ids = set()
 		for root in roots:
 			root.apply_levels_update(seen_ids)
@@ -474,9 +488,9 @@ class Node(TreeLike):
 	@staticmethod
 	def save(roots, filename, unit_flow_ratio=1):
 		try:
-			G = nx.DiGraph()
+			G = nx.MultiDiGraph()
 
-			Node.expand_roots(roots)
+			# Node.expand_roots(roots)
 
 			seen_ids = set()
 			for root in roots:
@@ -512,6 +526,8 @@ class Node(TreeLike):
 			filepath = f"{filename}.{config.solutions_filename_extension}"
 			with open(filepath, "wb") as f:
 				f.write(img_stream.getvalue())
+
+			Node.wrap(roots[0], f"{filename}.data")
 		except Exception as e:
 			print(traceback.format_exc(), end="")
 			return

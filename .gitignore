@@ -3,6 +3,10 @@
 **/__pycache__/
 
 solution*.png
+solution*.data
 logs.txt
 **/*.spec
 profile.out
+
+*/test.png
+*/test.data

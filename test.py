@@ -18,9 +18,21 @@ import matplotlib.pyplot as plt
 import ast
 from node import Node
 
-roots = Node.unwrap("4x 7 to 7x 4/solution0.data")
+# import ipdb
+
+problem_str = "14 to 1 13"
+
+roots = Node.unwrap(f"{problem_str}/solution0.data")
+# for root in roots:
+# 	print(root.pretty())
+# exit(0)
+# ipdb.set_trace(context=50)
 Node.expand_roots(roots)
-Node.save(roots, "4x 7 to 7x 4/test.png")
+# for root in roots:
+# 	if root.node_id.endswith('5ad'):
+# 		print(root.children[0].children[0].children)
+# 		break
+Node.save(roots, f"{problem_str}/test")
 
 exit(0)
 

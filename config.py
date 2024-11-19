@@ -38,5 +38,5 @@ config = SatisSolverConfig(
 	include_level_in_logs = False,
 	solutions_filename = lambda i: f"solution{i}",
 	solutions_filename_extension = "png",
-	solution_regex = re.compile(r'solution\d+\.png')
+	solution_regex = re.compile(r'solution\d+\.(?:png|data)')
 )

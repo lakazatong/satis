@@ -84,7 +84,7 @@ class Tree:
 		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
 	def save(self, filename, unit_flow_ratio):
-		Node.save(self.roots, filename, unit_flow_ratio)
+		Node.save(self.roots, filename, unit_flow_ratio=unit_flow_ratio)
 
 	# graveyard
 
