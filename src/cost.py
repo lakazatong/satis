@@ -135,7 +135,7 @@ def divide_cost(x, d, force_l=None):
 	# print(f"{branches_count = }")
 	r = n_splitters + 1
 	n_looping_branches, n_saved_splitters = compute_n_looping_branches(l, splitters_count, branches_count)
-	return r - n_saved_splitters + merge_cost(n_looping_branches, 2)
+	return r - n_saved_splitters + merge_cost(n_looping_branches, 2) # + TODO: handling of the merged node avoiding bottlenecks
 
 def merge_cost(n, t):
 	# how many mergers at minimum to merge n values into t

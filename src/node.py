@@ -330,9 +330,7 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		# temporary
-		# if len(merged_node.parents) > 3:
-		# 	merged_node._expands.append((2, Node.expand_merge, tuple()))
+		# TODO: handling of the merged_node parents
 
 		if len(extract_node.parents) > 3:
 			extract_node._expands.append((2, Node.expand_merge, tuple()))
@@ -416,9 +414,31 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		# temporary
-		# if len(merged_node.parents) > 3:
-		# 	merged_node._expands.append((2, Node.expand_merge, tuple()))
+		"""
+		# TODO: handling of the merged_node parents (DRAFT)
+		# all assuming that all children of the merged_node cannot possibly exceed the speed limit
+		if len(merged_node.parents) <= 3:
+			if merged_node.value < config.conveyor_speed_limit:
+				# all good
+				pass
+			else:
+				node_to_divide = merged_node.parents[1]
+				if len(merged_node.parents) == 3:
+					# merge them before
+					...
+					node_to_divide = ...
+				# split node_to_divide evenly among the children of merged_node
+		else:
+			if merged_node.value < config.conveyor_speed_limit:
+				# simply merge them like merge_cost(merged_node.parents, 3)
+				pass
+			else:
+				# first merge them then split them evenly among the children of merged_node
+				# this is also assuming that their sum cannot exceed the speed limit
+				pass
+		"""
+
+		# merged_node._expands.append((2, Node.expand_merge, tuple()))
 
 		return node.level + 1, n + m
 
