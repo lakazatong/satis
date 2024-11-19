@@ -424,25 +424,23 @@ class Node(TreeLike):
 		# if len(merged_node.parents) > 3:
 		# 	merged_node._expands.append((2, Node.expand_merge, tuple()))
 
-		return node.level, n + m
+		return node.level + 1, n + m
 
 	@staticmethod
 	def expand_merge(node):
 		# print(f"expand_merge {node}")
-		cur_level = node.level
 		nodes_to_merge = node.parents
 		for n in nodes_to_merge:
 			n.children = []
 		while len(nodes_to_merge) > 3:
 			merged_node = Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()])
-			merged_node.level = cur_level
+			merged_node.level = node.level
 			nodes_to_merge.append(merged_node)
-			cur_level += 1
 		for n in nodes_to_merge:
 			n.children = [node]
 		node.parents = nodes_to_merge
 		# all nodes with level >= node.level must have their levels increased by cur_level - node.level
-		return node.level, cur_level - node.level
+		return 0, 0
 
 	@staticmethod
 	def expand_split(node, conveyor_speed):
