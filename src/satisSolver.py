@@ -112,15 +112,15 @@ class SatisSolver:
 
 	def extract_sims(self, tree, cant_use):
 		source_values = tree.source_values
-		seen_values = set()
+		seen_extractions = set()
 		for i, src in enumerate(tree.sources):
 			for conveyor_speed in range(1, (src.value - 1) // 2 + 1):
 				if not self.solving: return
 
 				value = src.value
 
-				if value in seen_values: continue
-				seen_values.add(value)
+				if (value, conveyor_speed) in seen_extractions: continue
+				seen_extractions.add((value, conveyor_speed))
 
 				if value in cant_use: continue
 				
@@ -146,56 +146,17 @@ class SatisSolver:
 
 				yield (sim, (i, conveyor_speed), cost)
 
-	def split_sims(self, tree, cant_use):
-		cost = split_cost()
-		if tree.size + cost > self.best_size: return
-
-		source_values = tree.source_values
-		seen_values = set()
-
-		for i, src in enumerate(tree.sources):
-			if not self.solving: return
-
-			value = src.value
-			if value in seen_values: continue
-			seen_values.add(value)
-
-			if value in cant_use: continue
-
-			conveyor_speed = next((c for c in config.conveyor_speeds if c > value), None)
-			if not conveyor_speed: continue
-			
-			# all are from the game and all are divisible by 3
-			new_value = conveyor_speed // 3
-			tmp = new_value << 1
-			if value < tmp: continue
-			overflow_value = value - tmp
-
-			if self.gcd_incompatible(new_value) or self.gcd_incompatible(overflow_value): continue
-			if src.past.contains(new_value) or src.past.contains(overflow_value): continue
-
-			sim = get_sim_without(value, source_values)
-			insort(sim, new_value)
-			insort(sim, new_value)
-			insort(sim, overflow_value)
-
-			sim = tuple(sim)
-
-			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
-
-			yield (sim, (i, conveyor_speed), cost)
-
 	def divide_sims(self, tree, cant_use):
 		source_values = tree.source_values
-		seen_values = set()
+		seen_divisions = set()
 		for i, src in enumerate(tree.sources):
 			for divisor in (d for d in range(2, src.value + 1) if src.value % d == 0):
 				if not self.solving: return
 				
 				value = src.value
 				
-				if value in seen_values: continue
-				seen_values.add(value)
+				if (value, divisor) in seen_divisions: continue
+				seen_divisions.add((value, divisor))
 
 				if value in cant_use: continue
 
@@ -250,6 +211,45 @@ class SatisSolver:
 				if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
 
 				yield (sim, (to_sum_indices, to_sum_count), cost)
+
+	def split_sims(self, tree, cant_use):
+		cost = split_cost()
+		if tree.size + cost > self.best_size: return
+
+		source_values = tree.source_values
+		seen_values = set()
+
+		for i, src in enumerate(tree.sources):
+			if not self.solving: return
+
+			value = src.value
+			if value in seen_values: continue
+			seen_values.add(value)
+
+			if value in cant_use: continue
+
+			conveyor_speed = next((c for c in config.conveyor_speeds if c > value), None)
+			if not conveyor_speed: continue
+			
+			# all are from the game and all are divisible by 3
+			new_value = conveyor_speed // 3
+			tmp = new_value << 1
+			if value < tmp: continue
+			overflow_value = value - tmp
+
+			if self.gcd_incompatible(new_value) or self.gcd_incompatible(overflow_value): continue
+			if src.past.contains(new_value) or src.past.contains(overflow_value): continue
+
+			sim = get_sim_without(value, source_values)
+			insort(sim, new_value)
+			insort(sim, new_value)
+			insort(sim, overflow_value)
+
+			sim = tuple(sim)
+
+			if tree.past.contains(sim) or any(t.past.contains(sim) for t in self.solutions): continue
+
+			yield (sim, (i, conveyor_speed), cost)
 
 	def is_solution(self, sources):
 		# assume the given sources are sorted by value
@@ -366,7 +366,7 @@ class SatisSolver:
 		print()
 		print()
 		if not self.solutions:
-			print("No bitches?")
+			print("No bitches?\n")
 			return
 		if os.path.isdir(self.problem_str):
 			self.clear_solution_files()

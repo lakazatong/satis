@@ -20,24 +20,24 @@ from node import Node
 
 # import ipdb
 
-problem_str = "14 to 1 13"
+# problem_str = "14 to 1 13"
 
-roots = Node.unwrap(f"{problem_str}/solution0.data")
-# for root in roots:
-# 	print(root.pretty())
+# roots = Node.unwrap(f"{problem_str}/solution0.data")
+# # for root in roots:
+# # 	print(root.pretty())
+# # exit(0)
+# # ipdb.set_trace(context=50)
+# Node.expand_roots(roots)
+# # for root in roots:
+# # 	if root.node_id.endswith('5ad'):
+# # 		print(root.children[0].children[0].children)
+# # 		break
+# Node.save(roots, f"{problem_str}/test")
+
 # exit(0)
-# ipdb.set_trace(context=50)
-Node.expand_roots(roots)
-# for root in roots:
-# 	if root.node_id.endswith('5ad'):
-# 		print(root.children[0].children[0].children)
-# 		break
-Node.save(roots, f"{problem_str}/test")
 
-exit(0)
-
-print(merge_cost(4, 1))
-print(divide_cost(28, 7))
+# print(merge_cost(4, 1))
+print(divide_cost(780, 5))
 
 exit(0)
 
