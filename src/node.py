@@ -75,7 +75,7 @@ class Node(TreeLike):
 		output = []
 		traverse(root_node, output)
 		with open(path, "w+", encoding="utf-8") as f:
-			f.write(str(output))
+			f.write("[\n" + ",\n".join("\t" + str(out) for out in output) + "\n]")
 
 	@staticmethod
 	def expand_from_code(code):
@@ -233,7 +233,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
-		print(f"expand_extract {node}")
+		# print(f"expand_extract {node}")
 		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(node.value)
 		branches_count = compute_branches_count(n, m)
@@ -350,7 +350,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_divide(node, d):
-		print(f"expand_divide {node}")
+		# print(f"expand_divide {node}")
 		from utils import find_n_m_l, compute_branches_count, compute_looping_branches
 		n, m, l, n_splitters = find_n_m_l(d)
 		branches_count = compute_branches_count(n, m)
@@ -433,7 +433,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_merge(node):
-		print(f"expand_merge {node}")
+		# print(f"expand_merge {node}")
 		cur_level = node.level
 		nodes_to_merge = node.parents
 		for n in nodes_to_merge:
