@@ -1,6 +1,5 @@
-import traceback, io, networkx as nx
+import networkx as nx
 
-from networkx.drawing.nx_agraph import to_agraph
 from bisect import insort
 from config import config
 from fastList import FastList
@@ -85,64 +84,7 @@ class Tree:
 		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
 	def save(self, filename, unit_flow_ratio):
-		try:
-			G = nx.DiGraph()
-			
-			min_level_after_zero = 2**32
-			seen_ids = set()
-			for root in self.roots:
-				for child in root.children:
-					min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
-
-			seen_ids = set()
-			levels_updates = [(1, 1 - min_level_after_zero)]
-			for root in self.roots:
-				levels_updates.extend(root.expand(seen_ids))
-			for threshold, amount in levels_updates:
-				seen_ids = set()
-				for root in self.roots:
-					root.tag_levels_update(threshold, amount, seen_ids)
-			seen_ids = set()
-			for root in self.roots:
-				root.apply_levels_update(seen_ids)
-
-			seen_ids = set()
-			for root in self.roots:
-				root.level = 0
-				root.populate(G, seen_ids, unit_flow_ratio)
-
-			A = to_agraph(G)
-			for node in A.nodes():
-				level = G.nodes[node]["level"]
-				A.get_node(node).attr["rank"] = f"{level}"
-
-			for level in set(nx.get_node_attributes(G, "level").values()):
-				A.add_subgraph(
-					[n for n, attr in G.nodes(data=True) if attr["level"] == level],
-					rank="same"
-				)
-
-			# Invert colors
-			A.graph_attr["bgcolor"] = "black"
-			for node in A.nodes():
-				node.attr["color"] = "white"
-				node.attr["fontcolor"] = "white"
-				node.attr["style"] = "filled"
-				node.attr["fillcolor"] = "black"
-
-			for edge in A.edges():
-				edge.attr["color"] = "white"
-
-			A.layout(prog="dot")
-			img_stream = io.BytesIO()
-			A.draw(img_stream, format=config.solutions_filename_extension)
-			img_stream.seek(0)
-			filepath = f"{filename}.{config.solutions_filename_extension}"
-			with open(filepath, "wb") as f:
-				f.write(img_stream.getvalue())
-		except Exception as e:
-			print(traceback.format_exc(), end="")
-			return
+		Node.save(self.roots, filename, unit_flow_ratio)
 
 	# graveyard
 

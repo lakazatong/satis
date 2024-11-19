@@ -15,6 +15,14 @@ from utils import get_divisors, decimal_representation_info, divide_cost, extrac
 from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
+import ast
+from node import Node
+
+roots = Node.unwrap("4x 7 to 7x 4/solution0.data")
+print(roots[0].pretty())
+Node.save(roots, "4x 7 to 7x 4/test.png")
+
+exit(0)
 
 print(merge_cost(4, 1))
 print(divide_cost(28, 7))

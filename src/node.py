@@ -1,5 +1,6 @@
-import uuid
+import uuid, traceback, networkx as nx, io
 
+from networkx.drawing.nx_agraph import to_agraph
 from treelike import TreeLike
 from utils import get_node_values, get_short_node_ids
 from fastList import FastList
@@ -30,6 +31,7 @@ class Node(TreeLike):
 		if config.short_repr:
 			self.repr_keys = False
 			self.repr_whitelist.add('node_id')
+			self.repr_whitelist.add('_expands')
 		else:
 			self.repr_keys = True
 			self.repr_whitelist.update(('value', 'node_id', 'parents'))
@@ -44,6 +46,62 @@ class Node(TreeLike):
 
 	def repr_parents(self):
 		return 'parents', get_short_node_ids(self.parents)
+
+	@staticmethod
+	def wrap(root_node, path):
+		seen_ids = set()
+
+		def traverse(node, output):
+			if node.node_id in seen_ids:
+				return
+			seen_ids.add(node.node_id)
+			node_tuple = (
+				node.value,
+				node.node_id,
+				node.level,
+				[parent.node_id for parent in node.parents],
+				[child.node_id for child in node.children],
+				[(code, args) for code, _, args in node._expands]
+			)
+			output.append(node_tuple)
+			for child in node.children:
+				traverse(child, output)
+			for parent in node.parents:
+				traverse(parent, output)
+
+		output = []
+		traverse(root_node, output)
+		with open(path, "w+", encoding="utf-8") as f:
+			f.write(str(output))
+
+	@staticmethod
+	def expand_from_code(code):
+		match code:
+			case 0: return Node.expand_extract		
+			case 1: return Node.expand_divide		
+			case 2: return Node.expand_merge		
+			case 3: return Node.expand_split		
+
+	@staticmethod
+	def unwrap(path):
+		import ast
+		data = None
+		with open(path, "r", encoding="utf-8") as f:
+			data = ast.literal_eval(f.read())
+		node_map = {}
+
+		for value, node_id, level, *_ in data:
+			node_map[node_id] = Node(value, node_id=node_id, level=level)
+
+		for value, node_id, level, parents, children, expands in data:
+			node = node_map[node_id]
+			node.parents = [node_map[parent_id] for parent_id in parents]
+			node.children = [node_map[child_id] for child_id in children]
+			node._expands = [(code, Node.expand_from_code(code), args) for code, args in expands]
+			if node._expands:
+				print(node)
+
+		return [node for node in node_map.values() if node.level == 0]
 
 	def __eq__(self, other):
 		if not isinstance(other, Node):
@@ -84,7 +142,7 @@ class Node(TreeLike):
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
-			self._expands.append((Node.expand_extract, (value,)))
+			self._expands.append((0, Node.expand_extract, (value,)))
 		overflow_value = self.value - value
 		new_nodes = [Node(v, self.past) for v in sorted([value, overflow_value])]
 		for node in new_nodes:
@@ -94,21 +152,9 @@ class Node(TreeLike):
 
 	def divide(self, divisor):
 		if divisor != 2 and divisor != 3:
-			self._expands.append((Node.expand_divide, (divisor,)))
+			self._expands.append((1, Node.expand_divide, (divisor,)))
 		divided_value = self.value // divisor
 		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
-		for node in new_nodes:
-			self._children.append(node)
-			node.parents.append(self)
-		return new_nodes
-
-	def split(self, conveyor_speed):
-		if conveyor_speed not in config.conveyor_speeds:
-			print("impossible case reached, splitting a non conveyor speed")
-			exit(1)
-		new_value = conveyor_speed // 3
-		overflow_value = self.value - new_value * 2
-		new_nodes = [Node(v, self.past) for v in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
@@ -123,12 +169,25 @@ class Node(TreeLike):
 			print("impossible case reached, merging 0 or 1 node")
 			exit(1)
 		if n > 3:
-			new_node._expands.append((Node.expand_merge, tuple()))
+			new_node._expands.append((2, Node.expand_merge, tuple()))
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
 			new_node.past.extend(node.past)
 		return new_node
+
+	def split(self, conveyor_speed):
+		if conveyor_speed not in config.conveyor_speeds:
+			print("impossible case reached, splitting a non conveyor speed")
+			exit(1)
+		new_value = conveyor_speed // 3
+		overflow_value = self.value - new_value * 2
+		new_nodes = [Node(v, self.past) for v in sorted([new_value, new_value, overflow_value])]
+		for node in new_nodes:
+			self._children.append(node)
+			node.parents.append(self)
+		new_node._expands.append((3, Node.expand_split, (conveyor_speed,)))
+		return new_nodes
 
 	def min_level(self, seen_ids):
 		seen_ids.add(self.node_id)
@@ -274,13 +333,13 @@ class Node(TreeLike):
 			cur_nodes, new_nodes = new_nodes, []
 
 		if len(merged_node.parents) > 3:
-			merged_node._expands.append((Node.expand_merge, tuple()))
+			merged_node._expands.append((2, Node.expand_merge, tuple()))
 
 		if len(extract_node.parents) > 3:
-			extract_node._expands.append((Node.expand_merge, tuple()))
+			extract_node._expands.append((2, Node.expand_merge, tuple()))
 
 		if len(overflow_node.parents) > 3:
-			overflow_node._expands.append((Node.expand_merge, tuple()))
+			overflow_node._expands.append((2, Node.expand_merge, tuple()))
 
 		return node.level + 1, n + m
 
@@ -361,7 +420,7 @@ class Node(TreeLike):
 			cur_nodes, new_nodes = new_nodes, []
 
 		if len(merged_node.parents) > 3:
-			merged_node._expands.append((Node.expand_merge, tuple()))
+			merged_node._expands.append((2, Node.expand_merge, tuple()))
 
 		return node.level, n + m
 
@@ -385,12 +444,73 @@ class Node(TreeLike):
 	def expand(self, seen_ids):
 		seen_ids.add(self.node_id)
 		levels_updates = []
-		for _expand, args in self._expands:
+		for _, _expand, args in self._expands:
 			levels_updates.append(_expand(self, *args))
 		for child in self.children:
 			if child.node_id not in seen_ids:
 				levels_updates.extend(child.expand(seen_ids))
 		return levels_updates
+
+	@staticmethod
+	def save(roots, filename, unit_flow_ratio=1):
+		try:
+			G = nx.DiGraph()
+			
+			# min_level_after_zero = 2**32
+			# seen_ids = set()
+			# for root in roots:
+			# 	for child in root.children:
+			# 		min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
+
+			# seen_ids = set()
+			# levels_updates = [(1, 1 - min_level_after_zero)]
+			# for root in roots:
+			# 	levels_updates.extend(root.expand(seen_ids))
+			# for threshold, amount in levels_updates:
+			# 	seen_ids = set()
+			# 	for root in roots:
+			# 		root.tag_levels_update(threshold, amount, seen_ids)
+			# seen_ids = set()
+			# for root in roots:
+			# 	root.apply_levels_update(seen_ids)
+
+			seen_ids = set()
+			for root in roots:
+				root.level = 0
+				root.populate(G, seen_ids, unit_flow_ratio)
+
+			A = to_agraph(G)
+			for node in A.nodes():
+				level = G.nodes[node]["level"]
+				A.get_node(node).attr["rank"] = f"{level}"
+
+			for level in set(nx.get_node_attributes(G, "level").values()):
+				A.add_subgraph(
+					[n for n, attr in G.nodes(data=True) if attr["level"] == level],
+					rank="same"
+				)
+
+			# Invert colors
+			A.graph_attr["bgcolor"] = "black"
+			for node in A.nodes():
+				node.attr["color"] = "white"
+				node.attr["fontcolor"] = "white"
+				node.attr["style"] = "filled"
+				node.attr["fillcolor"] = "black"
+
+			for edge in A.edges():
+				edge.attr["color"] = "white"
+
+			A.layout(prog="dot")
+			img_stream = io.BytesIO()
+			A.draw(img_stream, format=config.solutions_filename_extension)
+			img_stream.seek(0)
+			filepath = f"{filename}.{config.solutions_filename_extension}"
+			with open(filepath, "wb") as f:
+				f.write(img_stream.getvalue())
+		except Exception as e:
+			print(traceback.format_exc(), end="")
+			return
 
 	# graveyard
 
