@@ -381,7 +381,6 @@ class Node(TreeLike):
 			else:
 				new_nodes = original_children
 				for j, new_node in enumerate(new_nodes):
-					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 2]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
@@ -408,7 +407,6 @@ class Node(TreeLike):
 			else:
 				new_nodes = original_children
 				for j, new_node in enumerate(new_nodes):
-					new_node.levels_to_add = -(n + m)
 					cur = cur_nodes[(n_looping_branches + j) // 3]
 					cur.children.append(new_node)
 					new_node.parents = [cur]
