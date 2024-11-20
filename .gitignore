@@ -6,6 +6,8 @@ solution*.png
 solution*.data
 logs.txt
 **/*.spec
+**/*.pkl
+**/*.txt
 profile.out
 
 */test.png
