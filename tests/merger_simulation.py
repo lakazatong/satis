@@ -55,26 +55,23 @@ class Merger:
 		for _ in range(total_steps):
 			for inp in self.inputs:
 				inp.stock = min(1, inp.stock + inp.rate * self.time_step)
-			
-			self.current_step += 1
 
-			ready_inputs = [inp for inp in self.inputs if inp.stock == 1]
-			if not ready_inputs:
-				continue
-			
-			chosen_input = min(ready_inputs, key=lambda inp: inp.last_used)
-			chosen_input.stock -= 1
-			chosen_input.last_used = self.current_step
-			chosen_input.history.append(self.current_step)
+			ready_inputs = sorted([inp for inp in self.inputs if inp.stock == 1], key=lambda inp: inp.last_used)
+			for ready_input in ready_inputs:
+				self.current_step += 1
+				ready_input.stock -= 1
+				ready_input.last_used = self.current_step
+				ready_input.history.append(self.current_step)
 			
 		self.simulations += 1
 
 	def stabilize_effective_rates(self):
-		self.simulate(1)
-		rates = self.get_current_effective_rates()
-		while any(rate == 0 for rate in rates) or sum(rates) != self.speed:
-			self.simulate(1)
-			rates = self.get_current_effective_rates()
+		# self.simulate(1)
+		# rates = self.get_current_effective_rates()
+		# while any(rate == 0 for rate in rates) or sum(rates) != self.speed:
+		# 	self.simulate(1)
+		# 	rates = self.get_current_effective_rates()
+		self.simulate(self.speed)
 		# self.simulate(math.ceil(self.speed/self.min_input_speed))
 		# while not self.history:
 		# 	self.simulate(1)
@@ -84,7 +81,7 @@ class Merger:
 		# 	self.simulate(1)
 
 	def get_current_effective_rates(self):
-		return tuple(Fraction(len(inp.history), self.current_step * self.time_step) * 60 for inp in self.inputs)
+		return tuple(len(inp.history) for inp in self.inputs)
 
 	def summarize(self):
 		return f"{self.speed} " + " ".join(str(rate) for rate in self.get_current_effective_rates())
@@ -240,8 +237,10 @@ def learn_relation(simulations, degree=2):
 	}
 
 def main():
-	print(generate_simulation((60, 1200), 270))
-	print(generate_simulation((120, 270, 480), 780))
+	# print(generate_simulation((60, 1200), 270))
+	r = generate_simulation((120, 270, 480), 780)
+	print(r)
+	print(sum(r[2]))
 
 	return
 

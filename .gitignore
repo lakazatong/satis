@@ -8,6 +8,7 @@ logs.txt
 **/*.spec
 **/*.pkl
 **/*.txt
+**/*.mp4
 profile.out
 
 */test.png
