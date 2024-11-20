@@ -32,7 +32,6 @@ class Merger:
 		self.speed = None
 		self.inputs = sorted(inputs, key=lambda inp: inp.speed)
 		self.current_step = 0
-		self.history = []
 		self.simulations = 0
 		self.min_input_speed = min(inp.speed for inp in self.inputs)
 
@@ -45,7 +44,6 @@ class Merger:
 
 	def reset(self):
 		self.current_step = 0
-		self.history = []
 		for inp in self.inputs:
 			inp.reset()
 		self.simulations = 0
@@ -56,26 +54,28 @@ class Merger:
 		
 		for _ in range(total_steps):
 			for inp in self.inputs:
-				x = inp.stock + inp.rate * self.time_step
-				inp.stock = x if x <= 1 else math.floor(x)
+				inp.stock = min(1, inp.stock + inp.rate * self.time_step)
 			
 			self.current_step += 1
 
 			ready_inputs = [inp for inp in self.inputs if inp.stock == 1]
 			if not ready_inputs:
-				self.history.append(None)
 				continue
 			
 			chosen_input = min(ready_inputs, key=lambda inp: inp.last_used)
 			chosen_input.stock -= 1
 			chosen_input.last_used = self.current_step
 			chosen_input.history.append(self.current_step)
-			self.history.append(chosen_input)
 			
 		self.simulations += 1
 
 	def stabilize_effective_rates(self):
-		self.simulate(math.ceil(self.speed/self.min_input_speed))
+		self.simulate(1)
+		rates = self.get_current_effective_rates()
+		while any(rate == 0 for rate in rates) or sum(rates) != self.speed:
+			self.simulate(1)
+			rates = self.get_current_effective_rates()
+		# self.simulate(math.ceil(self.speed/self.min_input_speed))
 		# while not self.history:
 		# 	self.simulate(1)
 		# cur = self.get_current_effective_rates()
@@ -240,6 +240,7 @@ def learn_relation(simulations, degree=2):
 	}
 
 def main():
+	print(generate_simulation((60, 1200), 270))
 	print(generate_simulation((120, 270, 480), 780))
 
 	return
