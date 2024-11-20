@@ -73,7 +73,7 @@ class Merger:
 		self.simulate(math.ceil(self.speed/self.min_input_speed))
 
 	def get_current_effective_rates(self):
-		return [Fraction(len(inp.history), self.current_step * self.time_step) * 60 for inp in self.inputs]
+		return tuple(Fraction(len(inp.history), self.current_step * self.time_step) * 60 for inp in self.inputs)
 
 	def summarize(self):
 		return f"{self.speed} " + " ".join(str(rate) for rate in self.get_current_effective_rates())
@@ -92,13 +92,24 @@ def generate_simulations():
 			merger.set_speed(y)
 			merger.stabilize_effective_rates()
 			effective_rates = merger.get_current_effective_rates()
-			result_list.append((x, limit, y, effective_rates[0], effective_rates[1]))
+			result_list.append((x, limit, y, *effective_rates))
 		
-		del merger
 		for inp in inputs:
 			del inp
+		del merger
 	
 	return result_list
+
+def generate_simulation(input_values, output):
+	inputs = [Input(i) for i in input_values]
+	merger = Merger(inputs)
+	merger.set_speed(output)
+	merger.stabilize_effective_rates()
+	effective_rates = merger.get_current_effective_rates()
+	for inp in inputs:
+		del inp
+	del merger
+	return (input_values, output, effective_rates)
 
 # n MiB is n * 1024 * 1024
 def save_formatted_simulations(filename, format_function, chunk_size, simulations=None):
@@ -165,11 +176,79 @@ def run_predicates(simulations):
 			if not p(*sim):
 				print(f'"{p}" failed on {sim}')
 
+def learn_relation(simulations, degree=2):
+	from sympy import symbols, simplify
+	from sympy.utilities.lambdify import lambdify
+	from sklearn.linear_model import LinearRegression
+	from sklearn.preprocessing import PolynomialFeatures
+	import numpy as np
+	X = np.array([[x, limit, y] for x, limit, y, _, _ in simulations], dtype=float)
+	r0 = np.array([float(r0) for _, _, _, r0, _ in simulations], dtype=float)
+	r1 = np.array([float(r1) for _, _, _, _, r1 in simulations], dtype=float)
+
+	poly = PolynomialFeatures(degree=degree, include_bias=False)
+	X_poly = poly.fit_transform(X)
+
+	model_r0 = LinearRegression().fit(X_poly, r0)
+	r0_coefficients = model_r0.coef_
+	r0_intercept = model_r0.intercept_
+
+	model_r1 = LinearRegression().fit(X_poly, r1)
+	r1_coefficients = model_r1.coef_
+	r1_intercept = model_r1.intercept_
+
+	x, limit, y = symbols('x limit y')
+	feature_names = poly.get_feature_names_out(['x', 'limit', 'y'])
+	
+	# Convert feature names into valid Python expressions for SymPy
+	variables = [
+		var.replace(" ", "*").replace("^", "**") for var in feature_names
+	]
+
+	symbolic_eq_r0 = simplify(
+		sum(coef * eval(var, {'x': x, 'limit': limit, 'y': y}) for coef, var in zip(r0_coefficients, variables))
+		+ r0_intercept
+	)
+	symbolic_eq_r1 = simplify(
+		sum(coef * eval(var, {'x': x, 'limit': limit, 'y': y}) for coef, var in zip(r1_coefficients, variables))
+		+ r1_intercept
+	)
+
+	return {
+		"r0": {
+			"equation": symbolic_eq_r0,
+			"function": lambdify((x, limit, y), symbolic_eq_r0, 'numpy')
+		},
+		"r1": {
+			"equation": symbolic_eq_r1,
+			"function": lambdify((x, limit, y), symbolic_eq_r1, 'numpy')
+		}
+	}
+
 def main():
-	simulations = save_simulations('merger_simulations.pkl')
-	# simulations = load_simulations('merger_simulations.pkl')
+	print(generate_simulation((120, 270, 480), 780))
+
+	return
+
+	# simulations = save_simulations('merger_simulations.pkl')
+	simulations = load_simulations('merger_simulations.pkl')
 	# save_formatted_simulations("merger_simulations", lambda x, limit, y, r0, r1: f"{x} {limit} to {y} -> {r0} {r1}\n", simulations=simulations)
-	save_formatted_simulations("merger_simulations", lambda x, limit, y, r0, r1: f"{x} {limit} {y} {r0} {r1}\n", -1, simulations=simulations)
+	# save_formatted_simulations("merger_simulations", lambda x, limit, y, r0, r1: f"{x} {limit} {y} {r0} {r1}\n", 8 * 1024 * 1024, simulations=simulations)
+
+	relations = learn_relation(simulations)
+
+	print("r0 approximation:")
+	print(relations['r0']['equation'])
+
+	print("\nr1 approximation:")
+	print(relations['r1']['equation'])
+
+	test_x, test_limit, test_y = 100, 1200, 150
+	r0_pred = relations['r0']['function'](test_x, test_limit, test_y)
+	r1_pred = relations['r1']['function'](test_x, test_limit, test_y)
+	print(f"\nTest inputs: x={test_x}, limit={test_limit}, y={test_y}")
+	print(f"Predicted r0: {r0_pred}")
+	print(f"Predicted r1: {r1_pred}")
 
 if __name__ == '__main__':
 	main()
