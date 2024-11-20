@@ -80,19 +80,19 @@ class Merger:
 
 def generate_simulations():
 	result_list = []
-	other_input_speed = 1200
+	limit = 1200
 	
-	for x in range(1, other_input_speed):
-		inputs = [Input(x), Input(other_input_speed)]
+	for x in range(1, limit):
+		inputs = [Input(x), Input(limit)]
 		merger = Merger(inputs)
 		
-		for y in range(x + 1, min(x + other_input_speed, other_input_speed + 1)):
-			assert y < x + other_input_speed
+		for y in range(x + 1, min(x + limit, limit + 1)):
+			assert y < x + limit
 			merger.reset()
 			merger.set_speed(y)
 			merger.stabilize_effective_rates()
 			effective_rates = merger.get_current_effective_rates()
-			result_list.append((x, other_input_speed, y, effective_rates[0], effective_rates[1]))
+			result_list.append((x, limit, y, effective_rates[0], effective_rates[1]))
 		
 		del merger
 		for inp in inputs:
@@ -100,8 +100,14 @@ def generate_simulations():
 	
 	return result_list
 
-def save_formatted_simulations(filename, simulations=None, chunk_size=5 * 1024 * 1024):
+# n MiB is n * 1024 * 1024
+def save_formatted_simulations(filename, format_function, chunk_size, simulations=None):
 	simulations = simulations if simulations else generate_simulations()
+	if chunk_size < 0:
+		with open(filename + ".txt", 'w') as file:
+			for sim in simulations:
+				file.write(format_function(*sim))
+		return
 	
 	chunk_count = 1
 	current_file = filename + f"_chunk_{chunk_count}.txt"
@@ -110,8 +116,7 @@ def save_formatted_simulations(filename, simulations=None, chunk_size=5 * 1024 *
 	total_size = 0
 	
 	for sim in simulations:
-		x, other_input_speed, y, rate0, rate1 = sim
-		file.write(f"{x} {other_input_speed} to {y} -> {effective_rates[0]} {effective_rates[1]}\n")
+		file.write(format_function(*sim))
 		file.flush()
 		
 		total_size = os.path.getsize(current_file)
@@ -128,14 +133,11 @@ def save_simulations(filename):
 	simulations = generate_simulations()
 	with open(filename, 'wb') as file:
 		pickle.dump(simulations, file)
+	return simulations
 
 def load_simulations(filename):
 	with open(filename, 'rb') as file:
 		return pickle.load(file)
-
-# save_simulations('merger_simulations.pkl')
-
-simulations = load_simulations('merger_simulations.pkl')
 
 class Predicate:
 	def __init__(self, lambda_func, lambda_code):
@@ -151,14 +153,23 @@ class Predicate:
 	def __str__(self):
 		return self.lambda_code
 
-predicates = [
-	(lambda x, limit, y, r0, r1: x >= y/2, Predicate(lambda x, limit, y, r0, r1: r0 == r1, "r0 == r1"))
-]
 
-for sim in simulations:
-	for test, p in predicates:
-		if not test(*sim): continue
-		if not p(*sim):
-			print(f'"{p}" failed on {sim}')
+def run_predicates(simulations):
+	predicates = [
+		(lambda x, limit, y, r0, r1: x >= y/2, Predicate(lambda x, limit, y, r0, r1: r0 == r1, "r0 == r1"))
+	]
 
-# save_formatted_simulations("merger_simulations", simulations=simulations)
+	for sim in simulations:
+		for test, p in predicates:
+			if not test(*sim): continue
+			if not p(*sim):
+				print(f'"{p}" failed on {sim}')
+
+def main():
+	simulations = save_simulations('merger_simulations.pkl')
+	# simulations = load_simulations('merger_simulations.pkl')
+	# save_formatted_simulations("merger_simulations", lambda x, limit, y, r0, r1: f"{x} {limit} to {y} -> {r0} {r1}\n", simulations=simulations)
+	save_formatted_simulations("merger_simulations", lambda x, limit, y, r0, r1: f"{x} {limit} {y} {r0} {r1}\n", -1, simulations=simulations)
+
+if __name__ == '__main__':
+	main()
