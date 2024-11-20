@@ -86,7 +86,8 @@ def generate_simulations():
 		inputs = [Input(x), Input(other_input_speed)]
 		merger = Merger(inputs)
 		
-		for y in range(x + 1, other_input_speed + 1):
+		for y in range(x + 1, min(x + other_input_speed, other_input_speed + 1)):
+			assert y < x + other_input_speed
 			merger.reset()
 			merger.set_speed(y)
 			merger.stabilize_effective_rates()
@@ -124,19 +125,40 @@ def save_formatted_simulations(filename, simulations=None, chunk_size=5 * 1024 *
 	file.close()
 
 def save_simulations(filename):
-    simulations = generate_simulations()
-    with open(filename, 'wb') as file:
-        pickle.dump(simulations, file)
+	simulations = generate_simulations()
+	with open(filename, 'wb') as file:
+		pickle.dump(simulations, file)
 
 def load_simulations(filename):
-    with open(filename, 'rb') as file:
-        return pickle.load(file)
+	with open(filename, 'rb') as file:
+		return pickle.load(file)
 
 # save_simulations('merger_simulations.pkl')
 
 simulations = load_simulations('merger_simulations.pkl')
 
+class Predicate:
+	def __init__(self, lambda_func, lambda_code):
+		self.lambda_func = lambda_func
+		self.lambda_code = lambda_code
+
+	def __call__(self, *args, **kwargs):
+		return self.lambda_func(*args, **kwargs)
+
+	def __repr__(self):
+		return self.lambda_code
+
+	def __str__(self):
+		return self.lambda_code
+
+predicates = [
+	(lambda x, limit, y, r0, r1: x >= y/2, Predicate(lambda x, limit, y, r0, r1: r0 == r1, "x >= y/2"))
+]
+
 for sim in simulations:
-	print(sim)
+	for test, p in predicates:
+		if not test(*sim): continue
+		if not p(*sim):
+			print(f'"{p}" failed on {sim}')
 
 # save_formatted_simulations("merger_simulations", simulations=simulations)
