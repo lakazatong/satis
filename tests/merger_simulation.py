@@ -11,6 +11,7 @@ class Input:
 		self.speed = speed
 		self.stock = 0
 		self.rate = Fraction(speed, 60)
+		# self.time_step = Fraction(60, speed)
 		self.last_used = -1
 		self.history = []
 
@@ -29,7 +30,7 @@ class Input:
 class Merger:
 	def __init__(self, inputs):
 		self.speed = None
-		self.inputs = inputs
+		self.inputs = sorted(inputs, key=lambda inp: inp.speed)
 		self.current_step = 0
 		self.history = []
 		self.simulations = 0
@@ -38,6 +39,9 @@ class Merger:
 	def set_speed(self, speed):
 		self.speed = speed
 		self.time_step = Fraction(60, speed) # seconds/item
+
+	def __str__(self):
+		return f"Merger(speed={self.speed}, current_step={self.current_step}, simulations={self.simulations}, time_step={self.time_step})"
 
 	def reset(self):
 		self.current_step = 0
@@ -52,8 +56,11 @@ class Merger:
 		
 		for _ in range(total_steps):
 			for inp in self.inputs:
-				inp.stock = min(1, inp.stock + inp.rate * self.time_step)
+				x = inp.stock + inp.rate * self.time_step
+				inp.stock = x if x <= 1 else math.floor(x)
 			
+			self.current_step += 1
+
 			ready_inputs = [inp for inp in self.inputs if inp.stock == 1]
 			if not ready_inputs:
 				self.history.append(None)
@@ -65,12 +72,16 @@ class Merger:
 			chosen_input.history.append(self.current_step)
 			self.history.append(chosen_input)
 			
-			self.current_step += 1
-
 		self.simulations += 1
 
 	def stabilize_effective_rates(self):
 		self.simulate(math.ceil(self.speed/self.min_input_speed))
+		# while not self.history:
+		# 	self.simulate(1)
+		# cur = self.get_current_effective_rates()
+		# seen = set(cur)
+		# while (cur := self.get_current_effective_rates()) not in seen:
+		# 	self.simulate(1)
 
 	def get_current_effective_rates(self):
 		return tuple(Fraction(len(inp.history), self.current_step * self.time_step) * 60 for inp in self.inputs)
@@ -106,6 +117,9 @@ def generate_simulation(input_values, output):
 	merger.set_speed(output)
 	merger.stabilize_effective_rates()
 	effective_rates = merger.get_current_effective_rates()
+	for inp in inputs:
+		print(inp.history)
+	print(merger)
 	for inp in inputs:
 		del inp
 	del merger
