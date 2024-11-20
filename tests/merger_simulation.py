@@ -152,7 +152,7 @@ class Predicate:
 		return self.lambda_code
 
 predicates = [
-	(lambda x, limit, y, r0, r1: x >= y/2, Predicate(lambda x, limit, y, r0, r1: r0 == r1, "x >= y/2"))
+	(lambda x, limit, y, r0, r1: x >= y/2, Predicate(lambda x, limit, y, r0, r1: r0 == r1, "r0 == r1"))
 ]
 
 for sim in simulations:
