@@ -6,10 +6,15 @@ from functools import reduce
 def lcm(*values):
 	return reduce(lambda a, b: a * b // gcd(a, b), values)
 
+def divides(a, b):
+	if a == 0: raise ValueError("a == 0")
+	q, remainder = divmod(b, a)
+	return q if remainder == 0 and q != 1 else None
+
 class Input:
 	def __init__(self, speed):
 		self.speed = speed
-		self.stock = 0
+		self.stock = Fraction(0, 1)
 		self.rate = Fraction(speed, 60)
 		# self.time_step = Fraction(60, speed)
 		self.last_used = -1
@@ -33,10 +38,13 @@ class Merger:
 		self.inputs = sorted(inputs, key=lambda inp: inp.speed)
 		self.current_step = 0
 		self.simulations = 0
+		self.n_items = 0
 		self.min_input_speed = min(inp.speed for inp in self.inputs)
 
 	def set_speed(self, speed):
 		self.speed = speed
+		# self.substeps = lcm(speed, *(inp.speed for inp in self.inputs))
+		# self.time_step = Fraction(60, self.substeps)
 		self.time_step = Fraction(60, speed) # seconds/item
 
 	def __str__(self):
@@ -53,35 +61,34 @@ class Merger:
 			raise Exception("cannot simulate without setting the speed first")
 		
 		for _ in range(total_steps):
-			for inp in self.inputs:
-				inp.stock = min(1, inp.stock + inp.rate * self.time_step)
+			move_to_last = []
+			for i, inp in enumerate(self.inputs):
+				inp.stock += inp.rate * self.time_step
+				if inp.stock >= 1:
+					inp.stock = 0
+					self.current_step += 1
+					move_to_last.append(i)
+					inp.history.append(self.current_step)
 
-			ready_inputs = sorted([inp for inp in self.inputs if inp.stock == 1], key=lambda inp: inp.last_used)
-			for ready_input in ready_inputs:
-				self.current_step += 1
-				ready_input.stock -= 1
-				ready_input.last_used = self.current_step
-				ready_input.history.append(self.current_step)
-			
+			offset = 0
+			for i in move_to_last:
+				self.inputs.append(self.inputs.pop(i - offset))
+				offset += 1
+
 		self.simulations += 1
 
 	def stabilize_effective_rates(self):
-		# self.simulate(1)
+		# while self.n_items == 0:
+		# 	self.simulate(1)
 		# rates = self.get_current_effective_rates()
 		# while any(rate == 0 for rate in rates) or sum(rates) != self.speed:
 		# 	self.simulate(1)
 		# 	rates = self.get_current_effective_rates()
 		self.simulate(self.speed)
-		# self.simulate(math.ceil(self.speed/self.min_input_speed))
-		# while not self.history:
-		# 	self.simulate(1)
-		# cur = self.get_current_effective_rates()
-		# seen = set(cur)
-		# while (cur := self.get_current_effective_rates()) not in seen:
-		# 	self.simulate(1)
+		# self.simulate(1)
 
 	def get_current_effective_rates(self):
-		return tuple(len(inp.history) for inp in self.inputs)
+		return tuple(len(inp.history) for inp in sorted(self.inputs, key=lambda inp: inp.speed))
 
 	def summarize(self):
 		return f"{self.speed} " + " ".join(str(rate) for rate in self.get_current_effective_rates())
@@ -237,8 +244,18 @@ def learn_relation(simulations, degree=2):
 	}
 
 def main():
+	# 60, 120, 270, 480, 780, 1200
+	# print(reduce(lcm, [60, 120, 270, 480, 780, 1200]))
+	# mks = [Fraction(60, 60), Fraction(60, 120), Fraction(60, 270), Fraction(60, 480), Fraction(60, 780), Fraction(60, 1200)]
+	# mk6 = Fraction(60, 280800)
+	# for mk in mks:
+	# 	print(mk, divides(mk6, mk))
 	# print(generate_simulation((60, 1200), 270))
 	r = generate_simulation((120, 270, 480), 780)
+	s = 120 + 270 + 480
+	print(120/s*780)
+	print(270/s*780)
+	print(480/s*780)
 	print(r)
 	print(sum(r[2]))
 

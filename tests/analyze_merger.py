@@ -45,9 +45,9 @@ out = 'rbgrbbrbbgrbbrbgrbbrbrbgbrbbrbgrbbrbgrbbrbrbgbrbbrbgrbbrbgrbbrbbgrbbrbgrb
 
 print(len(out))
 
-print(out.count('g'))
-print(out.count('r'))
-print(out.count('b'))
+print((out.count('g') * 780) // len(out))
+print((out.count('r') * 780) // len(out))
+print((out.count('b') * 780) // len(out))
 
 exit(0)
 
