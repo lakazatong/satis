@@ -9,14 +9,269 @@ if sys.platform == "win32":
 
 import itertools, time
 from bisect import insort
-from fastList import FastList
+from utils.fastlist import FastList
 from config import config
-from utils import get_divisors, decimal_representation_info, divide_cost, extract_cost, merge_cost, find_n_m_l, all_sums
+from utils.other import remove_pairs
 from fractions import Fraction
 from score import ScoreCalculator
 import matplotlib.pyplot as plt
 import ast
 from node import Node
+from cost import extract_cost, merge_cost
+from utils.fractions import fractions_to_integers
+import random, numpy as np
+
+def group_values(L, divisions):
+	grouped = False
+	i = 0
+	while i < len(L) - 1:
+		ref = L[i]
+		n = 1
+		while i < len(L) - 1 and L[i + 1] == ref:
+			L[i] += L.pop(i + 1)
+			n += 1
+			grouped = True
+		if n > 1:
+			divisions.append(('divide', (L[i],), (n,)))
+		i += 1
+	return grouped
+
+def _find_linear_combinations(x, t, idx, current_solution):
+	if t == 0: return [list(current_solution)]
+	if idx == len(x): return []
+	solutions = []
+	max_value = t // x[idx]
+	for c in range(max_value + 1):
+		current_solution[idx] = c
+		solutions.extend(_find_linear_combinations(x, t - c * x[idx], idx + 1, current_solution))
+	return solutions
+
+def find_linear_combinations(x, t):
+	if not x or t < 0: return []
+	return _find_linear_combinations(x, t, 0, [0] * len(x))
+
+def has_sufficient_sources(coeffs, srcs_list, srcs_counts):
+	for i, coeff in enumerate(coeffs):
+		source = srcs_list[i]
+		if srcs_counts[source] < coeff:
+			return False
+	return True
+
+def apply_best_merge(sources, targets, logs):
+	min_cost = float('inf')
+	best_merge_sources = None
+	best_merge_target = None
+	best_n_sources = None
+	for t in targets:
+		srcs = [src for src in sources if src < t]
+		srcs_set = list(set(srcs))
+		n = len(srcs_set)
+		tmp = find_linear_combinations(srcs_set, t)
+		if not tmp: continue
+		all_coeffs = sorted(map(lambda coeffs: (n-coeffs.count(0), coeffs), tmp), key=lambda x: -x[0])
+		srcs_counts = {src: srcs.count(src) for src in srcs}
+		for n_sources, coeffs in all_coeffs:
+			if not has_sufficient_sources(coeffs, srcs_set, srcs_counts):
+				continue
+			# we pick the first combination of sources that can make that target
+			# without considering which merge keeps as many "interesting" sources for later
+			# the merge of a cost is only dependent on the number of sources
+			if best_n_sources and n_sources == best_n_sources: break
+			cost = merge_cost(sum(coeffs), 1)
+			if cost >= min_cost:
+				continue
+			min_cost = cost
+			best_merge_sources = []
+			best_merge_target = t
+			best_n_sources = n_sources
+			for i, coeff in enumerate(coeffs):
+				best_merge_sources.extend([srcs_set[i]] * coeff)
+	if best_merge_sources:
+		for val in best_merge_sources:
+			sources.remove(val)
+		targets.remove(best_merge_target)
+		logs.append(('merge', best_merge_sources, tuple()))
+		return True
+	return False
+
+def apply_best_extract_two_targets(sources, targets, logs):
+	min_cost = float('inf')
+	best_extraction = None
+	best_source = None
+	min_target = min(targets)
+	for source in (src for src in sources if src > min_target):
+		for i, t1 in enumerate(targets):
+			for t2 in targets[i + 1:]:
+				if source != t1 + t2 or t1 == t2:
+					continue
+				cost = extract_cost(source, t1)
+				if cost < min_cost:
+					min_cost = cost
+					best_extraction = (t1, t2)
+					best_source = source
+
+	if best_extraction:
+		t1, t2 = best_extraction
+		sources.remove(best_source)
+		targets.remove(t1)
+		targets.remove(t2)
+		logs.append(('extract', (best_source,), (t1, t2)))
+		return True
+	return False
+
+def apply_best_extract_one_target(sources, targets, logs):
+	min_cost = float('inf')
+	best_t = None
+	best_source = None
+
+	for source in sources:
+		for t in targets:
+			if source <= t:
+				continue
+			cost = extract_cost(source, t)
+			if cost < min_cost:
+				min_cost = cost
+				best_t = t
+				best_source = source
+
+	if not best_t: return False
+	overflow = best_source - best_t
+	if best_t == overflow: return False
+	sources.remove(best_source)
+	sources.append(overflow)
+	targets.remove(best_t)
+	logs.append(('extract', (best_source,), (best_t, overflow)))
+	return True
+
+def solve(sources, targets):
+	logs, divisions = [], []
+	sources = sorted(sources)
+	targets = sorted(targets)
+
+	sources_sum = sum(sources)
+	targets_sum = sum(targets)
+	if sources_sum < targets_sum:
+		sources.append(targets_sum - sources_sum)
+	if sources_sum > targets_sum:
+		targets.append(sources_sum - targets_sum)
+
+	r, unit_flow_ratio = fractions_to_integers(sources + targets)
+
+	n_sources = len(sources)
+	n_targets = len(targets)
+
+	orig_sources = r[:n_sources]
+	orig_targets = r[n_sources:]
+
+	sources = [x for x in orig_sources]
+	targets = [x for x in orig_targets]
+
+	while True:
+	
+		sources, targets = remove_pairs(sources, targets)
+
+		if (len(sources) == 0 and len(targets) != 0) or (len(sources) != 0 and len(targets) == 0):
+			print('oopsie')
+			exit(1)
+
+		if len(targets) == 1:
+			logs.append(('merge', tuple(sources), tuple()))
+			break
+
+		while group_values(targets, divisions):
+			continue
+		print(sources, targets)
+		exit(0)
+
+		if not apply_best_merge(sources, targets, logs):
+			if not apply_best_extract_two_targets(sources, targets, logs):
+				if not apply_best_extract_one_target(sources, targets, logs):
+					
+
+		if sources == targets:
+			break
+
+	return orig_sources, orig_targets, logs + [d for d in reversed(divisions)], unit_flow_ratio
+
+def generate_problem():
+	number_range = 100
+	max_repetitions = 10
+	num_sources = random.randint(1, 10)
+	num_targets = random.randint(1, 10)
+	repetition_probabilities = [i for i in range(1, max_repetitions + 1)]
+	total_probability = sum(repetition_probabilities)
+	def generate_number_with_repetitions():
+		number = random.randint(1, number_range)
+		repetitions = random.choices(range(1, max_repetitions + 1), weights=repetition_probabilities, k=1)[0]
+		return number, repetitions
+	sources = []
+	targets = []
+	for _ in range(num_sources):
+		number, repetitions = generate_number_with_repetitions()
+		sources.extend([number] * repetitions)
+	for _ in range(num_targets):
+		number, repetitions = generate_number_with_repetitions()
+		targets.extend([number] * repetitions)
+	return sources, targets
+
+tests = [
+	([Fraction(1,2), Fraction(13,12)], [Fraction(3,4), Fraction(5,6)]),
+	([10, 40], [50]),
+	([100], 2*[50]),
+	([124], 44*[Fraction(31,11)]),
+	([14], [1, 13]),
+	(2*[5], [4, 6]),
+	([31], 11*[Fraction(31,11)]),
+	([40] + 16*[50], 2*[420]),
+	([45], [5] + 2*[20]),
+	(4*[7], 7*[4]),
+	([5], 5*[1]),
+	([50], 2*[5] + 2*[20]),
+	([780], 5*[156]),
+	(7*[4], 4*[7])
+	# ([], []),
+]
+
+def run_operations(operations, sources):
+	for name, srcs, meta in operations:
+		if name == 'extract':
+			sources.remove(srcs[0])
+			for v in meta: sources.append(v)
+		elif name == 'divide':
+			sources.remove(srcs[0])
+			v = srcs[0] // meta[0]
+			for _ in range(meta[0]): sources.append(v)
+		elif name == 'merge':
+			for src in srcs:
+				sources.remove(src)
+			sources.append(sum(srcs))
+	return sorted(sources)
+
+def run_problem(orig_sources, orig_targets):
+	print(orig_sources)
+	print(orig_targets)
+	sources, targets, logs, unit_flow_ratio = solve(orig_sources, orig_targets)
+	print(sources)
+	print(targets)
+	print(logs)
+	print(unit_flow_ratio)
+	print()
+	simulated_sources = run_operations(logs, sources)
+	# print(simulated_sources)
+	assert simulated_sources == targets
+
+# run_problem([11, 11, 11, 11, 11, 11, 11, 11, 43, 43, 43, 43, 43, 43, 43, 43, 64, 64, 64, 64, 64, 64, 64, 64, 83, 83, 83, 83, 83, 83, 83, 83, 85, 85, 85, 85, 85, 85, 85], [6, 6, 6, 6, 6, 6, 6, 6, 6, 55, 55, 55, 55, 55, 55, 55, 55, 55, 55, 92, 92, 92, 92, 92, 92, 92, 92, 92, 771])
+# run_problem([60, 60, 60], [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 33, 33, 33, 33, 33, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 89, 89, 13, 13, 13, 13, 13, 13, 13])
+# run_problem([68, 68, 68, 68, 68, 68, 68, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28], [4, 4, 4, 4, 4, 99, 99, 99, 99, 99, 42, 42, 42, 42, 42, 42, 42, 42, 42, 2, 2, 2, 2, 2, 2, 2, 2, 8, 8, 8, 8, 8, 8, 8, 8, 8])
+run_problem([28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 68, 68, 68, 68, 68, 68, 32, 153], [378, 495])
+# run_problem(*generate_problem())
+
+exit(0)
+
+for sources, targets in tests:
+	run_problem(sources, targets)
+
+exit(0)
 
 # import ipdb
 

@@ -164,6 +164,20 @@ class Node(TreeLike):
 		return new_nodes
 
 	@staticmethod
+	def divide_up(nodes):
+		divided_value = nodes[0].value
+		divisor = len(nodes)
+		value = divided_value * divisor
+		new_node = Node(value)
+		if divisor != 2 and divisor != 3:
+			new_node._expands.append((1, Node.expand_divide, (divisor,)))
+		new_nodes.children = nodes
+		for node in nodes:
+			node.parents = [new_node]
+			node.past.append(value)
+		return new_node
+
+	@staticmethod
 	def merge(nodes):
 		summed_value = sum(node.value for node in nodes)
 		new_node = Node(summed_value)
