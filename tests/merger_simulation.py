@@ -12,13 +12,14 @@ def divides(a, b):
 	return q if remainder == 0 and q != 1 else None
 
 class Input:
-	def __init__(self, speed):
+	def __init__(self, speed, symbol=None):
 		self.speed = speed
 		self.stock = Fraction(0, 1)
 		self.rate = Fraction(speed, 60)
 		# self.time_step = Fraction(60, speed)
 		self.last_used = -1
 		self.history = []
+		self.symbol = symbol if symbol else chr(speed)
 
 	def set_speed(self, speed):
 		self.speed = speed
@@ -40,6 +41,8 @@ class Merger:
 		self.simulations = 0
 		self.n_items = 0
 		self.min_input_speed = min(inp.speed for inp in self.inputs)
+		self.n_inputs = len(inputs)
+		self.buffers = [0] * self.n_inputs
 
 	def set_speed(self, speed):
 		self.speed = speed
@@ -61,18 +64,26 @@ class Merger:
 			raise Exception("cannot simulate without setting the speed first")
 		
 		for _ in range(total_steps):
-			move_to_last = []
 			for i, inp in enumerate(self.inputs):
 				inp.stock += inp.rate * self.time_step
-				if inp.stock >= 1:
-					inp.stock = 0
-					self.current_step += 1
-					move_to_last.append(i)
-					inp.history.append(self.current_step)
+				if inp.stock < 1: continue
+				if self.buffers[i] < 3:
+					self.buffers[i] += 1
+				inp.stock -= 1
+
+			move_to_last = []
+			for i in range(self.n_inputs):
+				if self.buffers[i] == 0: continue
+				self.current_step += 1
+				self.inputs[i].history.append(self.current_step)
+				self.buffers[i] -= 1
+				move_to_last.append(i)
+				break
 
 			offset = 0
 			for i in move_to_last:
 				self.inputs.append(self.inputs.pop(i - offset))
+				self.buffers[i], self.buffers[-1] = self.buffers[-1], self.buffers[i]
 				offset += 1
 
 		self.simulations += 1
@@ -84,7 +95,8 @@ class Merger:
 		# while any(rate == 0 for rate in rates) or sum(rates) != self.speed:
 		# 	self.simulate(1)
 		# 	rates = self.get_current_effective_rates()
-		self.simulate(self.speed)
+		while self.current_step < self.speed:
+			self.simulate(1)
 		# self.simulate(1)
 
 	def get_current_effective_rates(self):
@@ -92,6 +104,18 @@ class Merger:
 
 	def summarize(self):
 		return f"{self.speed} " + " ".join(str(rate) for rate in self.get_current_effective_rates())
+
+	def generate_sequence(self):
+		r = ''
+		indices = [0] * len(self.inputs)
+		for i in range(1, self.current_step + 1):
+			for j, inp in enumerate(self.inputs):
+				k = indices[j]
+				if k < len(inp.history) and inp.history[k] == i:
+					r += inp.symbol
+					indices[j] = k + 1
+					break
+		return r
 
 def generate_simulations():
 	result_list = []
@@ -121,13 +145,7 @@ def generate_simulation(input_values, output):
 	merger.set_speed(output)
 	merger.stabilize_effective_rates()
 	effective_rates = merger.get_current_effective_rates()
-	for inp in inputs:
-		print(inp.history)
-	print(merger)
-	for inp in inputs:
-		del inp
-	del merger
-	return (input_values, output, effective_rates)
+	return merger, (input_values, output, effective_rates)
 
 # n MiB is n * 1024 * 1024
 def save_formatted_simulations(filename, format_function, chunk_size, simulations=None):
@@ -251,13 +269,14 @@ def main():
 	# for mk in mks:
 	# 	print(mk, divides(mk6, mk))
 	# print(generate_simulation((60, 1200), 270))
-	r = generate_simulation((120, 270, 480), 780)
-	s = 120 + 270 + 480
-	print(120/s*780)
-	print(270/s*780)
-	print(480/s*780)
-	print(r)
-	print(sum(r[2]))
+	merger, r = generate_simulation((120, 270, 480), 780)
+	for inp in merger.inputs:
+		print(inp.history)
+	print(r, sum(r[2]))
+	merger.inputs[0].symbol = 'g'
+	merger.inputs[1].symbol = 'r'
+	merger.inputs[2].symbol = 'b'
+	print(merger.generate_sequence())
 
 	return
 

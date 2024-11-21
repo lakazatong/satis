@@ -571,14 +571,14 @@ class Node(TreeLike):
 	def get_short_node_ids(nodes, short=3):
 		return set(map(lambda node: node.node_id[-short:], nodes))
 
-	@staticmethod
-	def pop_node(node, nodes):
-		for i, other in enumerate(nodes):
-			if other.node_id == node.node_id:
-				return nodes.pop(i)
-		return None
-
 	# graveyard
+
+	# @staticmethod
+	# def pop_node(node, nodes):
+	# 	for i, other in enumerate(nodes):
+	# 		if other.node_id == node.node_id:
+	# 			return nodes.pop(i)
+	# 	return None
 
 	# @staticmethod
 	# def sort_nodes(nodes):
