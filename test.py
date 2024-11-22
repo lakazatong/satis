@@ -22,12 +22,20 @@ from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
 
-for x in range(1, 1200 + 1):
-	for c in range(1, x):
-		if x % c == 0:
-			extract_cost(x, c)
+for x in range(2, 1200 + 1):
+	for d in range(1, x + 1):
+		if x % d == 0:
+			divide_cost(x, d)
 
+print(extract_cost(1200, 240))
 exit(0)
+
+for x in range(3, 1200 + 1):
+	for c in range(x + 1):
+		extract_cost(x, c)
+# 7 1200 - 240
+
+
 
 min_value = float('inf')
 min_case = None
