@@ -32,7 +32,7 @@ class SatisSolver:
 		from score import ScoreCalculator
 		from tree import Tree
 		from utils.fractions import format_fractions, fractions_to_integers
-		from utils.solver import get_compute_cant_use, get_gcd_incompatible
+		from utils.solver import get_compute_cant_use, get_gcd_incompatible, group_targets
 		from utils.math import compute_gcd
 		from utils.other import remove_pairs
 		
@@ -64,10 +64,13 @@ class SatisSolver:
 		r, self.unit_flow_ratio = fractions_to_integers(source_values + target_values)
 		
 		n_sources = len(source_values)
-		self.n_targets = len(target_values)
 
 		source_values = r[:n_sources]
 		self.target_values = r[n_sources:]
+		
+		self.leaves = self.group_targets(self.target_values)
+		
+		self.n_targets = len(self.target_values)
 
 		self.scoreCalculator = ScoreCalculator(self.target_values, self)
 		

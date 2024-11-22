@@ -86,46 +86,6 @@ class Tree:
 		Node.expand_roots(self.roots)
 		Node.save(self.roots, filename + "_expanded", unit_flow_ratio=unit_flow_ratio)
 
-	def _group_targets(self, targets):
-		ns = []
-		while len(targets) > 1:
-			grouped = False
-			i = 0
-			cur_leaves = []
-			
-			while i < len(targets) - 1:
-				# print(targets, cur_leaves, self.leaves, ns)
-				ref = targets[i]
-				n = 1
-				while i < len(targets) - 1 and targets[i + 1] == ref:
-					targets[i] += targets.pop(i + 1)
-					n += 1
-					grouped = True
-				# print(targets, i, n)
-				# print()
-				if n > 1:
-					if self.leaves:
-						for _ in range(n):
-							new_node = Node(ref)
-							for _ in range(ns.pop(0)):
-								child = self.leaves.pop(0)
-								child.parents = [new_node]
-								new_node.children.append(child)
-							cur_leaves.append(new_node)
-					else:
-						cur_leaves.extend(Node(ref) for _ in range(n))
-					
-					ns.append(n)
-
-				i += 1
-			
-			if cur_leaves:
-				self.leaves = cur_leaves
-				cur_leaves = []
-			
-			if not grouped:
-				break
-
 	def _has_sufficient_sources(self, coeffs, srcs_list, srcs_counts):
 		for i, coeff in enumerate(coeffs):
 			source = srcs_list[i]
@@ -221,8 +181,6 @@ class Tree:
 		return True
 
 	def quick_solve(self, targets):
-		self._group_targets(targets)
-
 		n_targets = len(targets)
 
 		while True:
