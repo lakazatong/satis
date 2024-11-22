@@ -7,7 +7,7 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
-import itertools, time
+import itertools, time, math
 from bisect import insort
 from utils.fastlist import FastList
 from config import config
@@ -22,32 +22,56 @@ from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
 
-node = Node(1200)
-node.level = 0
-for child in [Node(960), Node(240)]:
-	node.children.append(child)
-	child.parents = [node]
+print(divide_cost(1200, 30))
 
-print(node.pretty())
-
-Node.expand_extract(node, 240)
-
-print(node.pretty())
-
-print(extract_cost(1200, 240))
 exit(0)
 
-for x in range(2, 1200 + 1):
-	for d in range(1, x + 1):
-		if x % d == 0:
-			divide_cost(x, d)
+# node = Node(1200)
+# node.level = 0
+# for child in [Node(960), Node(240)]:
+# 	node.children.append(child)
+# 	child.parents = [node]
+
+# print(node.pretty())
+
+# Node.expand_extract(node, 240)
+
+# print(node.pretty())
+
+# print(extract_cost(1200, 240))
+# exit(0)
+
+# for x in range(2, 1200 + 1):
+# 	for d in range(1, x + 1):
+# 		if x % d == 0:
+# 			divide_cost(x, d)
+
+plt.style.use('dark_background')
+fig, ax = plt.subplots(figsize=(10, 6))
+
+x = 840
+# x_values = [d for d in range(4, x + 1) if x % d == 0]
+# y_values = [extract_cost(x, d) for d in x_values if x % d == 0]
+x_values = [c for c in range(1, x + 1)]
+y_values = [extract_cost(x, c) for c in x_values]
+
+ax.scatter(x_values, y_values, marker='o', label=f"x={x}")
+
+ax.legend(loc="upper right", fontsize=8)
+ax.set_ylabel("Cost", fontsize=12)
+ax.set_xlabel("d", fontsize=12)
+ax.set_title("Dot Plot for Costs Across Different x Values", fontsize=14)
+
+plt.tight_layout()
+plt.show()
+
+exit(0)
 
 for x in range(3, 1200 + 1):
 	for c in range(x + 1):
 		extract_cost(x, c)
+
 # 7 1200 - 240
-
-
 
 min_value = float('inf')
 min_case = None

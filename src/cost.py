@@ -110,10 +110,13 @@ def extract_cost(x, c):
 	n_branches_extract, n_saved_splitters_extract = compute_n_looping_branches(n_extract, splitters_count, branches_count)
 	# print(f"{n_saved_splitters_loop = }\n{n_saved_splitters_overflow = }\n{n_saved_splitters_extract = }")
 	# print(f"{n_branches_loop = }\n{n_branches_overflow = }\n{n_branches_extract = }\n{merge_cost(n_branches_loop, 1) = }\n{merge_cost(n_branches_overflow, 1) = }\n{merge_cost(n_branches_extract, 1) = }")
-	return n_splitters - n_saved_splitters_loop - n_saved_splitters_overflow - n_saved_splitters_extract \
-		+ ((merge_cost(n_branches_loop, 1) + 1 + (2 if n > 0 else 3)) if new_x > config.conveyor_speed_limit else merge_cost(n_branches_loop + 1, 1)) \
-		+ merge_cost(n_branches_overflow, 1) \
-		+ merge_cost(n_branches_extract, 1)
+	r = n_splitters - n_saved_splitters_loop - n_saved_splitters_overflow - n_saved_splitters_extract
+	if new_x > config.conveyor_speed_limit:
+		r += merge_cost(n_branches_loop, 1) + 1 + (2 if n > 0 else 3)
+	else:
+		r += merge_cost(n_branches_loop + 1, 1)
+	r += merge_cost(n_branches_overflow, 1) + merge_cost(n_branches_extract, 1)
+	return r
 
 def divide_cost(x, d):
 	# minimum number of splitters + mergers to divide x into d values with x % d == 0
@@ -124,17 +127,23 @@ def divide_cost(x, d):
 	n, m, l, n_splitters = find_n_m_l(d)
 	if l == 0: return n_splitters
 	if l == x: return 0
+	# print(f"{x = }\n{d = }\n{n = }\n{m = }\n{l = }\n{n_splitters = }")
 	if l < 3:
 		# no optimization to be done about looping l or 2 branches back to x
 		return n_splitters + 1
 	from config import config
 	from fractions import Fraction
-	# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{c = }\n{x = }\n{d = }")
 	new_x = x + Fraction(l * x, 2**n*3**m)
 	splitters_count, branches_count = compute_tree_info(n, m)
 	n_branches_loop, n_saved_splitters_loop = compute_n_looping_branches(l, splitters_count, branches_count)
-	return n_splitters - n_saved_splitters_loop + \
-		+ (merge_cost(n_branches_loop, 1) + 1 + (2 if n > 0 else 3)) if new_x > config.conveyor_speed_limit else merge_cost(n_branches_loop + 1, 1)
+	# print(f"{n_saved_splitters_loop = }")
+	# print(n_splitters - n_saved_splitters_loop, new_x > config.conveyor_speed_limit)
+	r = n_splitters - n_saved_splitters_loop
+	if new_x > config.conveyor_speed_limit:
+		r += merge_cost(n_branches_loop, 1) + 1 + (2 if n > 0 else 3)
+	else:
+		r += merge_cost(n_branches_loop + 1, 1)
+	return r
 
 def merge_cost(n, t):
 	# how many mergers at minimum to merge n values into t
