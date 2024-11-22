@@ -585,6 +585,60 @@ class Node(TreeLike):
 	def get_short_node_ids(nodes, short=3):
 		return set(map(lambda node: node.node_id[-short:], nodes))
 
+	@staticmethod
+	def group_nodes(nodes):
+		from cost import divide_cost
+		cost = 0
+		ns = []
+		cur_leaves = []
+		final_leaves = []
+		
+		while len(nodes) > 1:
+			grouped = False
+			i = 0
+			
+			while i < len(nodes) - 1:
+				# print(nodes, cur_leaves, final_leaves, ns)
+				ref = nodes[i]
+				n = 1
+				while i < len(nodes) - 1 and nodes[i + 1] == ref:
+					nodes[i] += nodes.pop(i + 1)
+					n += 1
+					grouped = True
+				# print(nodes, i, n)
+				# print()
+				if n > 1:
+					if final_leaves:
+						for _ in range(n):
+							n_children = ns.pop(0)
+							new_node = Node(ref)
+							if n_children <= 1:
+								print('group_nodes: impossible case reached')
+								exit(1)
+							if n_children > 3:
+								new_node._expands.append((1, Node.expand_divide, (n_children,)))
+								cost += divide_cost(nodes[i], n_children)
+							for _ in range(n_children):
+								child = final_leaves.pop(0)
+								child.parents = [new_node]
+								new_node.children.append(child)
+							cur_leaves.append(new_node)
+					else:
+						cur_leaves.extend(Node(ref) for _ in range(n))
+					
+					ns.append(n)
+
+				i += 1
+			
+			if cur_leaves:
+				final_leaves = cur_leaves
+				cur_leaves = []
+			
+			if not grouped:
+				break
+
+		return final_leaves, cost
+
 	# graveyard
 
 	# @staticmethod

@@ -35,7 +35,7 @@ class SatisSolver:
 		from utils.solver import get_compute_cant_use, get_gcd_incompatible, group_targets
 		from utils.math import compute_gcd
 		from utils.other import remove_pairs
-		
+
 		self.reset()
 
 		source_values = sorted(source_values)
@@ -68,7 +68,7 @@ class SatisSolver:
 		source_values = r[:n_sources]
 		self.target_values = r[n_sources:]
 		
-		self.leaves = self.group_targets(self.target_values)
+		self.leaves, grouping_cost = Node.group_nodes(self.target_values)
 		
 		self.n_targets = len(self.target_values)
 
@@ -83,7 +83,7 @@ class SatisSolver:
 
 		self.tree_source = Tree([Node(value) for value in source_values])
 
-		self.best_size = self.best_size_upper_bond()
+		self.best_size = self.best_size_upper_bond() + grouping_cost
 		gcd = compute_gcd(*source_values, *self.target_values)
 		self.gcd_incompatible = get_gcd_incompatible(gcd)
 		print(f"\nSolutions' size upper bound: {self.best_size}, {gcd = }\n")

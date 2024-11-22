@@ -89,6 +89,7 @@ def extract_cost(x, c):
 	# how many splitters + mergers at minimum to extract c from x
 	if c == 0: raise ValueError("c == 0")
 	from config import config
+	if c == x: return 0
 	if c in config.conveyor_speeds: return 1
 	# split in c's instead of 1's when possible
 	# if divides(c, x):
