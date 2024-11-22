@@ -17,9 +17,22 @@ from score import ScoreCalculator
 import matplotlib.pyplot as plt
 import ast
 from node import Node
+from tree import Tree
 from cost import extract_cost, merge_cost
 from utils.fractions import fractions_to_integers
 import random, numpy as np
+
+t = Tree([])
+
+targets = [5, 5, 2, 2, 2, 2]
+t._group_targets(targets)
+
+print("-"*20)
+print(targets)
+print(t)
+# print(t.leaves[1].pretty())
+
+exit(0)
 
 def group_values(L, divisions):
 	grouped = False
@@ -64,6 +77,7 @@ def apply_best_merge(sources, targets, logs):
 	best_n_sources = None
 	for t in targets:
 		srcs = [src for src in sources if src < t]
+		if not srcs: continue
 		srcs_set = list(set(srcs))
 		n = len(srcs_set)
 		tmp = find_linear_combinations(srcs_set, t)
@@ -185,8 +199,7 @@ def solve(sources, targets):
 
 		if not apply_best_merge(sources, targets, logs):
 			if not apply_best_extract_two_targets(sources, targets, logs):
-				if not apply_best_extract_one_target(sources, targets, logs):
-					
+				apply_best_extract_one_target(sources, targets, logs)
 
 		if sources == targets:
 			break

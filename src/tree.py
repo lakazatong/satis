@@ -5,6 +5,7 @@ from node import Node
 class Tree:
 	def __init__(self, roots):
 		self.roots = roots
+		self.leaves = []
 		self.sources = roots
 		self.levels = [roots]
 		self.past = FastList()
@@ -84,6 +85,164 @@ class Tree:
 		Node.save(self.roots, filename, unit_flow_ratio=unit_flow_ratio)
 		Node.expand_roots(self.roots)
 		Node.save(self.roots, filename + "_expanded", unit_flow_ratio=unit_flow_ratio)
+
+	def _group_targets(self, targets):
+		ns = []
+		while len(targets) > 1:
+			grouped = False
+			i = 0
+			cur_leaves = []
+			
+			while i < len(targets) - 1:
+				# print(targets, cur_leaves, self.leaves, ns)
+				ref = targets[i]
+				n = 1
+				while i < len(targets) - 1 and targets[i + 1] == ref:
+					targets[i] += targets.pop(i + 1)
+					n += 1
+					grouped = True
+				# print(targets, i, n)
+				# print()
+				if n > 1:
+					if self.leaves:
+						for _ in range(n):
+							new_node = Node(ref)
+							for _ in range(ns.pop(0)):
+								child = self.leaves.pop(0)
+								child.parents = [new_node]
+								new_node.children.append(child)
+							cur_leaves.append(new_node)
+					else:
+						cur_leaves.extend(Node(ref) for _ in range(n))
+					
+					ns.append(n)
+
+				i += 1
+			
+			if cur_leaves:
+				self.leaves = cur_leaves
+				cur_leaves = []
+			
+			if not grouped:
+				break
+
+	def _has_sufficient_sources(self, coeffs, srcs_list, srcs_counts):
+		for i, coeff in enumerate(coeffs):
+			source = srcs_list[i]
+			if srcs_counts[source] < coeff:
+				return False
+		return True
+
+	def _apply_best_merge(self, sources, targets):
+		min_cost = float('inf')
+		best_merge_sources = None
+		best_merge_target = None
+		best_n_sources = None
+		for t in targets:
+			srcs = [src for src in sources if src < t]
+			if not srcs: continue
+			srcs_set = list(set(srcs))
+			n = len(srcs_set)
+			tmp = find_linear_combinations(srcs_set, t)
+			if not tmp: continue
+			all_coeffs = sorted(map(lambda coeffs: (n-coeffs.count(0), coeffs), tmp), key=lambda x: -x[0])
+			srcs_counts = {src: srcs.count(src) for src in srcs}
+			for n_sources, coeffs in all_coeffs:
+				if not has_sufficient_sources(coeffs, srcs_set, srcs_counts):
+					continue
+				# we pick the first combination of sources that can make that target
+				# without considering which merge keeps as many "interesting" sources for later
+				# the merge of a cost is only dependent on the number of sources
+				if best_n_sources and n_sources == best_n_sources: break
+				cost = merge_cost(sum(coeffs), 1)
+				if cost >= min_cost:
+					continue
+				min_cost = cost
+				best_merge_sources = []
+				best_merge_target = t
+				best_n_sources = n_sources
+				for i, coeff in enumerate(coeffs):
+					best_merge_sources.extend([srcs_set[i]] * coeff)
+		if best_merge_sources:
+			for val in best_merge_sources:
+				sources.remove(val)
+			targets.remove(best_merge_target)
+			logs.append(('merge', best_merge_sources, tuple()))
+			return True
+		return False
+
+	def _apply_best_extract_two_targets(self, sources, targets):
+		min_cost = float('inf')
+		best_extraction = None
+		best_source = None
+		min_target = min(targets)
+		for source in (src for src in sources if src > min_target):
+			for i, t1 in enumerate(targets):
+				for t2 in targets[i + 1:]:
+					if source != t1 + t2 or t1 == t2:
+						continue
+					cost = extract_cost(source, t1)
+					if cost < min_cost:
+						min_cost = cost
+						best_extraction = (t1, t2)
+						best_source = source
+
+		if best_extraction:
+			t1, t2 = best_extraction
+			sources.remove(best_source)
+			targets.remove(t1)
+			targets.remove(t2)
+			logs.append(('extract', (best_source,), (t1, t2)))
+			return True
+		return False
+
+	def _apply_best_extract_one_target(self, sources, targets):
+		min_cost = float('inf')
+		best_t = None
+		best_source = None
+
+		for source in sources:
+			for t in targets:
+				if source <= t:
+					continue
+				cost = extract_cost(source, t)
+				if cost < min_cost:
+					min_cost = cost
+					best_t = t
+					best_source = source
+
+		if not best_t: return False
+		overflow = best_source - best_t
+		if best_t == overflow: return False
+		sources.remove(best_source)
+		sources.append(overflow)
+		targets.remove(best_t)
+		logs.append(('extract', (best_source,), (best_t, overflow)))
+		return True
+
+	def quick_solve(self, targets):
+		self._group_targets(targets)
+
+		n_targets = len(targets)
+
+		while True:
+		
+			sources, targets = remove_pairs(self.source_values, targets)
+
+			if (len(sources) == 0 and len(targets) != 0) or (len(sources) != 0 and len(targets) == 0):
+				print('quick_solve: impossible case reached')
+				exit(1)
+
+			if len(targets) == 1:
+				self.add([Node.merge(sources)], merge_cost(len(sources)))
+				break
+
+			if not self._apply_best_merge(sources, targets):
+				if not self._apply_best_extract_two_targets(sources, targets):
+					self._apply_best_extract_one_target(sources, targets)
+
+			if sources == targets:
+				break
 
 	# graveyard
 

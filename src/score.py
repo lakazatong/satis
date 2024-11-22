@@ -1,13 +1,5 @@
 from cost import merge_cost
 
-def all_sums(numbers):
-	sums = {0: 0}
-	for num in numbers:
-		new_sums = {s + num: count + 1 for s, count in sums.items()}
-		sums.update(new_sums)
-	sums.pop(0)
-	return sums
-
 class ScoreCalculator:
 	def __init__(self, targets, solver):
 		self.solver = solver
@@ -66,12 +58,10 @@ class ScoreCalculator:
 	def compute(self, given_sources):
 		if not self.solver.solving: return 0
 		from utils import remove_pairs
-		from utils.math import find_linear_combinations
+		from utils.math import find_linear_combinations, all_sums
 		sources, targets = remove_pairs(given_sources, self.targets)
 		n = len(sources)
 		n_matching_sources = self.n_targets - len(targets)
-		for t in self.targets:
-			for coeffs 
 		# print(f"computing score for {given_sources}")
 		score = n_matching_sources * n_matching_sources + (sum(
 			# (self.individual_cache.get(summed_value, None) or self.compute_individual(summed_value)) / (merge_cost(len(comb), 1) or 1)

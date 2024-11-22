@@ -34,6 +34,7 @@ class SatisSolver:
 		from utils.fractions import format_fractions, fractions_to_integers
 		from utils.solver import get_compute_cant_use, get_gcd_incompatible
 		from utils.math import compute_gcd
+		from utils.other import remove_pairs
 		
 		self.reset()
 
@@ -50,6 +51,13 @@ class SatisSolver:
 			value = sources_total - targets_total
 			insort(target_values, value)
 			print(f"\nTargets were lacking, generated a {value} node as target")
+
+		source_values, target_values = remove_pairs(source_values, target_values)
+
+		if not source_values:
+			assert not target_values
+			# no problem to solve
+			return False
 
 		self.problem_str = format_fractions(source_values) + " to " + format_fractions(target_values)
 
@@ -81,7 +89,7 @@ class SatisSolver:
 
 	def best_size_upper_bond(self):
 		from utils import remove_pairs
-		sources, targets = remove_pairs(self.tree_source.source_values, self.target_values)
+		sources = self.tree_source.source_values
 		r = 0
 		r = merge_cost(len(sources), 1)
 		summed_value = sum(sources)
@@ -315,6 +323,9 @@ class SatisSolver:
 
 		while self.solving and queue:
 			tree, _ = dequeue()
+
+			tree.quick_solve(self.target_values)
+
 			cant_use = self.compute_cant_use(tree.sources)
 
 			def try_op(get_sims, op):

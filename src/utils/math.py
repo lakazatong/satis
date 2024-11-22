@@ -21,3 +21,11 @@ def find_linear_combinations(x, y):
 	if not x or y < 0:
 		return iter([])
 	return _find_linear_combinations(x, y, 0, [0] * len(x))
+
+def all_sums(numbers):
+	sums = {0: 0}
+	for num in numbers:
+		new_sums = {s + num: count + 1 for s, count in sums.items()}
+		sums.update(new_sums)
+	sums.pop(0)
+	return sums
