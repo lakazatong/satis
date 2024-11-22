@@ -327,7 +327,7 @@ class SatisSolver:
 		while self.solving and queue:
 			tree, _ = dequeue()
 
-			tree.quick_solve(self.target_values)
+			# tree.quick_solve(self.target_values)
 
 			cant_use = self.compute_cant_use(tree.sources)
 
@@ -388,6 +388,7 @@ class SatisSolver:
 			for i, tree in enumerate(self.solutions):
 				if not self.concluding: break
 				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
+				# TODO: link to self.leaves before saving
 				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)), self.unit_flow_ratio)
 		else:
 			print("Saving solution...")

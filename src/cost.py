@@ -100,10 +100,31 @@ def extract_cost(x, c):
 		splitters_count, branches_count = compute_tree_info(n, m)
 		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(n_splits - 1, splitters_count, branches_count)
 		n_looping_branches, n_saved_splitters = compute_n_looping_branches(2**n*3**m - n_splits, splitters_count, branches_count)
-		return n_splitters - n_saved_splitters_overflow - n_saved_splitters \
+		
+
+
+		r = n_splitters - n_saved_splitters_overflow - n_saved_splitters \
 			+ merge_cost(n_looping_branches_overflow, 1) \
 			+ merge_cost(n_looping_branches, 2) \
 			+ merge_cost(l + 1, 1)
+
+
+		n, m, l, n_splitters = find_n_m_l(x)
+		# print(n, m, n_splitters)
+		splitters_count, branches_count = compute_tree_info(n, m)
+		# print(f"{n = }\n{m = }\n{n_splitters = }\n{c = }\n{x = }\n{splitters_count = }\n{branches_count = }")
+		# print(splitters_count, branches_count)
+		n_looping_branches_extracted, n_saved_splitters_extracted = compute_n_looping_branches(c, splitters_count, branches_count)
+		# print()
+		n_looping_branches_overflow, n_saved_splitters_overflow = compute_n_looping_branches(x - c, splitters_count, branches_count)
+		r2 = n_splitters - n_saved_splitters_extracted - n_saved_splitters_overflow + \
+			+ merge_cost(n_looping_branches_extracted, 1) \
+			+ merge_cost(n_looping_branches_overflow, 1) \
+			+ merge_cost(l + 1, 1)
+
+		assert r == r2, f"{x = }, {c = }, {r = }, {r2 = }"
+
+		return r
 	n, m, l, n_splitters = find_n_m_l(x)
 	# print(n, m, n_splitters)
 	splitters_count, branches_count = compute_tree_info(n, m)
@@ -124,19 +145,42 @@ def divide_cost(x, d, force_l=None):
 	if d == 1: return 0
 	if d == 2 or d == 3: return 1
 	n, m, l, n_splitters = find_n_m_l(d)
-	# print(f"{n = }, {m = }, {l = }, {n_splitters = }")
+	print(f"{n = }, {m = }, {l = }, {n_splitters = }")
 	if force_l: l = force_l
 	if l == 0: return n_splitters
 	if l == x: return 0
 	if l < 3:
 		# no optimization to be done about looping l or 2 branches back to x
 		return n_splitters + 1
+	from fractions import Fraction
+	from config import config
 	splitters_count, branches_count = compute_tree_info(n, m)
 	# print(f"{splitters_count = }")
 	# print(f"{branches_count = }")
-	r = n_splitters + 1
+	r = n_splitters
 	n_looping_branches, n_saved_splitters = compute_n_looping_branches(l, splitters_count, branches_count)
-	return r - n_saved_splitters + merge_cost(n_looping_branches, 2) # + TODO: handling of the merged node avoiding bottlenecks
+
+	return r - n_saved_splitters + merge_cost(n_looping_branches, 2) + 1
+
+	n_divided_value = 2**n * 3**m
+	divided_value = Fraction(x, n_divided_value)
+	to_loop_value = l * divided_value
+	new_x = x + to_loop_value
+	# case = (x, d, v, (n, m), new_x, l, round(divided_value, 1))
+	if new_x > config.conveyor_speed_limit:
+		# if n_divided_value < min_value:
+		# 	min_value = divided_value
+		# 	min_case = case
+		# print(case)
+		n_children = 2 if n > 0 else 3
+		r += merge_cost(n_looping_branches, 1) + 1 + n_children
+		if x / n_children + to_loop_value / n_children > 1200:
+			print("divide_cost: impossible case reached")
+			exit(1)
+	else:
+		r += merge_cost(n_looping_branches, 2) + 1
+
+	return r - n_saved_splitters
 
 def merge_cost(n, t):
 	# how many mergers at minimum to merge n values into t

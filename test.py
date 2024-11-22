@@ -18,9 +18,48 @@ import matplotlib.pyplot as plt
 import ast
 from node import Node
 from tree import Tree
-from cost import extract_cost, merge_cost
+from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
+
+for x in range(1, 1200 + 1):
+	for c in range(1, x):
+		if x % c == 0:
+			extract_cost(x, c)
+
+exit(0)
+
+min_value = float('inf')
+min_case = None
+n_cases = 0
+
+for x in range(1, 1200 + 1):
+	for d in range(2, x):
+		if x % d == 0:
+			v = x // d
+			n, m, l, _ = find_n_m_l(d)
+			n_divided_value = 2**n * 3**m
+			divided_value = x / n_divided_value
+			to_loop_value = l * divided_value
+			new_x = x + to_loop_value
+			case = (x, d, v, (n, m), round(new_x, 1), l, round(divided_value, 1))
+			if new_x > 1200:
+				if n_divided_value < min_value:
+					min_value = divided_value
+					min_case = case
+				print(case)
+				n_cases += 1
+				n_children = 2 if n > 0 else 3
+				if x / n_children + to_loop_value / n_children > 1200:
+					print('please no')
+					exit(1)
+
+print()
+print(n_cases)
+if min_case:
+	print(min_case)
+
+exit(0)
 
 t = Tree([])
 
