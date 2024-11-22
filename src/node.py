@@ -466,6 +466,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def expand_split(node, conveyor_speed):
+		# TODO: reuse the expand_divide and add a node on top (will become a splitter in overflow mode or whatever)
 		new_value = conveyor_speed // 3
 		new_node = Node(new_value << 1, level=node.level + 1)
 		new_node.levels_to_add = -1
