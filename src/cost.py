@@ -130,8 +130,7 @@ def divide_cost(x, d):
 	from config import config
 	from fractions import Fraction
 	# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{c = }\n{x = }\n{d = }")
-	n_divided_value = 2**n*3**m
-	new_x = x + Fraction(l * x, n_divided_value)
+	new_x = x + Fraction(l * x, 2**n*3**m)
 	splitters_count, branches_count = compute_tree_info(n, m)
 	n_branches_loop, n_saved_splitters_loop = compute_n_looping_branches(l, splitters_count, branches_count)
 	return n_splitters - n_saved_splitters_loop + \

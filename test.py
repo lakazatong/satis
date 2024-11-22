@@ -22,13 +22,25 @@ from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
 
+node = Node(1200)
+node.level = 0
+for child in [Node(960), Node(240)]:
+	node.children.append(child)
+	child.parents = [node]
+
+print(node.pretty())
+
+Node.expand_extract(node, 240)
+
+print(node.pretty())
+
+print(extract_cost(1200, 240))
+exit(0)
+
 for x in range(2, 1200 + 1):
 	for d in range(1, x + 1):
 		if x % d == 0:
 			divide_cost(x, d)
-
-print(extract_cost(1200, 240))
-exit(0)
 
 for x in range(3, 1200 + 1):
 	for c in range(x + 1):

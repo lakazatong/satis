@@ -13,12 +13,13 @@ class Node(TreeLike):
 	
 	def __init__(self, value, parent_past=None, node_id=None, level=None):
 		if value < 0: raise ValueError("negative value")
+		from fractions import Fraction
 		super().__init__()
-		if not isinstance(value, int): raise ValueError(f"not int ({type(value)} {value})")
+		if not isinstance(value, int) and not isinstance(value, Fraction): raise ValueError(f"not int or Fraction ({type(value)} {value})")
 		import uuid
 		from utils.fastlist import FastList
 		self.value = value
-		self.node_id = node_id if node_id is not None else str(uuid.uuid4())
+		self.node_id = node_id if node_id is not None else uuid.uuid4()
 		self.level = level
 		self.past = FastList(value)
 		if parent_past: self.past.extend(parent_past)
@@ -36,11 +37,14 @@ class Node(TreeLike):
 			if config.include_level_in_logs:
 				self.repr_whitelist.add('level')
 
+	def __hash__(self):
+		return hash(self.node_id)
+
 	def repr_self(self):
 		return str(self.value) if config.short_repr else 'Node'
 
 	def repr_node_id(self):
-		return 'node_id', self.node_id[-3:]
+		return 'node_id', str(self.node_id)[-3:]
 
 	def repr_parents(self):
 		return 'parents', Node.get_short_node_ids(self.parents)
@@ -101,11 +105,6 @@ class Node(TreeLike):
 			node._expands = [(code, Node.expand_from_code(code), args) for code, args in expands]
 
 		return [node for node in node_map.values() if node.level == 0]
-
-	def __eq__(self, other):
-		if not isinstance(other, Node):
-			return NotImplemented
-		return self.node_id == other.node_id
 
 	def _deepcopy(self, copied_nodes):
 		stack = [(self, None)]
@@ -243,20 +242,25 @@ class Node(TreeLike):
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
 		# print(f"expand_extract {node}")
-		n, m, l, n_splitters = find_n_m_l(node.value)
+		import math
+		from fractions import Fraction
+		d = node.value // math.gcd(node.value, node.value - conveyor_speed)
+		n, m, l, n_splitters = find_n_m_l(d)
+		divided_value = Fraction(node.value, 2**n*3**m)
+		to_loop_value = l * divided_value
+		new_node_value = node.value + to_loop_value
+		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
+		n_extract = conveyor_speed // Fraction(node.value, d)
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
-		extract_branches = compute_looping_branches(n, m, conveyor_speed, branches_count)
-		overflow_branches = compute_looping_branches(n, m, node.value - conveyor_speed, branches_count)
-		values = [1]
+		extract_branches = compute_looping_branches(n, m, n_extract, branches_count)
+		overflow_branches = compute_looping_branches(n, m, d - n_extract, branches_count)
+		values = [divided_value]
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
+		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
 		cur_level = node.level + 1
-		merged_node = Node(values[0], level=cur_level)
-		merged_node.levels_to_add = -(n + m)
-		merged_node.parents = [node]
 		extract_node = overflow_node = None
 		if node.children[0].value == conveyor_speed:
 			extract_node = node.children[0]
@@ -267,8 +271,8 @@ class Node(TreeLike):
 		extract_node.parents = []
 		overflow_node.parents = []
 		original_children = node.children
-		node.children = [merged_node]
-		cur_nodes = [merged_node]
+		node.children = []
+		cur_nodes = [node]
 		new_nodes = []
 		
 		for i in range(1, n+1):
@@ -293,8 +297,8 @@ class Node(TreeLike):
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 2]
-				cur.children.append(merged_node)
-				merged_node.parents.append(cur)
+				cur.children.append(loop_node)
+				loop_node.parents.append(cur)
 
 			for j in range(n_extract_branches):
 				cur = cur_nodes[(n_looping_branches + j) // 2]
@@ -329,8 +333,8 @@ class Node(TreeLike):
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 3]
-				cur.children.append(merged_node)
-				merged_node.parents.append(cur)
+				cur.children.append(loop_node)
+				loop_node.parents.append(cur)
 
 			for j in range(n_extract_branches):
 				cur = cur_nodes[(n_looping_branches + j) // 3]
@@ -344,7 +348,13 @@ class Node(TreeLike):
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		# TODO: handling of the merged_node parents
+		if new_node_value > config.conveyor_speed_limit:
+			for merge_node in node.children:
+				loop_node.children.append(merge_node)
+				merge_node.parents.append(loop_node)
+
+		if len(loop_node.parents) > 3:
+			loop_node._expands.append((2, Node.expand_merge, tuple()))
 
 		if len(extract_node.parents) > 3:
 			extract_node._expands.append((2, Node.expand_merge, tuple()))
@@ -358,6 +368,9 @@ class Node(TreeLike):
 	def expand_divide(node, d):
 		# print(f"expand_divide {node}")
 		n, m, l, n_splitters = find_n_m_l(d)
+		to_loop_value = l * Fraction(l * node.value, 2**n*3**m)
+		new_node_value = node.value + to_loop_value
+		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
 		values = [node.value // d]
@@ -366,12 +379,9 @@ class Node(TreeLike):
 		values = [x for x in reversed(values)]
 		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
 		cur_level = node.level + 1
-		merged_node = Node(values[0], level=cur_level)
-		merged_node.levels_to_add = -(n + m)
-		merged_node.parents = [node]
 		original_children = node.children
-		node.children = [merged_node]
-		cur_nodes = [merged_node]
+		node.children = []
+		cur_nodes = [node]
 		new_nodes = []
 		
 		for i in range(1, n+1):
@@ -395,8 +405,8 @@ class Node(TreeLike):
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 2]
-				cur.children.append(merged_node)
-				merged_node.parents.append(cur)
+				cur.children.append(loop_node)
+				loop_node.parents.append(cur)
 			
 			cur_nodes, new_nodes = new_nodes, []
 		
@@ -423,36 +433,18 @@ class Node(TreeLike):
 
 			for j in range(n_looping_branches):
 				cur = cur_nodes[j // 3]
-				cur.children.append(merged_node)
-				merged_node.parents.append(cur)
+				cur.children.append(node)
+				node.parents.append(cur)
 
 			cur_nodes, new_nodes = new_nodes, []
 
-		"""
-		# TODO: handling of the merged_node parents (DRAFT)
-		# all assuming that all children of the merged_node cannot possibly exceed the speed limit
-		if len(merged_node.parents) <= 3:
-			if merged_node.value < config.conveyor_speed_limit:
-				# all good
-				pass
-			else:
-				node_to_divide = merged_node.parents[1]
-				if len(merged_node.parents) == 3:
-					# merge them before
-					...
-					node_to_divide = ...
-				# split node_to_divide evenly among the children of merged_node
-		else:
-			if merged_node.value < config.conveyor_speed_limit:
-				# simply merge them like merge_cost(merged_node.parents, 3)
-				pass
-			else:
-				# first merge them then split them evenly among the children of merged_node
-				# this is also assuming that their sum cannot exceed the speed limit
-				pass
-		"""
+		if new_node_value > config.conveyor_speed_limit:
+			for merge_node in node.children:
+				loop_node.children.append(merge_node)
+				merge_node.parents.append(loop_node)
 
-		# merged_node._expands.append((2, Node.expand_merge, tuple()))
+		if len(loop_node.parents) > 3:
+			loop_node._expands.append((2, Node.expand_merge, tuple()))
 
 		return node.level + 1, n + m
 
@@ -583,7 +575,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def get_short_node_ids(nodes, short=3):
-		return set(map(lambda node: node.node_id[-short:], nodes))
+		return set(map(lambda node: str(node.node_id)[-short:], nodes))
 
 	@staticmethod
 	def group_nodes(nodes):
