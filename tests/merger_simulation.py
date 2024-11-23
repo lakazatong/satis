@@ -1,7 +1,68 @@
-import math, os, pickle
+import math, os, pickle, random
 from fractions import Fraction
 from math import gcd
 from functools import reduce
+from bisect import insort
+
+n_items = 780*2
+
+class Conveyor:
+	def __init__(self, speed, symbol, buffer_size=1):
+		self.speed = speed
+		self.buffer = 0
+		self.buffer_size = buffer_size
+		self.symbol = symbol
+
+n_simulations = 10000
+
+g_counts = 0
+r_counts = 0
+b_counts = 0
+
+inputs = [Conveyor(120, 'g', 1), Conveyor(270, 'r', 2), Conveyor(480, 'b', 3)]
+output = Conveyor(780, 'o')
+n_inputs = len(inputs)
+inputs_sum = sum(inp.speed for inp in inputs)
+
+r = []
+for c in inputs + [output]:
+	for n in range(1, n_items << 2):
+		insort(r, (Fraction(60 * n, c.speed), c), key=lambda x: x[0])
+	n += 1
+
+for _ in range(n_simulations):
+	out = ''
+	i = 0
+	while True:
+		if len(out) == n_items:
+			break
+		_, c = r[i]
+		i += 1
+
+		if c.speed == output.speed:
+			# for j, inp in enumerate(inputs):
+			# 	if inp.buffer == 0: continue
+			# 	inp.buffer -= 1
+			# 	inputs.append(inputs.pop(j))
+			# 	out += inp.symbol
+			# 	break
+			available_inputs = [inp for inp in inputs if inp.buffer > 0]
+			if not available_inputs: continue
+			selected_inp = random.choice(available_inputs)
+			selected_inp.buffer -= 1
+			out += selected_inp.symbol
+		elif c.buffer < c.buffer_size:
+			c.buffer += 1
+
+	g_counts += out.count('g')
+	r_counts += out.count('r')
+	b_counts += out.count('b')
+
+print(g_counts / n_simulations)
+print(r_counts / n_simulations)
+print(b_counts / n_simulations)
+
+exit(0)
 
 def lcm(*values):
 	return reduce(lambda a, b: a * b // gcd(a, b), values)
