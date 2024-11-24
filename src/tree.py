@@ -5,7 +5,6 @@ from node import Node
 class Tree:
 	def __init__(self, roots):
 		self.roots = roots
-		self.leaves = []
 		self.sources = roots
 		self.levels = [roots]
 		self.past = FastList()
@@ -33,7 +32,7 @@ class Tree:
 		
 		def add_edges(node):
 			for child in node.children:
-				g.add_edge(node.node_id, child.node_id)
+				g.add_edge(node, child)
 				add_edges(child)
 		
 		for root in self.roots:
@@ -49,9 +48,9 @@ class Tree:
 		copied_nodes = {}
 		copied_roots = [root._deepcopy(copied_nodes) for root in self.roots]
 		new_tree = Tree(copied_roots)
-		new_tree.sources = [copied_nodes[src.node_id] for src in self.sources]
-		new_tree.levels = [[copied_nodes[src.node_id] for src in level] for level in self.levels]
-		# new_tree.levels += [[copied_nodes[src.node_id] for src in level] for level in self.levels[1:]] # may be faster
+		new_tree.sources = [copied_nodes[src] for src in self.sources]
+		new_tree.levels = [[copied_nodes[src] for src in level] for level in self.levels]
+		# new_tree.levels += [[copied_nodes[src] for src in level] for level in self.levels[1:]] # may be faster
 		new_tree.past = FastList()
 		new_tree.past.extend(self.past)
 		new_tree.current_level = self.current_level
@@ -65,8 +64,8 @@ class Tree:
 		# init new nodes
 		# for node in nodes: node.size = 1
 		
-		parent_ids = Node.get_node_ids(nodes[0].parents)
-		self.sources = [src for src in self.levels[-1] if src.node_id not in parent_ids]
+		parents = nodes[0].parents
+		self.sources = [src for src in self.levels[-1] if src not in parents]
 		for node in nodes: insort(self.sources, node, key=lambda node: node.value)
 		self.n_sources = len(self.sources)
 		
@@ -202,6 +201,36 @@ class Tree:
 			if sources == targets:
 				break
 
+	# all_nodes
+	# [2(0a1), 2(73a), 2(66f), 2(938), 2(7fc), 5(d91), 5(251), 6(8be), 6(3e9)]
+	# [10(5a5, [(1, <function Node.expand_divide at 0x000001FC6BF48F40>, (5,))]), 10(752), 10(2d4)]
+	
+	# all_ns
+	# [5, 2, 1, 2]
+	# [3, 1]
+	
+	# all_costs
+	# [4, 1, 0, 1]
+	# [1, 0]
+	
+	# self.source_values
+	# [30, 12]
+	def attach_leaves(self, leaves):
+		# attach
+		assert len(leaves) == self.n_sources
+		for i in range(self.n_sources):
+			src = self.sources[i]
+			for child in leaves[i].children:
+				src.children.append(child)
+				child.parents = [src]
+			self.add_all(src.children)
+
+	def add_all(self, nodes):
+		if not nodes: return
+		self.add(nodes, 0)
+		for node in nodes:
+			self.add_all(node.children)
+
 	# graveyard
 
 	# def simplify(self):
@@ -218,9 +247,9 @@ class Tree:
 	# 				grandchild.value -= child.value
 	# 		deepest_node.parents.append(node)
 	# 		self.size -= len(node.children) # outdated
-	# 		children_ids = set(child.node_id for child in node.children)
+	# 		childrens = set(child for child in node.children)
 	# 		for level in self.levels:
 	# 			for i in range(len(level)-1, -1, -1):
-	# 				if level[i].node_id in children_ids:
+	# 				if level[i] in childrens:
 	# 					level.pop(i)
 	# 		node.children = [deepest_node]

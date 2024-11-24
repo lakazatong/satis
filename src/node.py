@@ -1,6 +1,7 @@
 from treelike import TreeLike
 from config import config
 from cost import find_n_m_l, compute_branches_count, compute_looping_branches
+from fractions import Fraction
 
 class Node(TreeLike):
 	@property
@@ -13,7 +14,6 @@ class Node(TreeLike):
 	
 	def __init__(self, value, parent_past=None, node_id=None, level=None):
 		if value < 0: raise ValueError("negative value")
-		from fractions import Fraction
 		super().__init__()
 		if not isinstance(value, int) and not isinstance(value, Fraction): raise ValueError(f"not int or Fraction ({type(value)} {value})")
 		import uuid
@@ -49,14 +49,24 @@ class Node(TreeLike):
 	def repr_parents(self):
 		return 'parents', Node.get_short_node_ids(self.parents)
 
+	def repr__expands(self):
+		def expand_code_to_str(code):
+			if code == 0: return 'extract'
+			if code == 1: return 'divide'
+			if code == 2: return 'merge'
+			if code == 3: return 'split'
+			print('expand_code_to_str: impossible case reached')
+			exit(1)
+		return 'expands', [expand_code_to_str(code) for code, *_ in self._expands]
+
 	@staticmethod
 	def wrap(root_node, path):
-		seen_ids = set()
+		seen = set()
 
 		def traverse(node, output):
 			
-			if node.node_id in seen_ids: return
-			seen_ids.add(node.node_id)
+			if node in seen: return
+			seen.add(node)
 			
 			node_tuple = (
 				node.value,
@@ -68,10 +78,10 @@ class Node(TreeLike):
 			)
 			output.append(node_tuple)
 			for child in node.children:
-				if child.node_id in seen_ids: continue
+				if child in seen: continue
 				traverse(child, output)
 			for parent in node.parents:
-				if parent.node_id in seen_ids: continue
+				if parent in seen: continue
 				traverse(parent, output)
 
 		output = []
@@ -111,36 +121,33 @@ class Node(TreeLike):
 		while stack:
 			node, parent = stack.pop()
 			
-			if node.node_id in copied_nodes:
-				new_node = copied_nodes[node.node_id]
+			if node in copied_nodes:
+				new_node = copied_nodes[node]
 				if parent: new_node.parents.append(parent)
 			else:
 				new_node = Node(node.value, node_id=node.node_id)
 				new_node.level = node.level
 				new_node.past.extend(self.past)
 				new_node._expands = [_expand for _expand in node._expands]
-				copied_nodes[node.node_id] = new_node
+				copied_nodes[node] = new_node
 				new_node.parents = [parent] if parent else []
 				stack.extend((child, new_node) for child in node.children)
 			
 			if parent: parent.children.append(new_node)
-		return copied_nodes[self.node_id]
+		return copied_nodes[self]
 
 	def deepcopy(self):
 		return self._deepcopy({})
 
-	def populate(self, G, seen_ids, unit_flow_ratio):
-		from fractions import Fraction
-
-		if self.node_id in seen_ids: return
-		seen_ids.add(self.node_id)
-		
-		G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
+	def populate(self, G, seen, unit_flow_ratio):
+		if self in seen: return
+		seen.add(self)
+		G.add_node(self, label=str(Fraction(self.value, unit_flow_ratio)), level=self.level)
 		# G.add_node(self.node_id, label=str(Fraction(self.value, unit_flow_ratio)) + ", " + self.repr_node_id()[1], level=self.level)
 		for child in self._children:
-			G.add_edge(self.node_id, child.node_id)
-			if child.node_id in seen_ids: continue
-			child.populate(G, seen_ids, unit_flow_ratio)
+			G.add_edge(self, child)
+			if child in seen: continue
+			child.populate(G, seen, unit_flow_ratio)
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
@@ -205,45 +212,44 @@ class Node(TreeLike):
 		self._expands.append((3, Node.expand_split, (conveyor_speed,)))
 		return new_nodes
 
-	def min_level(self, seen_ids):
+	def min_level(self, seen):
 		r = self.level
 		
-		if self.node_id in seen_ids: return r
-		seen_ids.add(self.node_id)
+		if self in seen: return r
+		seen.add(self)
 
 		for child in self.children:
-			if child.node_id in seen_ids: continue
-			r = min(r, child.min_level(seen_ids))
+			if child in seen: continue
+			r = min(r, child.min_level(seen))
 		
 		return r
 
-	def tag_levels_update(self, threshold, amount, seen_ids):
+	def tag_levels_update(self, threshold, amount, seen):
 		
-		if self.node_id in seen_ids: return
-		seen_ids.add(self.node_id)
+		if self in seen: return
+		seen.add(self)
 
 		if self.level >= threshold:
 			self.levels_to_add += amount
 		for child in self.children:
-			if child.node_id in seen_ids: continue
-			child.tag_levels_update(threshold, amount, seen_ids)
+			if child in seen: continue
+			child.tag_levels_update(threshold, amount, seen)
 
-	def apply_levels_update(self, seen_ids):
+	def apply_levels_update(self, seen):
 		
-		if self.node_id in seen_ids: return
-		seen_ids.add(self.node_id)
+		if self in seen: return
+		seen.add(self)
 
 		self.level += self.levels_to_add
 		self.levels_to_add = 0
 		for child in self.children:
-			if child.node_id in seen_ids: continue
-			child.apply_levels_update(seen_ids)
+			if child in seen: continue
+			child.apply_levels_update(seen)
 
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
 		# print(f"expand_extract {node}")
 		import math
-		from fractions import Fraction
 		d = node.value // math.gcd(node.value, node.value - conveyor_speed)
 		n, m, l, n_splitters = find_n_m_l(d)
 		divided_value = Fraction(node.value, 2**n*3**m)
@@ -259,7 +265,7 @@ class Node(TreeLike):
 		for _ in range(m): values.append(values[-1] * 3)
 		for _ in range(n): values.append(values[-1] * 2)
 		values = [x for x in reversed(values)]
-		print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
+		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
 		cur_level = node.level + 1
 		extract_node = overflow_node = None
 		if node.children[0].value == conveyor_speed:
@@ -482,10 +488,10 @@ class Node(TreeLike):
 				node.children.append(child)
 		return node.level + 1, 1
 
-	def expand(self, seen_ids):
+	def expand(self, seen):
 
-		if self.node_id in seen_ids: return []
-		seen_ids.add(self.node_id)
+		if self in seen: return []
+		seen.add(self)
 
 		levels_updates = []
 		while self._expands:
@@ -493,77 +499,76 @@ class Node(TreeLike):
 			levels_updates.append(_expand(self, *args))
 
 		for child in self.children:
-			if child.node_id in seen_ids: continue
-			levels_updates.extend(child.expand(seen_ids))
+			if child in seen: continue
+			levels_updates.extend(child.expand(seen))
 		
 		return levels_updates
 
 	@staticmethod
 	def expand_roots(roots):
 		min_level_after_zero = 2**32
-		seen_ids = set()
+		seen = set()
 		for root in roots:
 			for child in root.children:
-				min_level_after_zero = min(min_level_after_zero, child.min_level(seen_ids))
+				min_level_after_zero = min(min_level_after_zero, child.min_level(seen))
 
-		seen_ids = set()
+		seen = set()
 		levels_updates = [(1, 1 - min_level_after_zero)] # why not
 		for root in roots:
-			levels_updates.extend(root.expand(seen_ids))
+			levels_updates.extend(root.expand(seen))
 		
 		for threshold, amount in levels_updates:
-			seen_ids = set()
+			seen = set()
 			for root in roots:
-				root.tag_levels_update(threshold, amount, seen_ids)
+				root.tag_levels_update(threshold, amount, seen)
 		
-		seen_ids = set()
+		seen = set()
 		for root in roots:
-			root.apply_levels_update(seen_ids)
+			root.apply_levels_update(seen)
 
 	@staticmethod
 	def save(roots, filename, unit_flow_ratio=1):
-		import io, networkx as nx, traceback
-		from networkx.drawing.nx_agraph import to_agraph
+		import io, pygraphviz as pgv, traceback
 		try:
-			G = nx.MultiDiGraph()
+			G = pgv.AGraph(strict=False, directed=True)
 
-			seen_ids = set()
+			# Populate graph
+			seen = set()
 			for root in roots:
 				root.level = 0
-				root.populate(G, seen_ids, unit_flow_ratio)
+				root.populate(G, seen, unit_flow_ratio)
 
-			A = to_agraph(G)
-			for node in A.nodes():
-				level = G.nodes[node]["level"]
-				A.get_node(node).attr["rank"] = f"{level}"
-
-			for level in set(nx.get_node_attributes(G, "level").values()):
-				A.add_subgraph(
-					[n for n, attr in G.nodes(data=True) if attr["level"] == level],
-					rank="same"
-				)
+			# Group nodes by level for same rank
+			levels = {}
+			for node in G.nodes():
+				level = int(G.get_node(node).attr.get("level", 0))
+				levels.setdefault(level, []).append(node)
+			
+			for level, nodes in levels.items():
+				G.add_subgraph(nodes, rank="same")
 
 			# Invert colors
-			A.graph_attr["bgcolor"] = "black"
-			for node in A.nodes():
+			G.graph_attr["bgcolor"] = "black"
+			for node in G.nodes():
 				node.attr["color"] = "white"
 				node.attr["fontcolor"] = "white"
 				node.attr["style"] = "filled"
 				node.attr["fillcolor"] = "black"
 
-			for edge in A.edges():
+			for edge in G.edges():
 				edge.attr["color"] = "white"
 
-			A.layout(prog="dot")
+			# Layout and export
+			G.layout(prog="dot")
 			img_stream = io.BytesIO()
-			A.draw(img_stream, format=config.solutions_filename_extension)
+			G.draw(img_stream, format=config.solutions_filename_extension)
 			img_stream.seek(0)
 			filepath = f"{filename}.{config.solutions_filename_extension}"
 			with open(filepath, "wb") as f:
 				f.write(img_stream.getvalue())
 
 			Node.wrap(roots[0], f"{filename}.data")
-		except:
+		except Exception:
 			print(traceback.format_exc(), end="")
 
 	@staticmethod
@@ -579,58 +584,42 @@ class Node(TreeLike):
 		return set(map(lambda node: str(node.node_id)[-short:], nodes))
 
 	@staticmethod
-	def group_nodes(nodes):
+	def group_values(values):
+		# 2 2 2 2 2 5 5 6 6 10 50
 		from cost import divide_cost
-		cost = 0
-		ns = []
-		cur_leaves = []
-		final_leaves = []
-		
-		while len(nodes) > 1:
-			grouped = False
-			i = 0
-			
-			while i < len(nodes) - 1:
-				# print(nodes, cur_leaves, final_leaves, ns)
-				ref = nodes[i]
-				n = 1
-				while i < len(nodes) - 1 and nodes[i + 1] == ref:
-					nodes[i] += nodes.pop(i + 1)
-					n += 1
-					grouped = True
-				# print(nodes, i, n)
-				# print()
-				if n > 1:
-					if final_leaves:
-						for _ in range(n):
-							n_children = ns.pop(0)
-							new_node = Node(ref)
-							if n_children <= 1:
-								print('group_nodes: impossible case reached')
-								exit(1)
-							if n_children > 3:
-								new_node._expands.append((1, Node.expand_divide, (n_children,)))
-								cost += divide_cost(nodes[i], n_children)
-							for _ in range(n_children):
-								child = final_leaves.pop(0)
-								child.parents = [new_node]
-								new_node.children.append(child)
-							cur_leaves.append(new_node)
-					else:
-						cur_leaves.extend(Node(ref) for _ in range(n))
-					
-					ns.append(n)
+		from bisect import insort
+		levels = []
+		total_cost = 0
+		levels.append([Node(v) for v in sorted(values)])
 
-				i += 1
-			
-			if cur_leaves:
-				final_leaves = cur_leaves
-				cur_leaves = []
-			
-			if not grouped:
+		while True:
+			current_level = levels[-1]
+			next_level = []
+
+			groups = {}
+			for node in current_level:
+				groups.setdefault(node.value, []).append(node)
+
+			for value, nodes in groups.items():
+				count = len(nodes)
+				if count > 1:
+					parent_node_value = value * count
+					parent_node = Node(parent_node_value)
+					parent_node.children.extend(nodes)
+					if count > 0:
+						total_cost += divide_cost(parent_node_value, count)
+						if count > 3:
+							parent_node._expands.append((1, Node.expand_divide, (count,)))
+					insort(next_level, parent_node, key=lambda node: node.value)
+				else:
+					insort(next_level, nodes[0], key=lambda node: node.value)
+
+			if len(next_level) == len(current_level):
 				break
 
-		return final_leaves, cost
+			levels.append(next_level)
+
+		return levels[-1], total_cost
 
 	# graveyard
 

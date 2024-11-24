@@ -30,25 +30,33 @@ class CLI:
 
 	def main(self):
 		import time, traceback
+		
+		try:
+			if not self.backend.load(self.user_input):
+				return
+		except:
+			print(traceback.format_exc(), end="")
+			return
+		
 		def catching_run():
 			try:
 				self.backend.run()
 			except:
 				self.backend.running = False
 				print(traceback.format_exc(), end="")
+
+		self.input_history.append_string(self.user_input)
+		backend_thread = threading.Thread(target=catching_run, daemon=True)
+		self.backend.running = True
+		backend_thread.start()
 		
-		if self.backend.load(self.user_input):
-			backend_thread = threading.Thread(target=catching_run, daemon=True)
-			self.backend.running = True
-			backend_thread.start()
-			
-			# keep this thread alive to catch ctrl + c
-			try:
-				while self.backend.running: time.sleep(0.25)
-			except KeyboardInterrupt:
-				pass
-			
-			backend_thread.join()
+		# keep this thread alive to catch ctrl + c
+		try:
+			while self.backend.running: time.sleep(0.25)
+		except KeyboardInterrupt:
+			pass
+		
+		backend_thread.join()
 
 	def exit(self, signum, frame):
 		if self.backend.running:

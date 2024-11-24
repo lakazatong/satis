@@ -32,7 +32,7 @@ class SatisSolver:
 		from score import ScoreCalculator
 		from tree import Tree
 		from utils.fractions import format_fractions, fractions_to_integers
-		from utils.solver import get_compute_cant_use, get_gcd_incompatible, group_targets
+		from utils.solver import get_compute_cant_use, get_gcd_incompatible
 		from utils.math import compute_gcd
 		from utils.other import remove_pairs
 
@@ -68,7 +68,7 @@ class SatisSolver:
 		source_values = r[:n_sources]
 		self.target_values = r[n_sources:]
 		
-		self.leaves, grouping_cost = Node.group_nodes(self.target_values)
+		self.leaves_nodes, self.leaves_ns, self.size_offset = Node.group_values(self.target_values)
 		
 		self.n_targets = len(self.target_values)
 
@@ -83,7 +83,7 @@ class SatisSolver:
 
 		self.tree_source = Tree([Node(value) for value in source_values])
 
-		self.best_size = self.best_size_upper_bond() + grouping_cost
+		self.best_size = self.best_size_upper_bond() + self.size_offset
 		gcd = compute_gcd(*source_values, *self.target_values)
 		self.gcd_incompatible = get_gcd_incompatible(gcd)
 		print(f"\nSolutions' size upper bound: {self.best_size}, {gcd = }\n")
@@ -285,14 +285,14 @@ class SatisSolver:
 				self.best_size = tree.size
 				self.solutions_count = 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size + self.size_offset}")
 				return True
 			elif tree.size == self.best_size:
 				if any(t == tree for t in self.solutions): return False
 				self.solutions.append(tree)
 				self.solutions_count += 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size}")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size + self.size_offset}")
 				return False
 			print("impossible case reached, should have been checked already")
 			self.stop()
@@ -388,11 +388,17 @@ class SatisSolver:
 			for i, tree in enumerate(self.solutions):
 				if not self.concluding: break
 				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
-				# TODO: link to self.leaves before saving
+				tree.attach_leaves(self.all_leaves_info, self.all_leaves_grouping_costs)
 				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)), self.unit_flow_ratio)
 		else:
 			print("Saving solution...")
-			self.solutions[0].save(os.path.join(self.problem_str, config.solutions_filename(0)), self.unit_flow_ratio)
+			tree = self.solutions[0]
+			# print(tree.pretty())
+			# print(tree)
+			tree.attach_leaves(self.leaves_nodes, self.leaves_ns)
+			# print(tree.pretty())
+			# print(tree)
+			tree.save(os.path.join(self.problem_str, config.solutions_filename(0)), self.unit_flow_ratio)
 		print()
 
 	# simple state machine
