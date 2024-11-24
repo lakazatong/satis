@@ -161,7 +161,7 @@ class Node(TreeLike):
 		return new_nodes
 
 	def divide(self, divisor):
-		if divisor != 2 and divisor != 3:
+		if divisor > 3:
 			self._expands.append((1, Node.expand_divide, (divisor,)))
 		divided_value = self.value // divisor
 		new_nodes = [Node(divided_value, parent_past=self.past, level=self.level + 1) for _ in range(divisor)]
@@ -367,7 +367,7 @@ class Node(TreeLike):
 	def expand_divide(node, d):
 		# print(f"expand_divide {node}")
 		n, m, l, n_splitters = find_n_m_l(d)
-		to_loop_value = l * Fraction(l * node.value, 2**n*3**m)
+		to_loop_value = l * node.value // d
 		new_node_value = node.value + to_loop_value
 		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
 		is_loop_node_root = len(loop_node.parents) == 0

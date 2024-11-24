@@ -1,14 +1,12 @@
 from fractions import Fraction
 
-a, b, c, d, e, f, g = 0, 0, 0, 0, 0, 0, 0
-while float(c) != 36.0 or float(e) != 26.0:
-	a = 62 + f
+a, b, c, d, e, f, g, h = 0, 0, 0, 0, 0, 0, 0, 0
+while float(d) != 2.0 or float(e) != 2.0 or float(f) != 2.0 or float(g) != 2.0 or float(h) != 2.0:
+	a = 10 + Fraction(b,3)
 	b = Fraction(a,2)
-	d = Fraction(b,2)
-	g = Fraction(d,3)
-	f = Fraction(d,3) + 2*Fraction(g,3)
-
 	c = Fraction(a,2)
-	e = Fraction(b,2) + Fraction(d,3) + Fraction(g,3)
+	d = Fraction(b,3)
+	e = Fraction(b,3)
+	f = g = h = Fraction(c,3)
 
-print(float(b), float(d), float(g), float(f))
+print(float(a), float(b), float(c), float(d), float(e), float(f), float(g), float(h))
