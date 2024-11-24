@@ -24,9 +24,7 @@ import random, numpy as np
 
 node = Node(62, level=0)
 node.extract(26)
-print(node.pretty())
 node.expand(set())
-print(node.pretty())
 Node.save([node], 'tmp/tmp')
 
 exit(0)

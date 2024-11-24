@@ -172,7 +172,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def merge(nodes):
-		summed_value = sum(node.value/len(node.children) for node in nodes)
+		summed_value = sum(Fraction(node.value, len(node.children)) for node in nodes)
 		new_node = Node(summed_value, level=max(node.level for node in nodes) + 1)
 		n = len(nodes)
 		if n <= 1:
@@ -237,9 +237,9 @@ class Node(TreeLike):
 	def expand_extract(node, conveyor_speed):
 		# print(f"expand_extract {node}")
 		import math
-		d = node.value // math.gcd(node.value, node.value - conveyor_speed)
+		divided_value = math.gcd(node.value, node.value - conveyor_speed)
+		d = node.value // divided_value
 		n, m, l, n_splitters = find_n_m_l(d)
-		divided_value = Fraction(node.value, 2**n*3**m)
 		to_loop_value = l * divided_value
 		new_node_value = node.value + to_loop_value
 		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
@@ -249,10 +249,12 @@ class Node(TreeLike):
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
 		extract_branches = compute_looping_branches(n, m, n_extract, branches_count)
 		overflow_branches = compute_looping_branches(n, m, d - n_extract, branches_count)
-		values = [divided_value]
-		for _ in range(m): values.append(values[-1] * 3)
-		for _ in range(n): values.append(values[-1] * 2)
-		values = [x for x in reversed(values)]
+		# print(looping_branches)
+		# print(extract_branches)
+		# print(overflow_branches)
+		values = [new_node_value]
+		for _ in range(n): values.append(Fraction(values[-1], 2))
+		for _ in range(m): values.append(Fraction(values[-1], 3))
 		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{extract_branches = }\n{overflow_branches = }\n{values = }")
 		cur_level = node.level + 1
 		extract_node = overflow_node = None
@@ -369,10 +371,9 @@ class Node(TreeLike):
 		is_loop_node_root = len(loop_node.parents) == 0
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
-		values = [node.value // d]
-		for _ in range(m): values.append(values[-1] * 3)
-		for _ in range(n): values.append(values[-1] * 2)
-		values = [x for x in reversed(values)]
+		values = [new_node_value]
+		for _ in range(n): values.append(Fraction(values[-1], 2))
+		for _ in range(m): values.append(Fraction(values[-1], 3))
 		# print(f"{n = }\n{m = }\n{l = }\n{n_splitters = }\n{looping_branches = }\n{values = }")
 		cur_level = node.level + 1
 		original_children = node.children
@@ -449,15 +450,14 @@ class Node(TreeLike):
 	def expand_merge(node, threshold=3):
 		# print(f"expand_merge {node}")
 		nodes_to_merge = node.parents
-		for n in nodes_to_merge:
-			i = 0
-			while i < len(n.children):
-				if n.children[i] is node:
-					n.children.pop(i)
-				else:
-					i += 1
 		while len(nodes_to_merge) > threshold:
-			merged_node = Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()])
+			to_merge = [nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()]
+			merged_node = Node.merge(to_merge)
+			for n in to_merge:
+				i = 0
+				while i < len(n.children):
+					if n.children[i] is node: n.children.pop(i)
+					else: i += 1
 			merged_node.level = node.level
 			nodes_to_merge.append(merged_node)
 		for n in nodes_to_merge:
