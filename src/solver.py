@@ -328,6 +328,7 @@ class SatisSolver:
 		while self.solving and queue:
 			tree, _ = dequeue()
 
+			# TODO: quick solve
 			# tree.quick_solve(self.target_values)
 
 			cant_use = self.compute_cant_use(tree.sources)
