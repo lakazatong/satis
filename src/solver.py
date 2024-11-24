@@ -286,14 +286,14 @@ class SatisSolver:
 				self.best_size = tree.size
 				self.solutions_count = 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size + self.size_offset}")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size <= {self.best_size + self.size_offset}")
 				return True
 			elif tree.size == self.best_size:
 				if any(t == tree for t in self.solutions): return False
 				self.solutions.append(tree)
 				self.solutions_count += 1
 				optional_s_txt = "s" if self.solutions_count > 1 else ""
-				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size {self.best_size + self.size_offset}")
+				print_standing_text(f"Found {self.solutions_count} solution{optional_s_txt} of size <= {self.best_size + self.size_offset}")
 				return False
 			print("impossible case reached, should have been checked already")
 			self.stop()
