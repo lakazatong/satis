@@ -360,6 +360,13 @@ class SatisSolver:
 			if max(tree.source_values) <= self.min_target:
 				try_op(self.merge_sims, merge)
 				if not self.solving: return
+			elif tree.n_sources == 1:
+				try_op(self.extract_sims, extract)
+				if not self.solving: return
+				try_op(self.divide_sims, divide)
+				if not self.solving: return
+				try_op(self.split_sims, split)
+				if not self.solving: return
 			else:
 				try_op(self.extract_sims, extract)
 				if not self.solving: return

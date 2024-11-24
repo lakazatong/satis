@@ -194,27 +194,19 @@ class Tree:
 				self.add([Node.merge(sources)], merge_cost(len(sources)))
 				break
 
-			if not self._apply_best_merge(sources, targets):
+			if max(sources) <= min(targets):
+				self._apply_best_merge(sources, targets)
+			elif len(sources) == 1:
 				if not self._apply_best_extract_two_targets(sources, targets):
 					self._apply_best_extract_one_target(sources, targets)
+			else:
+				if not self._apply_best_merge(sources, targets):
+					if not self._apply_best_extract_two_targets(sources, targets):
+						self._apply_best_extract_one_target(sources, targets)
 
 			if sources == targets:
 				break
 
-	# all_nodes
-	# [2(0a1), 2(73a), 2(66f), 2(938), 2(7fc), 5(d91), 5(251), 6(8be), 6(3e9)]
-	# [10(5a5, [(1, <function Node.expand_divide at 0x000001FC6BF48F40>, (5,))]), 10(752), 10(2d4)]
-	
-	# all_ns
-	# [5, 2, 1, 2]
-	# [3, 1]
-	
-	# all_costs
-	# [4, 1, 0, 1]
-	# [1, 0]
-	
-	# self.source_values
-	# [30, 12]
 	def attach_leaves(self, leaves):
 		# attach
 		assert len(leaves) == self.n_sources

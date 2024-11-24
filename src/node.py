@@ -172,7 +172,9 @@ class Node(TreeLike):
 
 	@staticmethod
 	def merge(nodes):
-		summed_value = sum(Fraction(node.value, len(node.children)) for node in nodes)
+		# nodes won't have any children when solving within the abstract world
+		# but it will be important when this function will be called when expanding merges
+		summed_value = sum(Fraction(node.value, len(node.children)) if node.children else node.value for node in nodes)
 		new_node = Node(summed_value, level=max(node.level for node in nodes) + 1)
 		n = len(nodes)
 		if n <= 1:

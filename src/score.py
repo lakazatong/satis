@@ -14,11 +14,11 @@ class ScoreCalculator:
 			if not self.solver.solving: return score
 			overflow = src - c
 			if c == overflow: continue # equivalent to splitting in two
-			try:
-				new_score = ((1 if c in self.targets else 0) + (1 if overflow in self.targets else 0)) / extract_cost(src, c)
-			except:
-				print(src, c)
-				exit(1)
+			# try:
+			new_score = ((1 if c in self.targets else 0) + (1 if overflow in self.targets else 0)) / extract_cost(src, c)
+			# except:
+			# 	print(src, c)
+			# 	exit(1)
 			if new_score > score: score = new_score
 		return score
 
