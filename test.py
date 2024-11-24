@@ -22,6 +22,15 @@ from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
 
+node = Node(62, level=0)
+node.extract(26)
+print(node.pretty())
+node.expand(set())
+print(node.pretty())
+Node.save([node], 'tmp/tmp')
+
+exit(0)
+
 # values = [2, 2, 2, 2, 2, 5, 5, 6, 6, 10, 50]
 values = [2, 2, 2, 2, 2, 5, 5, 10]
 leaves, total_cost = Node.group_values(values)

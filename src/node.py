@@ -154,7 +154,7 @@ class Node(TreeLike):
 		if value not in config.conveyor_speeds:
 			self._expands.append((0, Node.expand_extract, (value,)))
 		overflow_value = self.value - value
-		new_nodes = [Node(v, self.past) for v in sorted([value, overflow_value])]
+		new_nodes = [Node(v, parent_past=self.past, level=self.level + 1) for v in sorted([value, overflow_value])]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
@@ -164,30 +164,16 @@ class Node(TreeLike):
 		if divisor != 2 and divisor != 3:
 			self._expands.append((1, Node.expand_divide, (divisor,)))
 		divided_value = self.value // divisor
-		new_nodes = [Node(divided_value, self.past) for _ in range(divisor)]
+		new_nodes = [Node(divided_value, parent_past=self.past, level=self.level + 1) for _ in range(divisor)]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
 		return new_nodes
 
 	@staticmethod
-	def divide_up(nodes):
-		divided_value = nodes[0].value
-		divisor = len(nodes)
-		value = divided_value * divisor
-		new_node = Node(value)
-		if divisor != 2 and divisor != 3:
-			new_node._expands.append((1, Node.expand_divide, (divisor,)))
-		new_nodes.children = nodes
-		for node in nodes:
-			node.parents = [new_node]
-			node.past.append(value)
-		return new_node
-
-	@staticmethod
 	def merge(nodes):
 		summed_value = sum(node.value for node in nodes)
-		new_node = Node(summed_value)
+		new_node = Node(summed_value, level=max(node.level for node in nodes) + 1)
 		n = len(nodes)
 		if n <= 1:
 			print("impossible case reached, merging 0 or 1 node")
@@ -206,7 +192,7 @@ class Node(TreeLike):
 			exit(1)
 		new_value = conveyor_speed // 3
 		overflow_value = self.value - new_value * 2
-		new_nodes = [Node(v, self.past) for v in sorted([new_value, new_value, overflow_value])]
+		new_nodes = [Node(v, parent_past=self.past, level=self.level + 1) for v in sorted([new_value, new_value, overflow_value])]
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
