@@ -172,7 +172,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def merge(nodes):
-		summed_value = sum(node.value for node in nodes)
+		summed_value = sum(node.value/len(node.children) for node in nodes)
 		new_node = Node(summed_value, level=max(node.level for node in nodes) + 1)
 		n = len(nodes)
 		if n <= 1:
@@ -243,6 +243,7 @@ class Node(TreeLike):
 		to_loop_value = l * divided_value
 		new_node_value = node.value + to_loop_value
 		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
+		is_loop_node_root = len(loop_node.parents) == 0
 		n_extract = conveyor_speed // Fraction(node.value, d)
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
@@ -346,8 +347,9 @@ class Node(TreeLike):
 				loop_node.children.append(merge_node)
 				merge_node.parents.append(loop_node)
 
-		if len(loop_node.parents) > 3:
-			loop_node._expands.append((2, Node.expand_merge, tuple()))
+		threshold = 2 if is_loop_node_root else 3
+		if len(loop_node.parents) > threshold:
+			loop_node._expands.append((2, Node.expand_merge, (threshold,)))
 
 		if len(extract_node.parents) > 3:
 			extract_node._expands.append((2, Node.expand_merge, tuple()))
@@ -364,6 +366,7 @@ class Node(TreeLike):
 		to_loop_value = l * Fraction(l * node.value, 2**n*3**m)
 		new_node_value = node.value + to_loop_value
 		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
+		is_loop_node_root = len(loop_node.parents) == 0
 		branches_count = compute_branches_count(n, m)
 		looping_branches = compute_looping_branches(n, m, l, branches_count)
 		values = [node.value // d]
@@ -436,23 +439,29 @@ class Node(TreeLike):
 				loop_node.children.append(merge_node)
 				merge_node.parents.append(loop_node)
 
-		if len(loop_node.parents) > 3:
-			loop_node._expands.append((2, Node.expand_merge, tuple()))
+		threshold = 2 if is_loop_node_root else 3
+		if len(loop_node.parents) > threshold:
+			loop_node._expands.append((2, Node.expand_merge, (threshold,)))
 
 		return node.level + 1, n + m
 
 	@staticmethod
-	def expand_merge(node):
+	def expand_merge(node, threshold=3):
 		# print(f"expand_merge {node}")
 		nodes_to_merge = node.parents
 		for n in nodes_to_merge:
-			n.children = []
-		while len(nodes_to_merge) > 3:
+			i = 0
+			while i < len(n.children):
+				if n.children[i] is node:
+					n.children.pop(i)
+				else:
+					i += 1
+		while len(nodes_to_merge) > threshold:
 			merged_node = Node.merge([nodes_to_merge.pop(), nodes_to_merge.pop(), nodes_to_merge.pop()])
 			merged_node.level = node.level
 			nodes_to_merge.append(merged_node)
 		for n in nodes_to_merge:
-			n.children = [node]
+			n.children.append(node)
 		node.parents = nodes_to_merge
 		# all nodes with level >= node.level must have their levels increased by cur_level - node.level
 		return 0, 0
