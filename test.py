@@ -26,7 +26,8 @@ values = [2, 2, 2, 2, 2, 5, 5, 6, 6, 10, 50]
 leaves, total_cost = Node.group_values(values)
 t = Tree([Node(12), Node(30), Node(50)])
 t.attach_leaves(leaves)
-print(t)
+print(t.pretty())
+t.save('tmp/test')
 
 exit(0)
 

@@ -80,7 +80,7 @@ class Tree:
 		# for value in self.source_values:
 		# 	self.total_seen[value] = self.total_seen.get(value, 0) + 1
 
-	def save(self, filename, unit_flow_ratio):
+	def save(self, filename, unit_flow_ratio=1):
 		Node.save(self.roots, filename, unit_flow_ratio=unit_flow_ratio)
 		Node.expand_roots(self.roots)
 		Node.save(self.roots, filename + "_expanded", unit_flow_ratio=unit_flow_ratio)
@@ -218,18 +218,23 @@ class Tree:
 	def attach_leaves(self, leaves):
 		# attach
 		assert len(leaves) == self.n_sources
+		levels = []
 		for i in range(self.n_sources):
 			src = self.sources[i]
 			for child in leaves[i].children:
 				src.children.append(child)
 				child.parents = [src]
-			self.add_all(src.children)
-
-	def add_all(self, nodes):
-		if not nodes: return
-		self.add(nodes, 0)
-		for node in nodes:
-			self.add_all(node.children)
+			if src.children:
+				levels.append(src.children)
+		while levels:
+			level = levels.pop(0)
+			# print(self.sources)
+			# print(level)
+			# print()
+			self.add(level, 0)
+			for node in level:
+				if node.children:
+					levels.append(node.children)
 
 	# graveyard
 

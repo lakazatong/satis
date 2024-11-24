@@ -31,6 +31,7 @@ class Node(TreeLike):
 			self.repr_keys = False
 			self.repr_whitelist.add('node_id')
 			self.repr_whitelist.add('_expands')
+			self.repr_whitelist.add('level')
 		else:
 			self.repr_keys = True
 			self.repr_whitelist.update(('value', 'node_id', 'parents'))
@@ -605,7 +606,9 @@ class Node(TreeLike):
 				if count > 1:
 					parent_node_value = value * count
 					parent_node = Node(parent_node_value)
-					parent_node.children.extend(nodes)
+					for node in nodes:
+						parent_node.children.append(node)
+						node.parents = [parent_node]
 					if count > 0:
 						total_cost += divide_cost(parent_node_value, count)
 						if count > 3:
