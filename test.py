@@ -22,12 +22,14 @@ from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from utils.fractions import fractions_to_integers
 import random, numpy as np
 
-values = [2, 2, 2, 2, 2, 5, 5, 6, 6, 10, 50]
+# values = [2, 2, 2, 2, 2, 5, 5, 6, 6, 10, 50]
+values = [2, 2, 2, 2, 2, 5, 5, 10]
 leaves, total_cost = Node.group_values(values)
-t = Tree([Node(12), Node(30), Node(50)])
-t.attach_leaves(leaves)
-print(t.pretty())
-t.save('tmp/test')
+print(leaves)
+# t = Tree([Node(12), Node(30), Node(50)])
+# t.attach_leaves(leaves)
+# print(t.pretty())
+# t.save('tmp/test')
 
 exit(0)
 

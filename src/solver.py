@@ -68,8 +68,9 @@ class SatisSolver:
 		source_values = r[:n_sources]
 		self.target_values = r[n_sources:]
 		
-		self.leaves_nodes, self.leaves_ns, self.size_offset = Node.group_values(self.target_values)
-		
+		self.leaves, self.size_offset = Node.group_values(self.target_values)
+		self.target_values = Node.get_node_values(self.leaves)
+
 		self.n_targets = len(self.target_values)
 
 		self.scoreCalculator = ScoreCalculator(self.target_values, self)
@@ -388,16 +389,12 @@ class SatisSolver:
 			for i, tree in enumerate(self.solutions):
 				if not self.concluding: break
 				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
-				tree.attach_leaves(self.all_leaves_info, self.all_leaves_grouping_costs)
+				tree.attach_leaves(self.leaves)
 				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)), self.unit_flow_ratio)
 		else:
 			print("Saving solution...")
 			tree = self.solutions[0]
-			# print(tree.pretty())
-			# print(tree)
-			tree.attach_leaves(self.leaves_nodes, self.leaves_ns)
-			# print(tree.pretty())
-			# print(tree)
+			tree.attach_leaves(self.leaves)
 			tree.save(os.path.join(self.problem_str, config.solutions_filename(0)), self.unit_flow_ratio)
 		print()
 
