@@ -529,7 +529,7 @@ class Node(TreeLike):
 
 	@staticmethod
 	def save(roots, filename, unit_flow_ratio=1):
-		import io, pygraphviz as pgv, traceback
+		import io, pygraphviz as pgv, traceback, os
 		try:
 			G = pgv.AGraph(strict=False, directed=True)
 
@@ -565,6 +565,7 @@ class Node(TreeLike):
 			G.draw(img_stream, format=config.solutions_filename_extension)
 			img_stream.seek(0)
 			filepath = f"{filename}.{config.solutions_filename_extension}"
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			with open(filepath, "wb") as f:
 				f.write(img_stream.getvalue())
 
