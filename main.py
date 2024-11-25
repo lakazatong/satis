@@ -7,10 +7,10 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
-import time, cProfile
+# import cProfile
 
-from src.solver import SatisSolver
-from src.utils.cli import CLI
+from solver import SatisSolver
+from utils.cli import CLI
 
 # An example class that could be used as backend for the CLI class
 class Test:
@@ -26,6 +26,7 @@ class Test:
 		pass
 
 	def run(self):
+		import time
 		# called if self.load returned True
 		print("backend running...")
 		for _ in range(30):
