@@ -70,11 +70,11 @@ class Node(TreeLike):
 			seen.add(node)
 			
 			node_tuple = (
-				node.value,
-				node.node_id,
+				(node.value.numerator, node.value.denominator) if type(node.value) == Fraction else (node.value, 1),
+				str(node.node_id),
 				node.level,
-				[parent.node_id for parent in node.parents],
-				[child.node_id for child in node.children],
+				[str(parent.node_id) for parent in node.parents],
+				[str(child.node_id) for child in node.children],
 				[(code, args) for code, _, args in node._expands]
 			)
 			output.append(node_tuple)
@@ -100,16 +100,16 @@ class Node(TreeLike):
 
 	@staticmethod
 	def unwrap(path):
-		import ast
+		import ast, uuid
 		data = None
 		with open(path, "r", encoding="utf-8") as f:
 			data = ast.literal_eval(f.read())
 		node_map = {}
 
 		for value, node_id, level, *_ in data:
-			node_map[node_id] = Node(value, node_id=node_id, level=level)
+			node_map[node_id] = Node(Fraction(value[0], value[1]), node_id=uuid.UUID(node_id), level=level)
 
-		for value, node_id, level, parents, children, expands in data:
+		for _, node_id, _, parents, children, expands in data:
 			node = node_map[node_id]
 			node.parents = [node_map[parent_id] for parent_id in parents]
 			node.children = [node_map[child_id] for child_id in children]

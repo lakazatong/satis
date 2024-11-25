@@ -16,6 +16,11 @@ from src.cost import extract_cost, divide_cost, merge_cost, find_n_m_l
 from src.utils.fractions import fractions_to_integers
 import random
 
+nodes = Node.unwrap('tmp/tmp.data')
+print(nodes[0].pretty())
+
+exit(0)
+
 node = Node(62, level=0)
 node.extract(26)
 node.expand(set())
