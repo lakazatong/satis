@@ -152,7 +152,7 @@ class Node(TreeLike):
 
 	def extract(self, value):
 		if value not in config.conveyor_speeds:
-			self._expands.append((0, Node.expand_extract, (value,)))
+			self.tag_expand_extract(value)
 		overflow_value = self.value - value
 		new_nodes = [Node(v, parent_past=self.past, level=self.level + 1) for v in sorted([value, overflow_value])]
 		for node in new_nodes:
@@ -162,7 +162,7 @@ class Node(TreeLike):
 
 	def divide(self, divisor):
 		if divisor > 3:
-			self._expands.append((1, Node.expand_divide, (divisor,)))
+			self.tag_expand_divide(divisor)
 		divided_value = self.value // divisor
 		new_nodes = [Node(divided_value, parent_past=self.past, level=self.level + 1) for _ in range(divisor)]
 		for node in new_nodes:
@@ -181,7 +181,7 @@ class Node(TreeLike):
 			print("impossible case reached, merging 0 or 1 node")
 			exit(1)
 		if n > 3:
-			new_node._expands.append((2, Node.expand_merge, tuple()))
+			new_node.tag_expand_merge()
 		for node in nodes:
 			node.children.append(new_node)
 			new_node.parents.append(node)
@@ -198,7 +198,7 @@ class Node(TreeLike):
 		for node in new_nodes:
 			self._children.append(node)
 			node.parents.append(self)
-		self._expands.append((3, Node.expand_split, (conveyor_speed,)))
+		self.tag_expand_split(conveyor_speed)
 		return new_nodes
 
 	def min_level(self, seen):
@@ -234,6 +234,9 @@ class Node(TreeLike):
 		for child in self.children:
 			if child in seen: continue
 			child.apply_levels_update(seen)
+
+	def tag_expand_extract(self, conveyor_speed):
+		self._expands.append((0, Node.expand_extract, (conveyor_speed,)))
 
 	@staticmethod
 	def expand_extract(node, conveyor_speed):
@@ -353,21 +356,24 @@ class Node(TreeLike):
 
 		threshold = 2 if is_loop_node_root else 3
 		if len(loop_node.parents) > threshold:
-			loop_node._expands.append((2, Node.expand_merge, (threshold,)))
+			loop_node.tag_expand_merge(threshold)
 
 		if len(extract_node.parents) > 3:
-			extract_node._expands.append((2, Node.expand_merge, tuple()))
+			extract_node.tag_expand_merge()
 
 		if len(overflow_node.parents) > 3:
-			overflow_node._expands.append((2, Node.expand_merge, tuple()))
+			overflow_node.tag_expand_merge()
 
 		return node.level + 1, n + m
 
+	def tag_expand_divide(self, divisor):
+		self._expands.append((1, Node.expand_divide, (divisor,)))
+
 	@staticmethod
-	def expand_divide(node, d):
+	def expand_divide(node, divisor):
 		# print(f"expand_divide {node}")
-		n, m, l, n_splitters = find_n_m_l(d)
-		to_loop_value = Fraction(l * node.value, d)
+		n, m, l, n_splitters = find_n_m_l(divisor)
+		to_loop_value = Fraction(l * node.value, divisor)
 		new_node_value = node.value + to_loop_value
 		loop_node = Node(to_loop_value) if new_node_value > config.conveyor_speed_limit else node
 		is_loop_node_root = len(loop_node.parents) == 0
@@ -444,12 +450,15 @@ class Node(TreeLike):
 
 		threshold = 2 if is_loop_node_root else 3
 		if len(loop_node.parents) > threshold:
-			loop_node._expands.append((2, Node.expand_merge, (threshold,)))
+			loop_node.tag_expand_merge(threshold)
 
 		return node.level + 1, n + m
 
+	def tag_expand_merge(self, threshold=3):
+		self._expands.append((2, Node.expand_merge, (threshold,)))
+
 	@staticmethod
-	def expand_merge(node, threshold=3):
+	def expand_merge(node, threshold):
 		# print(f"expand_merge {node}")
 		nodes_to_merge = node.parents
 		if len(nodes_to_merge) <= threshold: return 0, 0
@@ -467,6 +476,9 @@ class Node(TreeLike):
 		node.parents = nodes_to_merge
 		# all nodes with level >= node.level must have their levels increased by cur_level - node.level
 		return 0, 0
+
+	def tag_expand_split(self, conveyor_speed):
+		self._expands.append((3, Node.expand_split, (conveyor_speed,)))
 
 	@staticmethod
 	def expand_split(node, conveyor_speed):
@@ -610,7 +622,7 @@ class Node(TreeLike):
 					if count > 0:
 						total_cost += divide_cost(parent_node_value, count)
 						if count > 3:
-							parent_node._expands.append((1, Node.expand_divide, (count,)))
+							parent_node.tag_expand_divide(count)
 					insort(next_level, parent_node, key=lambda node: node.value)
 				else:
 					insort(next_level, nodes[0], key=lambda node: node.value)

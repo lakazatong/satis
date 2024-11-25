@@ -220,7 +220,7 @@ class Tree:
 				levels.append(src.children)
 				n = len(src.children)
 				if n > 3:
-					src._expands.append((1, Node.expand_divide, (n,)))
+					src.tag_expand_divide(n)
 		while levels:
 			level = levels.pop(0)
 			# print(self.sources)
