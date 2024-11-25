@@ -1,5 +1,5 @@
-from utils.fastlist import FastList
-from node import Node
+from src.utils.fastlist import FastList
+from src.node import Node
 
 # responsible for updating level of all nodes while providing a quick access to past sources
 class Tree:

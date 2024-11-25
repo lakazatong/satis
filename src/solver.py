@@ -1,12 +1,12 @@
 import os
 
-from utils.solver import get_sim_without
-from utils.text import print_standing_text
+from src.utils.solver import get_sim_without
+from src.utils.text import print_standing_text
 
-from cost import extract_cost, divide_cost, merge_cost, split_cost
+from src.cost import extract_cost, divide_cost, merge_cost, split_cost
 from bisect import insort
 from config import config
-from node import Node
+from src.node import Node
 
 class SatisSolver:
 	def __init__(self):
@@ -19,7 +19,7 @@ class SatisSolver:
 		os.fsync(self.log_file_handle.fileno())
 
 	def load(self, user_input):
-		from utils.solver import parse_user_input
+		from src.utils.solver import parse_user_input
 		import traceback
 		try:
 			source_values, target_values = parse_user_input(user_input)
@@ -29,12 +29,12 @@ class SatisSolver:
 			return False
 		if not source_values or not target_values: return False
 
-		from score import ScoreCalculator
-		from tree import Tree
-		from utils.fractions import format_fractions, fractions_to_integers
-		from utils.solver import get_compute_cant_use, get_gcd_incompatible
-		from utils.math import compute_gcd
-		from utils.other import remove_pairs
+		from src.score import ScoreCalculator
+		from src.tree import Tree
+		from src.utils.fractions import format_fractions, fractions_to_integers
+		from src.utils.solver import get_compute_cant_use, get_gcd_incompatible
+		from src.utils.math import compute_gcd
+		from src.utils.other import remove_pairs
 
 		self.reset()
 
@@ -92,7 +92,6 @@ class SatisSolver:
 		return True
 
 	def best_size_upper_bond(self):
-		from utils import remove_pairs
 		sources = self.tree_source.source_values
 		r = 0
 		r = merge_cost(len(sources), 1)

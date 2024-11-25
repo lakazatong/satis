@@ -7,20 +7,14 @@ if sys.platform == "win32":
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
 		os.environ["PATH"] += f";{path}"
 
-import itertools, time, math
-from bisect import insort
-from utils.fastlist import FastList
-from config import config
-from utils.other import remove_pairs
+from src.utils.other import remove_pairs
 from fractions import Fraction
-from score import ScoreCalculator
 import matplotlib.pyplot as plt
-import ast
-from node import Node
-from tree import Tree
-from cost import extract_cost, divide_cost, merge_cost, find_n_m_l
-from utils.fractions import fractions_to_integers
-import random, numpy as np
+from src.node import Node
+from src.tree import Tree
+from src.cost import extract_cost, divide_cost, merge_cost, find_n_m_l
+from src.utils.fractions import fractions_to_integers
+import random
 
 node = Node(62, level=0)
 node.extract(26)

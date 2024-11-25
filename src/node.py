@@ -1,6 +1,6 @@
 from treelike import TreeLike
 from config import config
-from cost import find_n_m_l, compute_branches_count, compute_looping_branches
+from src.cost import find_n_m_l, compute_branches_count, compute_looping_branches
 from fractions import Fraction
 
 class Node(TreeLike):
@@ -17,7 +17,7 @@ class Node(TreeLike):
 		super().__init__()
 		if not isinstance(value, int) and not isinstance(value, Fraction): raise ValueError(f"not int or Fraction ({type(value)} {value})")
 		import uuid
-		from utils.fastlist import FastList
+		from src.utils.fastlist import FastList
 		self.value = value
 		self.node_id = node_id if node_id is not None else uuid.uuid4()
 		self.level = level
@@ -597,7 +597,7 @@ class Node(TreeLike):
 	@staticmethod
 	def group_values(values):
 		# 2 2 2 2 2 5 5 6 6 10 50
-		from cost import divide_cost
+		from src.cost import divide_cost
 		from bisect import insort
 		levels = []
 		total_cost = 0

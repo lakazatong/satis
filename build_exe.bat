@@ -1,1 +1,1 @@
-pyinstaller --onefile --icon=icon.ico main.py
+pyinstaller --noconfirm --onefile --console --icon "C:\Users\Bo_wo\Desktop\code\satis\icon.ico" --name "FlowSolver" "C:\Users\Bo_wo\Desktop\code\satis\main.py"

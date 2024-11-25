@@ -1,4 +1,4 @@
-from cost import merge_cost
+from src.cost import merge_cost
 
 class ScoreCalculator:
 	def __init__(self, targets, solver):
@@ -8,7 +8,7 @@ class ScoreCalculator:
 		self.individual_cache = {}
 
 	def score_extract(self, src):
-		from cost import extract_cost
+		from src.cost import extract_cost
 		score = 0
 		for c in range(1, (src - 1) // 2 + 1):
 			if not self.solver.solving: return score
@@ -23,7 +23,7 @@ class ScoreCalculator:
 		return score
 
 	def score_divide(self, src):
-		from cost import divide_cost
+		from src.cost import divide_cost
 		score = 0
 		for d in (d for d in range(2, src + 1) if src % d == 0):
 			if not self.solver.solving: return 0
@@ -34,7 +34,7 @@ class ScoreCalculator:
 
 	def score_split(self, src):
 		if not self.solver.solving: return 0
-		from cost import split_cost
+		from src.cost import split_cost
 		from config import config
 		c = next((c for c in config.conveyor_speeds if c > src), None)
 		if not c: return 0
@@ -57,8 +57,8 @@ class ScoreCalculator:
 
 	def compute(self, given_sources):
 		if not self.solver.solving: return 0
-		from utils import remove_pairs
-		from utils.math import find_linear_combinations, all_sums
+		from src.utils import remove_pairs
+		from src.utils.math import find_linear_combinations, all_sums
 		sources, targets = remove_pairs(given_sources, self.targets)
 		n = len(sources)
 		n_matching_sources = self.n_targets - len(targets)

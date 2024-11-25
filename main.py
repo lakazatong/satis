@@ -1,7 +1,8 @@
 import sys, os, pathlib
-dirpath = os.path.abspath(os.path.join(__file__, '..'))
-sys.path.append(dirpath)
-sys.path.append(os.path.join(dirpath, 'src'))
+dirpath = os.path.dirname(os.path.abspath(__file__))
+src_path = os.path.join(dirpath, "src")
+if dirpath not in sys.path: sys.path.insert(0, dirpath)
+if src_path not in sys.path: sys.path.insert(0, src_path)
 if sys.platform == "win32":
 	path = pathlib.Path(r"C:\Program Files\Graphviz\bin")
 	if path.is_dir() and str(path) not in os.environ["PATH"]:
@@ -9,8 +10,8 @@ if sys.platform == "win32":
 
 # import cProfile
 
-from solver import SatisSolver
-from utils.cli import CLI
+from src.solver import SatisSolver
+from src.utils.cli import CLI
 
 # An example class that could be used as backend for the CLI class
 class Test:
