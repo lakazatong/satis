@@ -87,7 +87,7 @@ class SatisSolver:
 		self.best_size = self.best_size_upper_bond() + self.size_offset
 		gcd = compute_gcd(*source_values, *self.target_values)
 		self.gcd_incompatible = get_gcd_incompatible(gcd)
-		print(f"\nSolutions' size upper bound: {self.best_size}, {gcd = }\n")
+		print()
 
 		return True
 
@@ -398,11 +398,13 @@ class SatisSolver:
 				print_standing_text(f"Saving solutions... {i+1}/{self.solutions_count}")
 				tree.attach_leaves(self.leaves)
 				tree.save(os.path.join(self.problem_str, config.solutions_filename(i)), self.unit_flow_ratio)
+			print(f"\n\nSolutions saved at {self.problem_str}")
 		else:
 			print("Saving solution...")
 			tree = self.solutions[0]
 			tree.attach_leaves(self.leaves)
 			tree.save(os.path.join(self.problem_str, config.solutions_filename(0)), self.unit_flow_ratio)
+			print(f"\nSolution saved at {self.problem_str}")
 		print()
 
 	# simple state machine

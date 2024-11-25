@@ -88,13 +88,18 @@ def format_fractions(fractions):
 
 def parse_fraction(fraction_str):
 	from fractions import Fraction
-	import re
-	if '/' in fraction_str:
-		numerator, denominator = fraction_str.split('/')
-		return Fraction(int(numerator), int(denominator))
+	slash_symbols = ['/', '⧸']
+	for slash_symbol in slash_symbols:
+		if slash_symbol in fraction_str:
+			numerator, denominator = fraction_str.split(slash_symbol)
+			return Fraction(int(numerator), int(denominator))
 	
+	import re
 	match = re.match(r'(\d*)\.(\d*)\((\d+)\)', fraction_str)
 	if match:
+		# supports notation like 2.(3) for 2.3333333333333...
+		# the () notation is widely accepted and is non ambiguous, for example
+		# 4.787878(457) means 4.787878457457457457457457... 457 repeating even tho 787878 was before
 		whole_part = match.group(1)
 		non_repeating = match.group(2)
 		repeating = match.group(3)
@@ -110,7 +115,9 @@ def parse_fraction(fraction_str):
 
 		return Fraction(numerator, denominator)
 
+	# whereas, 8.123(456)7 wouldnt match, so it would fall down to float(8.1234567) basically
 	if '.' in fraction_str:
-		return Fraction(str(float(fraction_str))).limit_denominator()
+		return Fraction(fraction_str.replace('(', '').replace(')', '')).limit_denominator()
 	
+	# if there is no '.' it requires the string to match \d+ basically and will be interpreted as an integer
 	return Fraction(int(fraction_str), 1)
