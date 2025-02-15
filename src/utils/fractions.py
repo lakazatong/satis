@@ -101,8 +101,8 @@ def parse_fraction(fraction_str):
 		if slash_symbol in fraction_str:
 			numerator, denominator = fraction_str.split(slash_symbol)
 			return Fraction(int(numerator), int(denominator))
-	if '.' not in decimal: return Fraction(int(decimal))
-	w, f, r = parse_decimal(decimal)
+	if '.' not in fraction_str: return Fraction(int(fraction_str))
+	w, f, r = parse_decimal(fraction_str)
 	f_len = len(f)
 	res = Fraction(w)
 	if f: res += Fraction(int(f), 10**f_len)
