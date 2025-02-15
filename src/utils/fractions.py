@@ -86,6 +86,14 @@ def format_fractions(fractions):
 
 	return ' '.join(output)
 
+def parse_decimal(decimal_str):
+	import re
+	match = re.match(r'(\d*)\.(\d*)(?:\((\d+)\))?', decimal_str)
+	if not match:
+		raise ValueError("Invalid format. Use w.f, w.(r) or w.f(r) for decimals, or just w for whole numbers.")
+	w, f, r = match.groups()
+	return int(w or 0), f or '', r or ''
+
 def parse_fraction(fraction_str):
 	from fractions import Fraction
 	slash_symbols = ['/', '⧸']
@@ -93,31 +101,10 @@ def parse_fraction(fraction_str):
 		if slash_symbol in fraction_str:
 			numerator, denominator = fraction_str.split(slash_symbol)
 			return Fraction(int(numerator), int(denominator))
-	
-	import re
-	match = re.match(r'(\d*)\.(\d*)\((\d+)\)', fraction_str)
-	if match:
-		# supports notation like 2.(3) for 2.3333333333333...
-		# the () notation is widely accepted and is non ambiguous, for example
-		# 4.787878(457) means 4.787878457457457457457457... 457 repeating even tho 787878 was before
-		whole_part = match.group(1)
-		non_repeating = match.group(2)
-		repeating = match.group(3)
-		
-		if not whole_part:
-			whole_part = '0'
-		
-		non_repeating_len = len(non_repeating)
-		repeating_len = len(repeating)
-
-		numerator = int(whole_part + non_repeating + repeating) - int(whole_part + non_repeating)
-		denominator = (10 ** (non_repeating_len + repeating_len) - 10 ** non_repeating_len)
-
-		return Fraction(numerator, denominator)
-
-	# whereas, 8.123(456)7 wouldnt match, so it would fall down to float(8.1234567) basically
-	if '.' in fraction_str:
-		return Fraction(fraction_str.replace('(', '').replace(')', '')).limit_denominator()
-	
-	# if there is no '.' it requires the string to match \d+ basically and will be interpreted as an integer
-	return Fraction(int(fraction_str), 1)
+	if '.' not in decimal: return Fraction(int(decimal))
+	w, f, r = parse_decimal(decimal)
+	f_len = len(f)
+	res = Fraction(w)
+	if f: res += Fraction(int(f), 10**f_len)
+	if r: res += Fraction(int(r), 10**f_len*(10**len(r)-1))
+	return res
